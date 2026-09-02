@@ -75,34 +75,6 @@ let frameSampler;
 function createNeptune()
 {
     const planetName = 'neptune';
-    const budget     = PLANET_PARTICLE_CONFIG[planetName].surface;
-    const tiers      = [budget, Math.floor(budget * 0.75), Math.floor(budget * 0.5), 250000];
-    const allocation = ParticleBuilder.allocate(tiers, (count) => ({
-        positions: new Float32Array(count * 3),
-        colors   : new Float32Array(count * 3)
-    }));
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(allocation.value.positions, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(allocation.value.colors, 3));
-    geo.setDrawRange(0, 0);
-
-    const mat = new THREE.PointsMaterial({
-        size           : 0.055,
-        vertexColors   : true,
-        transparent    : true,
-        opacity        : 0.85,
-        sizeAttenuation: true
-    });
-    const planet = new THREE.Points(geo, mat);
-    planetSpinGroup.add(planet);
-
-    frameSampler = ParticleBuilder.createFrameSampler({
-        geometry: geo,
-        maxCount: allocation.count,
-        setDynamicStride() {}
-    });
-
     const noiseGen      = new SimplexNoise('neptune-wind-shear');
 
     const colDeep   = new THREE.Color('#1a237e');
@@ -164,38 +136,25 @@ function createNeptune()
         colors[offset + 2] = c.b;
     }
 
-    ParticleBuilder.build({
-        total           : allocation.count,
-        readyCount      : Math.min(250000, allocation.count),
-        initialBatchSize: 10000,
-        writeBatch(start, end)
-        {
-            for (let i = start; i < end; i++)
-            {
-                sampleSurfaceParticle(i, allocation.value.positions, allocation.value.colors);
-            }
-            ParticleBuilder.markAttributeRange(geo.attributes.position, start * 3, (end - start) * 3);
-            ParticleBuilder.markAttributeRange(geo.attributes.color, start * 3, (end - start) * 3);
+    const surface = ParticleBuilder.createSurfaceBuild({
+        planetName,
+        budget: PLANET_PARTICLE_CONFIG[planetName].surface,
+        sample: sampleSurfaceParticle,
+        material: {
+            size           : 0.055,
+            vertexColors   : true,
+            transparent    : true,
+            opacity        : 0.85,
+            sizeAttenuation: true
         },
-        setDrawCount: frameSampler.setBuiltCount,
+        group: planetSpinGroup,
         onReady()
         {
             renderer.render(scene, camera);
             ParticleBuilder.markReady({page: planetName});
-        },
-        onProgress(percent)
-        {
-            document.getElementById('particle-build-progress').textContent = `${percent}%`;
-        },
-        onComplete()
-        {
-            document.getElementById('particle-build-progress').textContent = 'READY';
-        },
-        onError(error)
-        {
-            console.error(`[${planetName}] surface generation stopped`, error);
         }
     });
+    frameSampler = surface.frameSampler;
 
     const wireGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(5.32, 32, 16));
     const wireMat = new THREE.LineBasicMaterial({

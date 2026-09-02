@@ -80,18 +80,6 @@ let frameSampler;
 function createEarth()
 {
     const planetName = 'earth';
-    const budget     = PLANET_PARTICLE_CONFIG[planetName].surface;
-    const tiers      = [budget, Math.floor(budget * 0.75), Math.floor(budget * 0.5), 250000];
-    const allocation = ParticleBuilder.allocate(tiers, (count) => ({
-        positions: new Float32Array(count * 3),
-        colors   : new Float32Array(count * 3)
-    }));
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(allocation.value.positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(allocation.value.colors, 3));
-    geometry.setDrawRange(0, 0);
-
     const colLandBase = new THREE.Color('#3e6b48');
     const colLandHigh = new THREE.Color('#9abf8a');
     const colOcean    = new THREE.Color('#1a2b4a');
@@ -100,21 +88,6 @@ function createEarth()
     const surfaceColor = new THREE.Color();
 
     // [建议] 稍微调小 size，配合高密度粒子，看起来更像细腻的沙盘
-    const surfaceMaterial = new THREE.PointsMaterial({
-        size        : 0.045,
-        vertexColors: true,
-        transparent : true,
-        opacity     : 0.9
-    });
-    const points = new THREE.Points(geometry, surfaceMaterial);
-    earthSystemGroup.add(points);
-
-    frameSampler = ParticleBuilder.createFrameSampler({
-        geometry,
-        maxCount: allocation.count,
-        setDynamicStride() {}
-    });
-
     function sampleSurfaceParticle(i, positions, colors)
     {
         const rBase = 5.0;
@@ -176,38 +149,23 @@ function createEarth()
         }
     }
 
-    ParticleBuilder.build({
-        total           : allocation.count,
-        readyCount      : Math.min(250000, allocation.count),
-        initialBatchSize: 10000,
-        writeBatch(start, end)
-        {
-            for (let i = start; i < end; i++)
-            {
-                sampleSurfaceParticle(i, allocation.value.positions, allocation.value.colors);
-            }
-            ParticleBuilder.markAttributeRange(geometry.attributes.position, start * 3, (end - start) * 3);
-            ParticleBuilder.markAttributeRange(geometry.attributes.color, start * 3, (end - start) * 3);
+    frameSampler = ParticleBuilder.createSurfaceLayer({
+        planetName,
+        budget: PLANET_PARTICLE_CONFIG[planetName].surface,
+        sample: sampleSurfaceParticle,
+        material: {
+            size        : 0.045,
+            vertexColors: true,
+            transparent : true,
+            opacity     : 0.9
         },
-        setDrawCount: frameSampler.setBuiltCount,
+        group: earthSystemGroup,
         onReady()
         {
             renderer.render(scene, camera);
             ParticleBuilder.markReady({page: planetName});
-        },
-        onProgress(percent)
-        {
-            document.getElementById('particle-build-progress').textContent = `${percent}%`;
-        },
-        onComplete()
-        {
-            document.getElementById('particle-build-progress').textContent = 'READY';
-        },
-        onError(error)
-        {
-            console.error(`[${planetName}] surface generation stopped`, error);
         }
-    });
+    }).frameSampler;
 
     // 地球网格 (基准参考面)
     const wireGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(5.0, 24, 24));
@@ -388,24 +346,27 @@ function animate(timestamp)
     // 1. 地球自转
     earthSystemGroup.rotation.y += 0.0015;
 
-    // 2. 云层差速
-    cloudGroup.rotation.y += 0.0005;
-
-    // 3. LEO 卫星动画
-    leoSats.forEach(sat =>
+    if (frameCount % frameSampler.dynamicStride === 0)
     {
-        sat.angle += sat.speed;
-        sat.mesh.position.x = sat.radius * Math.cos(sat.angle);
-        sat.mesh.position.z = sat.radius * Math.sin(sat.angle);
-        sat.mesh.rotation.y += 0.02;
-        sat.mesh.rotation.z = -sat.angle;
-    });
+        // 2. 云层差速
+        cloudGroup.rotation.y += 0.0005;
 
-    // 4. 月球公转 & 自转
-    moonAngle += 0.0002;
-    moonBodyGroup.position.x = moonRadius * Math.cos(moonAngle);
-    moonBodyGroup.position.z = moonRadius * Math.sin(moonAngle);
-    moonBodyGroup.rotation.y = moonAngle;
+        // 3. LEO 卫星动画
+        leoSats.forEach(sat =>
+        {
+            sat.angle += sat.speed;
+            sat.mesh.position.x = sat.radius * Math.cos(sat.angle);
+            sat.mesh.position.z = sat.radius * Math.sin(sat.angle);
+            sat.mesh.rotation.y += 0.02;
+            sat.mesh.rotation.z = -sat.angle;
+        });
+
+        // 4. 月球公转 & 自转
+        moonAngle += 0.0002;
+        moonBodyGroup.position.x = moonRadius * Math.cos(moonAngle);
+        moonBodyGroup.position.z = moonRadius * Math.sin(moonAngle);
+        moonBodyGroup.rotation.y = moonAngle;
+    }
 
     // 5. [核心] 更新交互状态
     updateInteraction(group, camera);

@@ -86,35 +86,6 @@ const ringUniforms = {
 function createJupiter()
 {
     const planetName = 'jupiter';
-    const budget     = PLANET_PARTICLE_CONFIG[planetName].surface;
-    const tiers      = [budget, Math.floor(budget * 0.75), Math.floor(budget * 0.5), 250000];
-    const allocation = ParticleBuilder.allocate(tiers, (count) => ({
-        positions: new Float32Array(count * 3),
-        colors   : new Float32Array(count * 3)
-    }));
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(allocation.value.positions, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(allocation.value.colors, 3));
-    geo.setDrawRange(0, 0);
-
-    const mat = new THREE.PointsMaterial({
-        size           : 0.07,
-        vertexColors   : true,
-        transparent    : true,
-        opacity        : 0.95,
-        sizeAttenuation: true
-    });
-
-    jupiterSurface = new THREE.Points(geo, mat);
-    jupiterSpinGroup.add(jupiterSurface);
-
-    frameSampler = ParticleBuilder.createFrameSampler({
-        geometry: geo,
-        maxCount: allocation.count,
-        setDynamicStride() {}
-    });
-
     const noiseGen = new SimplexNoise('jupiter-ultimate-final');
     const surfaceColor = new THREE.Color();
 
@@ -201,38 +172,26 @@ function createJupiter()
         colors[offset + 2] = c.b;
     }
 
-    ParticleBuilder.build({
-        total           : allocation.count,
-        readyCount      : Math.min(250000, allocation.count),
-        initialBatchSize: 10000,
-        writeBatch(start, end)
-        {
-            for (let i = start; i < end; i++)
-            {
-                sampleSurfaceParticle(i, allocation.value.positions, allocation.value.colors);
-            }
-            ParticleBuilder.markAttributeRange(geo.attributes.position, start * 3, (end - start) * 3);
-            ParticleBuilder.markAttributeRange(geo.attributes.color, start * 3, (end - start) * 3);
+    const surface = ParticleBuilder.createSurfaceBuild({
+        planetName,
+        budget: PLANET_PARTICLE_CONFIG[planetName].surface,
+        sample: sampleSurfaceParticle,
+        material: {
+            size           : 0.07,
+            vertexColors   : true,
+            transparent    : true,
+            opacity        : 0.95,
+            sizeAttenuation: true
         },
-        setDrawCount: frameSampler.setBuiltCount,
+        group: jupiterSpinGroup,
         onReady()
         {
             renderer.render(scene, camera);
             ParticleBuilder.markReady({page: planetName});
-        },
-        onProgress(percent)
-        {
-            document.getElementById('particle-build-progress').textContent = `${percent}%`;
-        },
-        onComplete()
-        {
-            document.getElementById('particle-build-progress').textContent = 'READY';
-        },
-        onError(error)
-        {
-            console.error(`[${planetName}] surface generation stopped`, error);
         }
     });
+    jupiterSurface = surface.points;
+    frameSampler = surface.frameSampler;
 
     // ==========================================
     // Layer 2: 平流层薄雾

@@ -138,67 +138,28 @@ function sampleSunSurfaceParticle(i, positions, colors)
 function createSunSurface()
 {
     const planetName = 'sun';
-    const budget     = PLANET_PARTICLE_CONFIG[planetName].surface;
-    const tiers      = [budget, Math.floor(budget * 0.75), Math.floor(budget * 0.5), 250000];
-    const allocation = ParticleBuilder.allocate(tiers, (count) => ({
-        positions: new Float32Array(count * 3),
-        colors   : new Float32Array(count * 3)
-    }));
-
-    sunSurfaceGeometry = new THREE.BufferGeometry();
-    sunSurfaceGeometry.setAttribute('position', new THREE.BufferAttribute(allocation.value.positions, 3));
-    sunSurfaceGeometry.setAttribute('color', new THREE.BufferAttribute(allocation.value.colors, 3));
-    sunSurfaceGeometry.setDrawRange(0, 0);
-
-    const surfaceMaterial = new THREE.PointsMaterial({
-        size           : 0.09,
-        vertexColors   : true,
-        transparent    : true,
-        opacity        : 0.95,
-        blending       : THREE.AdditiveBlending,
-        sizeAttenuation: true
-    });
-    sunSurfaceParticles = new THREE.Points(sunSurfaceGeometry, surfaceMaterial);
-    sunGroup.add(sunSurfaceParticles);
-
-    frameSampler = ParticleBuilder.createFrameSampler({
-        geometry: sunSurfaceGeometry,
-        maxCount: allocation.count,
-        setDynamicStride() {}
-    });
-
-    ParticleBuilder.build({
-        total           : allocation.count,
-        readyCount      : Math.min(250000, allocation.count),
-        initialBatchSize: 10000,
-        writeBatch(start, end)
-        {
-            for (let i = start; i < end; i++)
-            {
-                sampleSunSurfaceParticle(i, allocation.value.positions, allocation.value.colors);
-            }
-            ParticleBuilder.markAttributeRange(sunSurfaceGeometry.attributes.position, start * 3, (end - start) * 3);
-            ParticleBuilder.markAttributeRange(sunSurfaceGeometry.attributes.color, start * 3, (end - start) * 3);
+    const surface = ParticleBuilder.createSurfaceBuild({
+        planetName,
+        budget: PLANET_PARTICLE_CONFIG[planetName].surface,
+        sample: sampleSunSurfaceParticle,
+        material: {
+            size           : 0.09,
+            vertexColors   : true,
+            transparent    : true,
+            opacity        : 0.95,
+            blending       : THREE.AdditiveBlending,
+            sizeAttenuation: true
         },
-        setDrawCount: frameSampler.setBuiltCount,
+        group: sunGroup,
         onReady()
         {
             renderer.render(scene, camera);
             ParticleBuilder.markReady({page: planetName});
-        },
-        onProgress(percent)
-        {
-            document.getElementById('particle-build-progress').textContent = `${percent}%`;
-        },
-        onComplete()
-        {
-            document.getElementById('particle-build-progress').textContent = 'READY';
-        },
-        onError(error)
-        {
-            console.error(`[${planetName}] surface generation stopped`, error);
         }
     });
+    sunSurfaceGeometry = surface.geometry;
+    sunSurfaceParticles = surface.points;
+    frameSampler = surface.frameSampler;
 }
 
 createSunSurface();

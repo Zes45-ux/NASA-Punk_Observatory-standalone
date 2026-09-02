@@ -397,7 +397,7 @@ const GIANT_BUDGETS = {jupiter: 1_500_000, saturn: 1_350_000, uranus: 1_200_000,
 const SUN_BUDGET = 1_600_000;
 const DYNAMIC_CEILINGS = {sun: 80_000, jupiter: 80_000, saturn: 60_000, uranus: 40_000, neptune: 60_000};
 
-function loadPlanetRuntime(planetName, {allocationCount = 300000} = {}) {
+function loadPlanetRuntime(planetName, {allocationCount = 300000, includeProgress = true} = {}) {
     const allocations = [];
     const builds = [];
     const readiness = [];
@@ -733,15 +733,19 @@ function loadPlanetRuntime(planetName, {allocationCount = 300000} = {}) {
     const document = {
         getElementById(id) {
             if (id === 'canvas-container') return canvasContainer;
-            if (id === 'particle-build-progress') return progress;
+            if (id === 'particle-build-progress' && includeProgress) return progress;
             return null;
         },
         querySelector() { return {}; }
     };
 
     function requestAnimationFrame(callback) {
-        if (callback.name === 'animate') animationCallbacks.push(callback);
-        else builderCallbacks.push(callback);
+        animationCallbacks.push(callback);
+        return animationCallbacks.length + builderCallbacks.length;
+    }
+
+    function requestBuilderAnimationFrame(callback) {
+        builderCallbacks.push(callback);
         return animationCallbacks.length + builderCallbacks.length;
     }
 
@@ -764,6 +768,9 @@ function loadPlanetRuntime(planetName, {allocationCount = 300000} = {}) {
         log() {},
         warn() {}
     };
+    window.document = document;
+    window.THREE = THREE;
+    window.console = runtimeConsole;
     const sandbox = {
         window,
         document,
@@ -791,33 +798,35 @@ function loadPlanetRuntime(planetName, {allocationCount = 300000} = {}) {
         filename: 'scripts/core/particle-builder.js'
     });
     const ParticleBuilder = sandbox.ParticleBuilder = window.ParticleBuilder;
-    const originalAllocate = ParticleBuilder.allocate;
-    ParticleBuilder.allocate = (counts, factory) => {
-        allocations.push(Array.from(counts));
-        const allocation = originalAllocate([allocationCount], factory);
-        return allocation;
-    };
-    const originalCreateFrameSampler = ParticleBuilder.createFrameSampler;
-    ParticleBuilder.createFrameSampler = (options) => {
-        const sampler = originalCreateFrameSampler(options);
-        samplers.push({options, sampler});
-        return sampler;
-    };
-    const originalBuild = ParticleBuilder.build;
-    ParticleBuilder.build = (options) => {
-        builds.push(options);
-        const onComplete = options.onComplete;
-        options.onComplete = () => {
-            completionEvents.push(true);
-            onComplete();
+    function captureSurfaceFactory(factory) {
+        return (options) => {
+            allocations.push([
+                options.budget,
+                Math.floor(options.budget * 0.75),
+                Math.floor(options.budget * 0.5),
+                250000
+            ]);
+            const onComplete = options.onComplete;
+            const surface = factory({
+                ...options,
+                budget: allocationCount,
+                schedule: requestBuilderAnimationFrame,
+                onComplete: () => {
+                    completionEvents.push(true);
+                    if (onComplete) onComplete();
+                }
+            });
+            builds.push({
+                total: surface.allocation.count,
+                readyCount: Math.min(250000, surface.allocation.count),
+                initialBatchSize: 10000
+            });
+            samplers.push({options, sampler: surface.frameSampler});
+            return surface;
         };
-        const onError = options.onError;
-        options.onError = (error) => {
-            errors.push(error);
-            onError(error);
-        };
-        return originalBuild(options);
     };
+    ParticleBuilder.createSurfaceBuild = captureSurfaceFactory(ParticleBuilder.createSurfaceBuild);
+    ParticleBuilder.createSurfaceLayer = captureSurfaceFactory(ParticleBuilder.createSurfaceLayer);
 
     vm.runInNewContext(fs.readFileSync(`scripts/planets/${planetName}.js`, 'utf8'), sandbox, {
         filename: `scripts/planets/${planetName}.js`
@@ -892,6 +901,15 @@ test('rocky runtimes complete progressive surface builds within bounds', () => {
             assert.ok(attribute.array.every(Number.isFinite), `${planetName} finite attribute values`);
         }
     }
+});
+
+test('surface generation continues without a progress element', () => {
+    const env = loadRockyRuntime('mercury', {includeProgress: false});
+    env.driveBuild();
+    assert.equal(env.readiness.length, 1);
+    assert.equal(env.completionEvents.length, 1);
+    assert.equal(env.errors.length, 0);
+    assert.equal(env.progressValues.length, 0);
 });
 
 test('giant runtimes complete progressive surfaces without consuming auxiliary geometry budgets', () => {
@@ -1035,6 +1053,46 @@ test('every planet runtime samples profile state in its existing animation loop'
         env.driveBuild();
         assert.equal(sampler.ready, true, `${planetName} sampler unlocks after readiness render`);
     }
+});
+
+test('mars and earth gate dynamic layers with the adaptive stride', () => {
+    const tick = (env, time) => {
+        const callback = env.animationCallbacks.shift();
+        assert.equal(typeof callback, 'function');
+        callback(time);
+    };
+
+    const mars = loadPlanetRuntime('mars');
+    mars.driveBuild();
+    for (let i = 0; i <= 120; i++) tick(mars, i * 40);
+    const marsAtmosphere = mars.surface.parent.parent.children[1];
+    const marsMoon = mars.surface.parent.parent.children[2].children[0].children[1];
+    const marsAtmosphereBefore = marsAtmosphere.rotation.y;
+    const marsMoonBefore = marsMoon.position.x;
+    tick(mars, 121 * 40);
+    assert.equal(marsAtmosphere.rotation.y, marsAtmosphereBefore);
+    assert.equal(marsMoon.position.x, marsMoonBefore);
+    tick(mars, 122 * 40);
+    assert.notEqual(marsAtmosphere.rotation.y, marsAtmosphereBefore);
+    assert.notEqual(marsMoon.position.x, marsMoonBefore);
+
+    const earth = loadPlanetRuntime('earth');
+    earth.driveBuild();
+    for (let i = 0; i <= 120; i++) tick(earth, i * 40);
+    const cloudGroup = earth.surface.parent.children[2];
+    const leoSatellite = earth.surface.parent.parent.children[1].children[0].children[1];
+    const moonGroup = earth.surface.parent.parent.parent.children[1].children[0];
+    const cloudBefore = cloudGroup.rotation.y;
+    const satelliteBefore = leoSatellite.position.x;
+    const moonBefore = moonGroup.position.x;
+    tick(earth, 121 * 40);
+    assert.equal(cloudGroup.rotation.y, cloudBefore);
+    assert.equal(leoSatellite.position.x, satelliteBefore);
+    assert.equal(moonGroup.position.x, moonBefore);
+    tick(earth, 122 * 40);
+    assert.notEqual(cloudGroup.rotation.y, cloudBefore);
+    assert.notEqual(leoSatellite.position.x, satelliteBefore);
+    assert.notEqual(moonGroup.position.x, moonBefore);
 });
 
 test('mercury skips dynamic attribute work on stride frames', () => {

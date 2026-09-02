@@ -86,39 +86,11 @@ let moonsData    = [];
 function createMarsSurface()
 {
     const planetName = 'mars';
-    const budget     = PLANET_PARTICLE_CONFIG[planetName].surface;
-    const tiers      = [budget, Math.floor(budget * 0.75), Math.floor(budget * 0.5), 250000];
-    const allocation = ParticleBuilder.allocate(tiers, (count) => ({
-        positions: new Float32Array(count * 3),
-        colors   : new Float32Array(count * 3)
-    }));
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(allocation.value.positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(allocation.value.colors, 3));
-    geometry.setDrawRange(0, 0);
-
     const colBase  = new THREE.Color('#94544d');
     const colDark  = new THREE.Color('#6b433c');
     const colLight = new THREE.Color('#d98c6b');
     const noiseGen = new SimplexNoise('mars-craters-dust');
     const surfaceColor = new THREE.Color();
-
-    const surfaceMaterial = new THREE.PointsMaterial({
-        size           : 0.055,
-        vertexColors   : true,
-        transparent    : true,
-        opacity        : 0.95,
-        sizeAttenuation: true
-    });
-    const points = new THREE.Points(geometry, surfaceMaterial);
-    marsSurfaceGroup.add(points);
-
-    frameSampler = ParticleBuilder.createFrameSampler({
-        geometry,
-        maxCount: allocation.count,
-        setDynamicStride() {}
-    });
 
     function sampleSurfaceParticle(i, positions, colors)
     {
@@ -169,38 +141,24 @@ function createMarsSurface()
         colors[offset + 2] = c.b;
     }
 
-    ParticleBuilder.build({
-        total           : allocation.count,
-        readyCount      : Math.min(250000, allocation.count),
-        initialBatchSize: 10000,
-        writeBatch(start, end)
-        {
-            for (let i = start; i < end; i++)
-            {
-                sampleSurfaceParticle(i, allocation.value.positions, allocation.value.colors);
-            }
-            ParticleBuilder.markAttributeRange(geometry.attributes.position, start * 3, (end - start) * 3);
-            ParticleBuilder.markAttributeRange(geometry.attributes.color, start * 3, (end - start) * 3);
+    frameSampler = ParticleBuilder.createSurfaceLayer({
+        planetName,
+        budget: PLANET_PARTICLE_CONFIG[planetName].surface,
+        sample: sampleSurfaceParticle,
+        material: {
+            size           : 0.055,
+            vertexColors   : true,
+            transparent    : true,
+            opacity        : 0.95,
+            sizeAttenuation: true
         },
-        setDrawCount: frameSampler.setBuiltCount,
+        group: marsSurfaceGroup,
         onReady()
         {
             renderer.render(scene, camera);
             ParticleBuilder.markReady({page: planetName});
-        },
-        onProgress(percent)
-        {
-            document.getElementById('particle-build-progress').textContent = `${percent}%`;
-        },
-        onComplete()
-        {
-            document.getElementById('particle-build-progress').textContent = 'READY';
-        },
-        onError(error)
-        {
-            console.error(`[${planetName}] surface generation stopped`, error);
         }
-    });
+    }).frameSampler;
 
     // 测量网格
     const wireGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(coreRadius + 0.02, 24, 12));
@@ -422,26 +380,29 @@ function animate(timestamp)
     frameSampler.sample(timestamp);
 
     marsSurfaceGroup.rotation.y += 0.0025;
-    marsAtmosGroup.rotation.y += 0.003;
-
-    moonsData.forEach(moon =>
+    if (frameCount % frameSampler.dynamicStride === 0)
     {
-        moon.angle += moon.speed;
-        moon.mesh.position.x = moon.radius * Math.cos(moon.angle);
-        moon.mesh.position.z = moon.radius * Math.sin(moon.angle);
+        marsAtmosGroup.rotation.y += 0.003;
 
-        // 缓慢的不规则自转
-        if (moon.isPhobos)
+        moonsData.forEach(moon =>
         {
-            moon.mesh.rotation.z -= 0.01;
-            moon.mesh.rotation.y += 0.005;
-        }
-        else
-        {
-            moon.mesh.rotation.y += 0.002;
-            moon.mesh.rotation.x += 0.003;
-        }
-    });
+            moon.angle += moon.speed;
+            moon.mesh.position.x = moon.radius * Math.cos(moon.angle);
+            moon.mesh.position.z = moon.radius * Math.sin(moon.angle);
+
+            // 缓慢的不规则自转
+            if (moon.isPhobos)
+            {
+                moon.mesh.rotation.z -= 0.01;
+                moon.mesh.rotation.y += 0.005;
+            }
+            else
+            {
+                moon.mesh.rotation.y += 0.002;
+                moon.mesh.rotation.x += 0.003;
+            }
+        });
+    }
 
     currentZoom = updateInteraction(group, camera, zoomDisplay, currentZoom);
     updatePlanetTelemetry(marsSurfaceGroup, tgtLabel, 1);

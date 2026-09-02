@@ -126,6 +126,77 @@
         return state;
     }
 
+    function createSurfaceBuild(options) {
+        const three = options.THREE || global.THREE || (typeof globalThis !== 'undefined' && globalThis.THREE);
+        const document = global.document || (typeof globalThis !== 'undefined' && globalThis.document);
+        const allocation = allocate([
+            options.budget,
+            Math.floor(options.budget * 0.75),
+            Math.floor(options.budget * 0.5),
+            250000
+        ], (count) => ({
+            positions: new Float32Array(count * 3),
+            colors   : new Float32Array(count * 3)
+        }));
+        const geometry = new three.BufferGeometry();
+        geometry.setAttribute('position', new three.BufferAttribute(allocation.value.positions, 3));
+        geometry.setAttribute('color', new three.BufferAttribute(allocation.value.colors, 3));
+        geometry.setDrawRange(0, 0);
+
+        const points = new three.Points(geometry, new three.PointsMaterial(options.material));
+        options.group.add(points);
+
+        const frameSampler = createFrameSampler({
+            geometry,
+            maxCount: allocation.count,
+            setDynamicStride() {}
+        });
+        const progressElement = document && typeof document.getElementById === 'function'
+            ? document.getElementById('particle-build-progress')
+            : null;
+        const logError = options.onError || ((error) => {
+            const logger = global.console || (typeof console !== 'undefined' && console);
+            if (logger && typeof logger.error === 'function')
+            {
+                logger.error(`[${options.planetName}] surface generation stopped`, error);
+            }
+        });
+
+        build({
+            total           : allocation.count,
+            readyCount      : Math.min(250000, allocation.count),
+            initialBatchSize: 10000,
+            writeBatch(start, end)
+            {
+                for (let i = start; i < end; i++)
+                {
+                    options.sample(i, allocation.value.positions, allocation.value.colors);
+                }
+                markAttributeRange(geometry.attributes.position, start * 3, (end - start) * 3);
+                markAttributeRange(geometry.attributes.color, start * 3, (end - start) * 3);
+            },
+            setDrawCount: frameSampler.setBuiltCount,
+            onReady: options.onReady,
+            onProgress(percent)
+            {
+                if (progressElement) progressElement.textContent = `${percent}%`;
+            },
+            onComplete()
+            {
+                if (progressElement) progressElement.textContent = 'READY';
+                if (options.onComplete) options.onComplete();
+            },
+            onError: logError,
+            schedule: options.schedule
+        });
+
+        return {allocation, geometry, points, frameSampler};
+    }
+
+    function createSurfaceLayer(options) {
+        return createSurfaceBuild(options);
+    }
+
     function createFrameSampler(options) {
         const order = ['high', 'balanced', 'low', 'recovery'];
         const sampleSize = options.sampleSize || 120;
@@ -224,6 +295,8 @@
         allocate,
         build,
         createFrameSampler,
+        createSurfaceBuild,
+        createSurfaceLayer,
         markAttributeRange,
         markReady,
         selectInitialProfile,

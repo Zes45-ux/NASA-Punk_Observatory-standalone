@@ -82,40 +82,12 @@ const venusCloudBaseColor = new THREE.Color('#ffae20');
 function createVenusSurface()
 {
     const planetName = 'venus';
-    const budget     = PLANET_PARTICLE_CONFIG[planetName].surface;
-    const tiers      = [budget, Math.floor(budget * 0.75), Math.floor(budget * 0.5), 250000];
-    const allocation = ParticleBuilder.allocate(tiers, (count) => ({
-        positions: new Float32Array(count * 3),
-        colors   : new Float32Array(count * 3)
-    }));
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(allocation.value.positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(allocation.value.colors, 3));
-    geometry.setDrawRange(0, 0);
-
     // [NEW PALETTE] 模拟岩浆的高对比度色板
     const colBase = new THREE.Color('#8b1a1a'); // 深岩浆红
     const colHigh = new THREE.Color('#d9531e'); // 亮熔岩橙
     const colPeak = new THREE.Color('#ffe0a0'); // 极热点黄
     const noiseGen = new SimplexNoise('venus-magma-chaos-rock');
     const surfaceColor = new THREE.Color();
-
-    const surfaceMaterial = new THREE.PointsMaterial({
-        size           : 0.055,
-        vertexColors   : true,
-        transparent    : true,
-        opacity        : 0.95,
-        sizeAttenuation: true
-    });
-    const points = new THREE.Points(geometry, surfaceMaterial);
-    venusSurfaceGroup.add(points);
-
-    frameSampler = ParticleBuilder.createFrameSampler({
-        geometry,
-        maxCount: allocation.count,
-        setDynamicStride() {}
-    });
 
     function sampleSurfaceParticle(i, positions, colors)
     {
@@ -163,38 +135,24 @@ function createVenusSurface()
         colors[offset + 2] = c.b;
     }
 
-    ParticleBuilder.build({
-        total           : allocation.count,
-        readyCount      : Math.min(250000, allocation.count),
-        initialBatchSize: 10000,
-        writeBatch(start, end)
-        {
-            for (let i = start; i < end; i++)
-            {
-                sampleSurfaceParticle(i, allocation.value.positions, allocation.value.colors);
-            }
-            ParticleBuilder.markAttributeRange(geometry.attributes.position, start * 3, (end - start) * 3);
-            ParticleBuilder.markAttributeRange(geometry.attributes.color, start * 3, (end - start) * 3);
+    frameSampler = ParticleBuilder.createSurfaceLayer({
+        planetName,
+        budget: PLANET_PARTICLE_CONFIG[planetName].surface,
+        sample: sampleSurfaceParticle,
+        material: {
+            size           : 0.055,
+            vertexColors   : true,
+            transparent    : true,
+            opacity        : 0.95,
+            sizeAttenuation: true
         },
-        setDrawCount: frameSampler.setBuiltCount,
+        group: venusSurfaceGroup,
         onReady()
         {
             renderer.render(scene, camera);
             ParticleBuilder.markReady({page: planetName});
-        },
-        onProgress(percent)
-        {
-            document.getElementById('particle-build-progress').textContent = `${percent}%`;
-        },
-        onComplete()
-        {
-            document.getElementById('particle-build-progress').textContent = 'READY';
-        },
-        onError(error)
-        {
-            console.error(`[${planetName}] surface generation stopped`, error);
         }
-    });
+    }).frameSampler;
 }
 
 createVenusSurface();

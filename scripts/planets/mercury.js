@@ -74,33 +74,6 @@ let frameSampler;
 function createMercury()
 {
     const planetName = 'mercury';
-    const budget     = PLANET_PARTICLE_CONFIG[planetName].surface;
-    const tiers      = [budget, Math.floor(budget * 0.75), Math.floor(budget * 0.5), 250000];
-    const allocation  = ParticleBuilder.allocate(tiers, (count) => ({
-        positions: new Float32Array(count * 3),
-        colors   : new Float32Array(count * 3)
-    }));
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(allocation.value.positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(allocation.value.colors, 3));
-    geometry.setDrawRange(0, 0);
-
-    const surfaceMaterial = new THREE.PointsMaterial({
-        size           : 0.05,
-        vertexColors   : true,
-        transparent    : true,
-        opacity        : 0.95,
-        sizeAttenuation: true
-    });
-    const points = new THREE.Points(geometry, surfaceMaterial);
-    planetSpinGroup.add(points);
-
-    frameSampler = ParticleBuilder.createFrameSampler({
-        geometry,
-        maxCount: allocation.count,
-        setDynamicStride() {}
-    });
 
     const noiseGen = new SimplexNoise('mercury-surface');
     const colBase  = new THREE.Color('#999999');
@@ -153,38 +126,24 @@ function createMercury()
         colors[offset + 2] = c.b;
     }
 
-    ParticleBuilder.build({
-        total        : allocation.count,
-        readyCount   : Math.min(250000, allocation.count),
-        initialBatchSize: 10000,
-        writeBatch(start, end)
-        {
-            for (let i = start; i < end; i++)
-            {
-                sampleSurfaceParticle(i, allocation.value.positions, allocation.value.colors);
-            }
-            ParticleBuilder.markAttributeRange(geometry.attributes.position, start * 3, (end - start) * 3);
-            ParticleBuilder.markAttributeRange(geometry.attributes.color, start * 3, (end - start) * 3);
+    frameSampler = ParticleBuilder.createSurfaceLayer({
+        planetName,
+        budget: PLANET_PARTICLE_CONFIG[planetName].surface,
+        sample: sampleSurfaceParticle,
+        material: {
+            size           : 0.05,
+            vertexColors   : true,
+            transparent    : true,
+            opacity        : 0.95,
+            sizeAttenuation: true
         },
-        setDrawCount: frameSampler.setBuiltCount,
+        group: planetSpinGroup,
         onReady()
         {
             renderer.render(scene, camera);
             ParticleBuilder.markReady({page: planetName});
-        },
-        onProgress(percent)
-        {
-            document.getElementById('particle-build-progress').textContent = `${percent}%`;
-        },
-        onComplete()
-        {
-            document.getElementById('particle-build-progress').textContent = 'READY';
-        },
-        onError(error)
-        {
-            console.error(`[${planetName}] surface generation stopped`, error);
         }
-    });
+    }).frameSampler;
 
     // 测量网格
     const wireGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(5.02, 24, 12));

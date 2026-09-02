@@ -127,7 +127,7 @@ Initial entry:
 Exit navigation:
 
 - Curtain exit begins before assigning `window.location.href`.
-- Navigation occurs on the relevant CSS `transitionend` event.
+- Navigation occurs on the relevant CSS `animationend` event.
 - A roughly 900 ms timeout remains as a failure fallback.
 - Repeated clicks cannot schedule multiple navigations.
 
