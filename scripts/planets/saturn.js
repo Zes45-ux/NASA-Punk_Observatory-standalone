@@ -7,7 +7,6 @@ const sharedTopoBackground = createTopoBackground({
     canvasId   : 'topo-canvas',
     noiseOffset: 100
 });
-sharedTopoBackground.resize();
 
 
 // ==========================================
@@ -18,9 +17,8 @@ const displaySize     = DisplayArea.getSize(canvasContainer);
 const scene           = new THREE.Scene();
 const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
 
-let currentZoom    = 42;
 const INITIAL_ZOOM = 42;
-camera.position.z  = currentZoom;
+camera.position.z  = INITIAL_ZOOM;
 
 const renderer = new THREE.WebGLRenderer({
     antialias: true,
@@ -50,11 +48,8 @@ if (typeof ResizeObserver !== 'undefined')
 window.addEventListener('resize', () =>
 {
     sharedTopoBackground.resize();
-    resizeScene();
 });
 
-// [CHANGED] Update ID to match new HTML structure (keeps the slider working)
-const zoomDisplay = document.getElementById('zoom-text-display');
 const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
 
 const group = new THREE.Group();
@@ -79,22 +74,22 @@ const ringUniforms = {
         value: 0.0
     }
 };
+let frameSampler;
 
 
 // --- A. 程序化气态巨行星 (SATURN) ---
 function createGasGiant()
 {
-    const particleCount = 35000;
-    const positions     = [];
-    const colors        = [];
+    const planetName = 'saturn';
     const noiseGen      = new SimplexNoise('saturn-seed-v2');
 
     const saturnCream = new THREE.Color('#f4f0d5');
     const saturnBeige = new THREE.Color('#d9c37c');
     const saturnTan   = new THREE.Color('#a68f58');
     const saturnBlue  = new THREE.Color('#6b7e8c');
+    const surfaceColor = new THREE.Color();
 
-    for (let i = 0; i < particleCount; i++)
+    function sampleSurfaceParticle(i, positions, colors)
     {
         const r     = 5.4 + Math.random() * 0.1;
         const theta = Math.random() * Math.PI * 2;
@@ -103,12 +98,15 @@ function createGasGiant()
         const y     = r * Math.sin(phi) * Math.sin(theta);
         const z     = r * Math.cos(phi);
 
-        positions.push(x, y, z);
+        const offset = i * 3;
+        positions[offset]     = x;
+        positions[offset + 1] = y;
+        positions[offset + 2] = z;
 
         let n    = noiseGen.noise3D(x * 2.5, y * 0.8, z * 2.5);
         let band = Math.sin(y * 3.5 + n * 0.3);
 
-        let c = new THREE.Color();
+        const c = surfaceColor;
         if (band > 0.5)
         {
             c.copy(saturnCream);
@@ -134,21 +132,29 @@ function createGasGiant()
             c.addScalar(0.1);
         }
 
-        colors.push(c.r, c.g, c.b);
+        colors[offset]     = c.r;
+        colors[offset + 1] = c.g;
+        colors[offset + 2] = c.b;
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-    const mat    = new THREE.PointsMaterial({
-        size        : 0.06,
-        vertexColors: true,
-        transparent : true,
-        opacity     : 0.95
+    const surface = ParticleBuilder.createSurfaceBuild({
+        planetName,
+        budget: PLANET_PARTICLE_CONFIG[planetName].surface,
+        sample: sampleSurfaceParticle,
+        material: {
+            size        : 0.06,
+            vertexColors: true,
+            transparent : true,
+            opacity     : 0.95
+        },
+        group: planetSpinGroup,
+        onReady()
+        {
+            renderer.render(scene, camera);
+            ParticleBuilder.markReady({page: planetName});
+        }
     });
-    const planet = new THREE.Points(geo, mat);
-    planetSpinGroup.add(planet);
+    frameSampler = surface.frameSampler;
 
     // 平流层/雾霾
     const hazeCount = 15000;
@@ -198,6 +204,25 @@ function createGasGiant()
         opacity    : 0.1
     });
     planetSpinGroup.add(new THREE.LineSegments(wireGeo, wireMat));
+
+    const polarHexagonPoints = [];
+    const polarHexagonRadius = 1.35;
+    const polarSurfaceRadius  = 5.58;
+    for (let i = 0; i <= 6; i++)
+    {
+        const angle = i * Math.PI / 3;
+        const x     = polarHexagonRadius * Math.cos(angle);
+        const z     = polarHexagonRadius * Math.sin(angle);
+        const y     = Math.sqrt(Math.max(0, polarSurfaceRadius ** 2 - x ** 2 - z ** 2));
+        polarHexagonPoints.push({x, y, z});
+    }
+    const polarHexagonGeo = new THREE.BufferGeometry().setFromPoints(polarHexagonPoints);
+    const polarHexagonMat = new THREE.LineBasicMaterial({
+        color      : '#6b7e8c',
+        transparent: true,
+        opacity    : 0.6
+    });
+    planetSpinGroup.add(new THREE.Line(polarHexagonGeo, polarHexagonMat));
 }
 
 createGasGiant();
@@ -529,10 +554,13 @@ group.rotation.x = 0.0;
 group.rotation.y = 0.0;
 
 let time = 0;
+let frameCount = 0;
 
-function animate()
+function animate(timestamp)
 {
     requestAnimationFrame(animate);
+    frameCount++;
+    frameSampler.sample(timestamp);
     time += 0.002;
 
     planetSpinGroup.rotation.y += 0.002;
@@ -573,7 +601,7 @@ function animate()
     });
 
     // 视角和缩放控制
-    currentZoom = updateInteraction(group, camera, zoomDisplay, currentZoom);
+    updateInteraction(group, camera);
 
     // 遥测数据更新
     updatePlanetTelemetry(planetSpinGroup, tgtLabel, 1);

@@ -7,7 +7,6 @@ const sharedTopoBackground = createTopoBackground({
     canvasId   : 'topo-canvas',
     noiseOffset: 100
 });
-sharedTopoBackground.resize();
 
 
 // ==========================================
@@ -47,7 +46,6 @@ if (typeof ResizeObserver !== 'undefined')
 window.addEventListener('resize', () =>
 {
     sharedTopoBackground.resize();
-    resizeScene();
 });
 
 // UI 元素引用
@@ -75,22 +73,22 @@ const moonSystemGroup      = new THREE.Group();
 moonSystemGroup.rotation.z = 5.14 * (Math.PI / 180);
 group.add(moonSystemGroup);
 
+let frameSampler;
+
 
 // --- A. 程序化地球 ---
 function createEarth()
 {
-    // [建议] 稍微增加粒子数以应对体积膨胀带来的稀疏感
-    const landParticles = 60000;
-    const landPos       = [];
-    const landColors    = [];
-    const noiseGen      = new SimplexNoise('seed-terra-firma-v2');
-
+    const planetName = 'earth';
     const colLandBase = new THREE.Color('#3e6b48');
     const colLandHigh = new THREE.Color('#9abf8a');
     const colOcean    = new THREE.Color('#1a2b4a');
     const colPeak     = new THREE.Color('#ffffff');
+    const noiseGen    = new SimplexNoise('seed-terra-firma-v2');
+    const surfaceColor = new THREE.Color();
 
-    for (let i = 0; i < landParticles; i++)
+    // [建议] 稍微调小 size，配合高密度粒子，看起来更像细腻的沙盘
+    function sampleSurfaceParticle(i, positions, colors)
     {
         const rBase = 5.0;
         const theta = Math.random() * Math.PI * 2;
@@ -105,6 +103,7 @@ function createEarth()
         n += noiseGen.noise3D(x * 0.15, y * 0.15, z * 0.15) * 1.2;
         n += noiseGen.noise3D(x * 0.6, y * 0.6, z * 0.6) * 0.25;
 
+        const offset = i * 3;
         if (n > 0.1)
         {
             // 1. 高度因子 (0.0 ~ 1.2 左右)
@@ -121,10 +120,12 @@ function createEarth()
 
             // 3. 缩放坐标
             const scale = rMod / rBase;
-            landPos.push(x * scale, y * scale, z * scale);
+            positions[offset]     = x * scale;
+            positions[offset + 1] = y * scale;
+            positions[offset + 2] = z * scale;
 
             // 颜色逻辑保持不变...
-            let c = new THREE.Color();
+            const c = surfaceColor;
             if (h < 0.5)
             {
                 c.copy(colLandBase).lerp(colLandHigh, h / 0.5);
@@ -133,22 +134,38 @@ function createEarth()
             {
                 c.copy(colLandHigh).lerp(colPeak, Math.min(1, (h - 0.5) * 2.0));
             }
-            landColors.push(c.r, c.g, c.b);
+            colors[offset]     = c.r;
+            colors[offset + 1] = c.g;
+            colors[offset + 2] = c.b;
+        }
+        else
+        {
+            positions[offset]     = x;
+            positions[offset + 1] = y;
+            positions[offset + 2] = z;
+            colors[offset]        = colOcean.r;
+            colors[offset + 1]    = colOcean.g;
+            colors[offset + 2]    = colOcean.b;
         }
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(landPos, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(landColors, 3));
-
-    // [建议] 稍微调小 size，配合高密度粒子，看起来更像细腻的沙盘
-    const mat = new THREE.PointsMaterial({
-        size        : 0.045,
-        vertexColors: true,
-        transparent : true,
-        opacity     : 0.9
-    });
-    earthSystemGroup.add(new THREE.Points(geo, mat));
+    frameSampler = ParticleBuilder.createSurfaceLayer({
+        planetName,
+        budget: PLANET_PARTICLE_CONFIG[planetName].surface,
+        sample: sampleSurfaceParticle,
+        material: {
+            size        : 0.045,
+            vertexColors: true,
+            transparent : true,
+            opacity     : 0.9
+        },
+        group: earthSystemGroup,
+        onReady()
+        {
+            renderer.render(scene, camera);
+            ParticleBuilder.markReady({page: planetName});
+        }
+    }).frameSampler;
 
     // 地球网格 (基准参考面)
     const wireGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(5.0, 24, 24));
@@ -318,31 +335,38 @@ if (typeof InteractionState !== 'undefined')
 group.rotation.x = 0.2;
 group.rotation.y = 0.0;
 
-function animate()
+let frameCount = 0;
+
+function animate(timestamp)
 {
     requestAnimationFrame(animate);
+    frameCount++;
+    frameSampler.sample(timestamp);
 
     // 1. 地球自转
     earthSystemGroup.rotation.y += 0.0015;
 
-    // 2. 云层差速
-    cloudGroup.rotation.y += 0.0005;
-
-    // 3. LEO 卫星动画
-    leoSats.forEach(sat =>
+    if (frameCount % frameSampler.dynamicStride === 0)
     {
-        sat.angle += sat.speed;
-        sat.mesh.position.x = sat.radius * Math.cos(sat.angle);
-        sat.mesh.position.z = sat.radius * Math.sin(sat.angle);
-        sat.mesh.rotation.y += 0.02;
-        sat.mesh.rotation.z = -sat.angle;
-    });
+        // 2. 云层差速
+        cloudGroup.rotation.y += 0.0005;
 
-    // 4. 月球公转 & 自转
-    moonAngle += 0.0002;
-    moonBodyGroup.position.x = moonRadius * Math.cos(moonAngle);
-    moonBodyGroup.position.z = moonRadius * Math.sin(moonAngle);
-    moonBodyGroup.rotation.y = moonAngle;
+        // 3. LEO 卫星动画
+        leoSats.forEach(sat =>
+        {
+            sat.angle += sat.speed;
+            sat.mesh.position.x = sat.radius * Math.cos(sat.angle);
+            sat.mesh.position.z = sat.radius * Math.sin(sat.angle);
+            sat.mesh.rotation.y += 0.02;
+            sat.mesh.rotation.z = -sat.angle;
+        });
+
+        // 4. 月球公转 & 自转
+        moonAngle += 0.0002;
+        moonBodyGroup.position.x = moonRadius * Math.cos(moonAngle);
+        moonBodyGroup.position.z = moonRadius * Math.sin(moonAngle);
+        moonBodyGroup.rotation.y = moonAngle;
+    }
 
     // 5. [核心] 更新交互状态
     updateInteraction(group, camera);

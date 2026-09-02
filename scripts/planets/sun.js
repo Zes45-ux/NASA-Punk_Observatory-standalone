@@ -64,11 +64,105 @@ const sunGroup = new THREE.Group();
 group.add(sunGroup);
 
 
-// --- A. 动态光球 (Photosphere) ---
+// --- A. 静态百万粒子光球 + 动态叠加层 (Photosphere) ---
+let sunSurfaceGeometry;
+let sunSurfaceParticles;
 let sunGeometry;
 let sunParticles;
+let frameSampler;
 const sunNoiseGen = new SimplexNoise('sol-core-v1');
 const timeStep    = 0.005;
+
+const colCore          = new THREE.Color('#ffffff');
+const colSurface       = new THREE.Color('#ffb84d');
+const colEdge          = new THREE.Color('#cc4400');
+const colSpot          = new THREE.Color('#8a1c00');
+const colEruptHot      = new THREE.Color('#ffffff');
+const colEruptMid      = new THREE.Color('#ffcc00');
+const colEruptCool     = new THREE.Color('#8a1c00');
+const staticSurfaceColor = new THREE.Color();
+const scratchColor      = new THREE.Color();
+const directionToCenter = new THREE.Vector3();
+const eruptionStartPos  = new THREE.Vector3();
+const eruptionNormal    = new THREE.Vector3();
+const eruptionOffset    = new THREE.Vector3();
+const eruptionPosition  = new THREE.Vector3();
+const eruptionSpread    = new THREE.Vector3();
+
+function sampleSunSurfaceParticle(i, positions, colors)
+{
+    const r     = 6.0;
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = Math.acos(2 * Math.random() - 1);
+    const x     = r * Math.sin(phi) * Math.cos(theta);
+    const y     = r * Math.sin(phi) * Math.sin(theta);
+    const z     = r * Math.cos(phi);
+
+    let n = sunNoiseGen.noise3D(x * 0.4, y * 0.4, z * 0.4);
+    n += 0.5 * sunNoiseGen.noise3D(x * 1.5, y * 1.5, z * 1.5);
+
+    const c = staticSurfaceColor;
+    if (n > 0.6)
+    {
+        c.copy(colCore);
+    }
+    else if (n > 0.0)
+    {
+        c.copy(colSurface).lerp(colCore, n);
+    }
+    else if (n > -0.5)
+    {
+        c.copy(colEdge).lerp(colSurface, (n + 0.5) * 2);
+    }
+    else
+    {
+        c.copy(colSpot).lerp(colEdge, (n + 1.0) * 2);
+    }
+
+    const limbFactor = z / 6.0;
+    if (limbFactor < 0.5)
+    {
+        c.lerp(colSpot, (0.5 - limbFactor) * 1.5);
+    }
+
+    const offset = i * 3;
+    const pulse  = 1.0 + n * 0.05;
+    positions[offset]     = x * pulse;
+    positions[offset + 1] = y * pulse;
+    positions[offset + 2] = z * pulse;
+    colors[offset]        = c.r;
+    colors[offset + 1]    = c.g;
+    colors[offset + 2]    = c.b;
+}
+
+function createSunSurface()
+{
+    const planetName = 'sun';
+    const surface = ParticleBuilder.createSurfaceBuild({
+        planetName,
+        budget: PLANET_PARTICLE_CONFIG[planetName].surface,
+        sample: sampleSunSurfaceParticle,
+        material: {
+            size           : 0.09,
+            vertexColors   : true,
+            transparent    : true,
+            opacity        : 0.95,
+            blending       : THREE.AdditiveBlending,
+            sizeAttenuation: true
+        },
+        group: sunGroup,
+        onReady()
+        {
+            renderer.render(scene, camera);
+            ParticleBuilder.markReady({page: planetName});
+        }
+    });
+    sunSurfaceGeometry = surface.geometry;
+    sunSurfaceParticles = surface.points;
+    frameSampler = surface.frameSampler;
+}
+
+createSunSurface();
 
 function createDynamicSun()
 {
@@ -120,8 +214,9 @@ function createSunCore()
     const positions     = [];
     const colors        = [];
 
-    const colorCoreHot   = new THREE.Color('#ffffff');
-    const colorCoreInner = new THREE.Color('#ffb84d');
+    const colorCoreHot   = colCore;
+    const colorCoreInner = colSurface;
+    const coreColor      = new THREE.Color();
 
     for (let i = 0; i < particleCount; i++)
     {
@@ -134,7 +229,7 @@ function createSunCore()
 
         positions.push(x, y, z);
 
-        const c           = new THREE.Color();
+        const c           = coreColor;
         const normalizedR = (r - 4.0) / 1.5;
         c.copy(colorCoreHot).lerp(colorCoreInner, normalizedR);
 
@@ -364,8 +459,8 @@ function triggerEruption()
     const r        = 6.0;
     const theta    = Math.random() * Math.PI * 2;
     const phi      = Math.acos(2 * Math.random() - 1);
-    const startPos = new THREE.Vector3().setFromSphericalCoords(r, phi, theta);
-    const normal   = startPos.clone().normalize();
+    const startPos = eruptionStartPos.setFromSphericalCoords(r, phi, theta);
+    const normal   = eruptionNormal.copy(startPos).normalize();
 
     let count       = 0;
     const batchSize = 60 + Math.floor(Math.random() * 40);
@@ -378,17 +473,17 @@ function triggerEruption()
             eruptionData[i].life    = 0;
             eruptionData[i].maxLife = 300 + Math.random() * 200;
 
-            const offset = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.2);
-            const pos    = startPos.clone().add(offset);
+            const offset = eruptionOffset.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.2);
+            const pos    = eruptionPosition.copy(startPos).add(offset);
 
             eruptionPositions[i * 3]     = pos.x;
             eruptionPositions[i * 3 + 1] = pos.y;
             eruptionPositions[i * 3 + 2] = pos.z;
             eruptionData[i].startPos.copy(pos);
 
-            const speed              = 0.05 + Math.random() * 0.04;
-            const spread             = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.02);
-            eruptionData[i].velocity = normal.clone().multiplyScalar(speed).add(spread);
+            const speed  = 0.05 + Math.random() * 0.04;
+            const spread = eruptionSpread.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.02);
+            eruptionData[i].velocity.copy(normal).multiplyScalar(speed).add(spread);
 
             count++;
             if (count >= batchSize)
@@ -410,10 +505,13 @@ group.rotation.x = 0.0;
 group.rotation.y = 0.0;
 
 let time = 0;
+let frameCount = 0;
 
-function animate()
+function animate(timestamp)
 {
     requestAnimationFrame(animate);
+    frameCount++;
+    frameSampler.sample(timestamp);
     time += timeStep;
 
     sunGroup.rotation.y += 0.001;
@@ -432,16 +530,11 @@ function animate()
         sunGrids.outer.rotation.z += 0.0002;
     }
 
-    if (sunParticles && sunGeometry)
+    if (sunParticles && sunGeometry && frameCount % frameSampler.dynamicStride === 0)
     {
         const positions = sunGeometry.attributes.position.array;
         const colors    = sunGeometry.attributes.color.array;
         const origPos   = sunGeometry.userData.originalPositions;
-
-        const colCore    = new THREE.Color('#ffffff');
-        const colSurface = new THREE.Color('#ffb84d');
-        const colEdge    = new THREE.Color('#cc4400');
-        const colSpot    = new THREE.Color('#8a1c00');
 
         for (let i = 0; i < positions.length / 3; i++)
         {
@@ -453,7 +546,7 @@ function animate()
             n += 0.5 * sunNoiseGen.noise3D(x * 1.5, y * 1.5, z * 1.5 - time * 0.5);
 
             const limbFactor = z / 6.0;
-            const c          = new THREE.Color();
+            const c          = scratchColor;
 
             if (n > 0.6)
             {
@@ -490,7 +583,7 @@ function animate()
         sunGeometry.attributes.color.needsUpdate    = true;
     }
 
-    if (coronaMesh)
+    if (coronaMesh && frameCount % frameSampler.dynamicStride === 0)
     {
         const positions  = coronaMesh.geometry.attributes.position.array;
         const speeds     = coronaMesh.userData.speeds;
@@ -536,73 +629,74 @@ function animate()
         loop.mesh.material.opacity = 0.4 + Math.sin(time * 2 + loop.flowOffset) * 0.2;
     });
 
-    if (Math.random() > 0.995)
+    if (frameCount % frameSampler.dynamicStride === 0)
     {
-        triggerEruption();
-    }
-
-    const pPos         = eruptionGeo.attributes.position.array;
-    const pCol         = eruptionGeo.attributes.color.array;
-    const colEruptHot  = new THREE.Color('#ffffff');
-    const colEruptMid  = new THREE.Color('#ffcc00');
-    const colEruptCool = new THREE.Color('#8a1c00');
-
-    const slowMo = 0.15;
-
-    for (let i = 0; i < maxEruptionParticles; i++)
-    {
-        if (eruptionData[i].active)
+        if (Math.random() > 0.995)
         {
-            pPos[i * 3] += eruptionData[i].velocity.x * slowMo;
-            pPos[i * 3 + 1] += eruptionData[i].velocity.y * slowMo;
-            pPos[i * 3 + 2] += eruptionData[i].velocity.z * slowMo;
+            triggerEruption();
+        }
 
-            const cx          = pPos[i * 3];
-            const cy          = pPos[i * 3 + 1];
-            const cz          = pPos[i * 3 + 2];
-            const currentDist = Math.sqrt(cx * cx + cy * cy + cz * cz);
-            const dirToCenter = new THREE.Vector3(-cx, -cy, -cz).normalize();
+        const pPos = eruptionGeo.attributes.position.array;
+        const pCol = eruptionGeo.attributes.color.array;
 
-            const noiseScale = 0.5;
-            const nX         = sunNoiseGen.noise4D(cx * noiseScale, cy * noiseScale, cz * noiseScale, time) * 0.003;
-            const nY         = sunNoiseGen.noise4D(cy * noiseScale, cz * noiseScale, cx * noiseScale, time + 100) * 0.003;
-            const nZ         = sunNoiseGen.noise4D(cz * noiseScale, cx * noiseScale, cy * noiseScale, time + 200) * 0.003;
+        const slowMo = 0.15;
 
-            eruptionData[i].velocity.x += nX * slowMo;
-            eruptionData[i].velocity.y += nY * slowMo;
-            eruptionData[i].velocity.z += nZ * slowMo;
-
-            eruptionData[i].velocity.addScaledVector(dirToCenter, 0.002 * slowMo);
-            eruptionData[i].velocity.multiplyScalar(1.0 - (0.003 * slowMo));
-
-            eruptionData[i].life += 1.0 * slowMo;
-            const progress = eruptionData[i].life / eruptionData[i].maxLife;
-
-            const c = new THREE.Color();
-            if (progress < 0.15)
+        for (let i = 0; i < maxEruptionParticles; i++)
+        {
+            if (eruptionData[i].active)
             {
-                c.copy(colEruptHot).lerp(colEruptMid, progress / 0.15);
-            }
-            else
-            {
-                c.copy(colEruptMid).lerp(colEruptCool, (progress - 0.15) / 0.85);
-            }
+                pPos[i * 3] += eruptionData[i].velocity.x * slowMo;
+                pPos[i * 3 + 1] += eruptionData[i].velocity.y * slowMo;
+                pPos[i * 3 + 2] += eruptionData[i].velocity.z * slowMo;
 
-            pCol[i * 3]     = c.r;
-            pCol[i * 3 + 1] = c.g;
-            pCol[i * 3 + 2] = c.b;
+                const cx          = pPos[i * 3];
+                const cy          = pPos[i * 3 + 1];
+                const cz          = pPos[i * 3 + 2];
+                const currentDist = Math.sqrt(cx * cx + cy * cy + cz * cz);
+                directionToCenter.set(-cx, -cy, -cz).normalize();
 
-            if (eruptionData[i].life >= eruptionData[i].maxLife || currentDist < 5.8)
-            {
-                eruptionData[i].active = false;
-                pPos[i * 3]            = 0;
-                pPos[i * 3 + 1]        = 0;
-                pPos[i * 3 + 2]        = 0;
+                const noiseScale = 0.5;
+                const nX         = sunNoiseGen.noise4D(cx * noiseScale, cy * noiseScale, cz * noiseScale, time) * 0.003;
+                const nY         = sunNoiseGen.noise4D(cy * noiseScale, cz * noiseScale, cx * noiseScale, time + 100) * 0.003;
+                const nZ         = sunNoiseGen.noise4D(cz * noiseScale, cx * noiseScale, cy * noiseScale, time + 200) * 0.003;
+
+                eruptionData[i].velocity.x += nX * slowMo;
+                eruptionData[i].velocity.y += nY * slowMo;
+                eruptionData[i].velocity.z += nZ * slowMo;
+
+                eruptionData[i].velocity.addScaledVector(directionToCenter, 0.002 * slowMo);
+                eruptionData[i].velocity.multiplyScalar(1.0 - (0.003 * slowMo));
+
+                eruptionData[i].life += 1.0 * slowMo;
+                const progress = eruptionData[i].life / eruptionData[i].maxLife;
+
+                const c = scratchColor;
+                if (progress < 0.15)
+                {
+                    c.copy(colEruptHot).lerp(colEruptMid, progress / 0.15);
+                }
+                else
+                {
+                    c.copy(colEruptMid).lerp(colEruptCool, (progress - 0.15) / 0.85);
+                }
+
+                pCol[i * 3]     = c.r;
+                pCol[i * 3 + 1] = c.g;
+                pCol[i * 3 + 2] = c.b;
+
+                if (eruptionData[i].life >= eruptionData[i].maxLife || currentDist < 5.8)
+                {
+                    eruptionData[i].active = false;
+                    pPos[i * 3]            = 0;
+                    pPos[i * 3 + 1]        = 0;
+                    pPos[i * 3 + 2]        = 0;
+                }
             }
         }
+
+        eruptionGeo.attributes.position.needsUpdate = true;
+        eruptionGeo.attributes.color.needsUpdate    = true;
     }
-    eruptionGeo.attributes.position.needsUpdate = true;
-    eruptionGeo.attributes.color.needsUpdate    = true;
 
     currentZoom = updateInteraction(group, camera, zoomDisplay, currentZoom);
     updatePlanetTelemetry(sunGroup, tgtLabel, 1);

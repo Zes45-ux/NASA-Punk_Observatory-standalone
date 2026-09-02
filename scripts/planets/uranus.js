@@ -7,7 +7,6 @@ const sharedTopoBackground = createTopoBackground({
     canvasId   : 'topo-canvas',
     noiseOffset: 800
 });
-sharedTopoBackground.resize();
 
 
 // --- PART 2: Three.js 场景 ---
@@ -16,10 +15,9 @@ const displaySize     = DisplayArea.getSize(canvasContainer);
 const scene           = new THREE.Scene();
 const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
 
-let currentZoom    = 38;
 const INITIAL_ZOOM = 38;
 
-camera.position.z = currentZoom;
+camera.position.z = INITIAL_ZOOM;
 
 const renderer = new THREE.WebGLRenderer({
     antialias: true,
@@ -49,10 +47,8 @@ if (typeof ResizeObserver !== 'undefined')
 window.addEventListener('resize', () =>
 {
     sharedTopoBackground.resize();
-    resizeScene();
 });
 
-const zoomDisplay = document.getElementById('zoom-text-display');
 const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
 
 const group = new THREE.Group();
@@ -71,20 +67,21 @@ uranusTiltGroup.add(ringGroup);
 const moonGroup = new THREE.Group();
 uranusTiltGroup.add(moonGroup);
 
+let frameSampler;
+
 
 // --- PART 3: 天王星主体 ---
 function createUranus()
 {
-    const particleCount = 35000;
-    const positions     = [];
-    const colors        = [];
+    const planetName = 'uranus';
     const noiseGen      = new SimplexNoise('uranus-base');
 
     const colBase = new THREE.Color('#a4d8e6');
     const colDeep = new THREE.Color('#4a9cb8');
     const colHigh = new THREE.Color('#e0ffff');
+    const surfaceColor = new THREE.Color();
 
-    for (let i = 0; i < particleCount; i++)
+    function sampleSurfaceParticle(i, positions, colors)
     {
         const r = 5.0;
 
@@ -95,10 +92,13 @@ function createUranus()
         const y = r * Math.sin(phi) * Math.sin(theta);
         const z = r * Math.cos(phi);
 
-        positions.push(x, y, z);
+        const offset = i * 3;
+        positions[offset]     = x;
+        positions[offset + 1] = y;
+        positions[offset + 2] = z;
 
         let lat = Math.abs(y / r);
-        let c   = new THREE.Color();
+        const c = surfaceColor;
 
         c.copy(colDeep).lerp(colBase, lat * 0.8 + 0.2);
 
@@ -113,22 +113,29 @@ function createUranus()
             c.multiplyScalar(1.05);
         }
 
-        colors.push(c.r, c.g, c.b);
+        colors[offset]     = c.r;
+        colors[offset + 1] = c.g;
+        colors[offset + 2] = c.b;
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-    const mat = new THREE.PointsMaterial({
-        size        : 0.06,
-        vertexColors: true,
-        transparent : true,
-        opacity     : 0.9
+    const surface = ParticleBuilder.createSurfaceBuild({
+        planetName,
+        budget: PLANET_PARTICLE_CONFIG[planetName].surface,
+        sample: sampleSurfaceParticle,
+        material: {
+            size        : 0.06,
+            vertexColors: true,
+            transparent : true,
+            opacity     : 0.9
+        },
+        group: uranusSpinGroup,
+        onReady()
+        {
+            renderer.render(scene, camera);
+            ParticleBuilder.markReady({page: planetName});
+        }
     });
-
-    const planet = new THREE.Points(geo, mat);
-    uranusSpinGroup.add(planet);
+    frameSampler = surface.frameSampler;
 
     const atmosGeo = new THREE.BufferGeometry();
     const atmosPos = [];
@@ -542,9 +549,13 @@ if (typeof InteractionState !== 'undefined')
 group.rotation.x = 0.0;
 group.rotation.y = 0.2;
 
-function animate()
+let frameCount = 0;
+
+function animate(timestamp)
 {
     requestAnimationFrame(animate);
+    frameCount++;
+    frameSampler.sample(timestamp);
 
     // 物理更新
     // 逆行自转
@@ -568,7 +579,7 @@ function animate()
     });
 
     // 2. 更新交互状态 (调用抽象模块)
-    currentZoom = updateInteraction(group, camera, zoomDisplay, currentZoom);
+    updateInteraction(group, camera);
 
     // 3. 更新遥测数据 (调用抽象模块，启用 Dec 翻转)
     // 启用 Dec 翻转，以匹配 IAU 定义的北极方向和 Dec 读数。

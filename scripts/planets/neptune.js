@@ -7,7 +7,6 @@ const sharedTopoBackground = createTopoBackground({
     canvasId   : 'topo-canvas',
     noiseOffset: 100
 });
-sharedTopoBackground.resize();
 
 
 // ==========================================
@@ -18,9 +17,8 @@ const displaySize     = DisplayArea.getSize(canvasContainer);
 const scene           = new THREE.Scene();
 const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
 
-let currentZoom    = 30;
 const INITIAL_ZOOM = 30;
-camera.position.z  = currentZoom;
+camera.position.z  = INITIAL_ZOOM;
 
 const renderer = new THREE.WebGLRenderer({
     antialias: true,
@@ -50,10 +48,8 @@ if (typeof ResizeObserver !== 'undefined')
 window.addEventListener('resize', () =>
 {
     sharedTopoBackground.resize();
-    resizeScene();
 });
 
-const zoomDisplay = document.getElementById('zoom-text-display');
 const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
 
 const group = new THREE.Group();
@@ -72,21 +68,22 @@ planetTiltGroup.add(planetSpinGroup);
 const moonSystemGroup = new THREE.Group();
 group.add(moonSystemGroup);
 
+let frameSampler;
+
 
 // --- PART 3: 程序化海王星 (Atmosphere) ---
 function createNeptune()
 {
-    const particleCount = 85000;
-    const positions     = [];
-    const colors        = [];
+    const planetName = 'neptune';
     const noiseGen      = new SimplexNoise('neptune-wind-shear');
 
     const colDeep   = new THREE.Color('#1a237e');
     const colMid    = new THREE.Color('#2962ff');
     const colBright = new THREE.Color('#448aff');
     const colStorm  = new THREE.Color('#0d1238');
+    const surfaceColor = new THREE.Color();
 
-    for (let i = 0; i < particleCount; i++)
+    function sampleSurfaceParticle(i, positions, colors)
     {
         const r     = 5.0 + Math.random() * 0.3;
         const theta = Math.random() * Math.PI * 2;
@@ -107,9 +104,12 @@ function createNeptune()
             }
         }
 
-        positions.push(x, y, z);
+        const offset = i * 3;
+        positions[offset]     = x;
+        positions[offset + 1] = y;
+        positions[offset + 2] = z;
 
-        let c = new THREE.Color();
+        const c = surfaceColor;
 
         if (isStorm)
         {
@@ -131,21 +131,30 @@ function createNeptune()
         const depthFactor = (r - 5.0) / 0.3;
         c.multiplyScalar(0.5 + depthFactor * 0.5);
 
-        colors.push(c.r, c.g, c.b);
+        colors[offset]     = c.r;
+        colors[offset + 1] = c.g;
+        colors[offset + 2] = c.b;
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-    const mat = new THREE.PointsMaterial({
-        size           : 0.055,
-        vertexColors   : true,
-        transparent    : true,
-        opacity        : 0.85,
-        sizeAttenuation: true
+    const surface = ParticleBuilder.createSurfaceBuild({
+        planetName,
+        budget: PLANET_PARTICLE_CONFIG[planetName].surface,
+        sample: sampleSurfaceParticle,
+        material: {
+            size           : 0.055,
+            vertexColors   : true,
+            transparent    : true,
+            opacity        : 0.85,
+            sizeAttenuation: true
+        },
+        group: planetSpinGroup,
+        onReady()
+        {
+            renderer.render(scene, camera);
+            ParticleBuilder.markReady({page: planetName});
+        }
     });
-    planetSpinGroup.add(new THREE.Points(geo, mat));
+    frameSampler = surface.frameSampler;
 
     const wireGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(5.32, 32, 16));
     const wireMat = new THREE.LineBasicMaterial({
@@ -413,9 +422,13 @@ if (typeof InteractionState !== 'undefined')
 group.rotation.x = 0.3;
 group.rotation.y = 0.0;
 
-function animate()
+let frameCount = 0;
+
+function animate(timestamp)
 {
     requestAnimationFrame(animate);
+    frameCount++;
+    frameSampler.sample(timestamp);
 
     planetSpinGroup.rotation.y += 0.003;
 
@@ -442,7 +455,7 @@ function animate()
         moon.mesh.rotation.y += 0.02;
     });
 
-    currentZoom = updateInteraction(group, camera, zoomDisplay, currentZoom);
+    updateInteraction(group, camera);
     updatePlanetTelemetry(planetSpinGroup, tgtLabel, 1);
 
     renderer.render(scene, camera);

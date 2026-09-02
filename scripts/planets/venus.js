@@ -7,7 +7,6 @@ const sharedTopoBackground = createTopoBackground({
     canvasId   : 'topo-canvas',
     noiseOffset: 100
 });
-sharedTopoBackground.resize();
 
 
 // ==========================================
@@ -50,7 +49,6 @@ if (typeof ResizeObserver !== 'undefined')
 window.addEventListener('resize', () =>
 {
     sharedTopoBackground.resize();
-    resizeScene();
 });
 
 const zoomDisplay = document.getElementById('zoom-text-display');
@@ -75,22 +73,23 @@ planetTiltGroup.add(cloudGroup);
 
 // --- PART 3: 程序化金星主体 (双层点云结构) ---
 let cloudPoints;
+let frameSampler;
 const coreRadius = 5.0;
+const venusFlowNoise = new SimplexNoise('venus-atmosphere-flow');
+const venusCloudBaseColor = new THREE.Color('#ffae20');
 
 // --- A. 地表点云 (Inner Surface: Magma Chaos) ---
 function createVenusSurface()
 {
-    const surfaceParticles = 40000;
-    const surfacePos       = [];
-    const surfaceColors    = [];
-    const noiseGen         = new SimplexNoise('venus-magma-chaos-rock');
-
+    const planetName = 'venus';
     // [NEW PALETTE] 模拟岩浆的高对比度色板
     const colBase = new THREE.Color('#8b1a1a'); // 深岩浆红
     const colHigh = new THREE.Color('#d9531e'); // 亮熔岩橙
     const colPeak = new THREE.Color('#ffe0a0'); // 极热点黄
+    const noiseGen = new SimplexNoise('venus-magma-chaos-rock');
+    const surfaceColor = new THREE.Color();
 
-    for (let i = 0; i < surfaceParticles; i++)
+    function sampleSurfaceParticle(i, positions, colors)
     {
         const r     = coreRadius;
         const theta = Math.random() * Math.PI * 2;
@@ -112,10 +111,13 @@ function createVenusSurface()
         y *= (1 + heightMod / r);
         z *= (1 + heightMod / r);
 
-        surfacePos.push(x, y, z);
+        const offset = i * 3;
+        positions[offset]     = x;
+        positions[offset + 1] = y;
+        positions[offset + 2] = z;
 
         // 基于噪波值进行高对比度着色
-        let c   = new THREE.Color();
+        const c   = surfaceColor;
         let val = (nChaos + 1) / 2;
 
         if (val < 0.5)
@@ -128,21 +130,29 @@ function createVenusSurface()
         }
 
         c.multiplyScalar(0.9 + Math.random() * 0.2);
-        surfaceColors.push(c.r, c.g, c.b);
+        colors[offset]     = c.r;
+        colors[offset + 1] = c.g;
+        colors[offset + 2] = c.b;
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(surfacePos, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(surfaceColors, 3));
-
-    const mat = new THREE.PointsMaterial({
-        size           : 0.055,
-        vertexColors   : true,
-        transparent    : true,
-        opacity        : 0.95,
-        sizeAttenuation: true
-    });
-    venusSurfaceGroup.add(new THREE.Points(geo, mat));
+    frameSampler = ParticleBuilder.createSurfaceLayer({
+        planetName,
+        budget: PLANET_PARTICLE_CONFIG[planetName].surface,
+        sample: sampleSurfaceParticle,
+        material: {
+            size           : 0.055,
+            vertexColors   : true,
+            transparent    : true,
+            opacity        : 0.95,
+            sizeAttenuation: true
+        },
+        group: venusSurfaceGroup,
+        onReady()
+        {
+            renderer.render(scene, camera);
+            ParticleBuilder.markReady({page: planetName});
+        }
+    }).frameSampler;
 }
 
 createVenusSurface();
@@ -158,8 +168,6 @@ function createVenusClouds()
     const cloudColors    = [];
     const cloudGen       = new SimplexNoise('venus-atmosphere-sulphur');
 
-    const colBase = new THREE.Color('#ffae20');
-
     for (let i = 0; i < cloudParticles; i++)
     {
         // [FIX 1] 粒子均匀分布在球壳内，位置上无噪波扰动
@@ -173,10 +181,12 @@ function createVenusClouds()
 
         cloudPos.push(x, y, z);
 
-        let c = colBase.clone();
-        c.multiplyScalar(0.9 + Math.random() * 0.2);
-
-        cloudColors.push(c.r, c.g, c.b);
+        const brightness = 0.9 + Math.random() * 0.2;
+        cloudColors.push(
+            venusCloudBaseColor.r * brightness,
+            venusCloudBaseColor.g * brightness,
+            venusCloudBaseColor.b * brightness
+        );
     }
 
     const geo = new THREE.BufferGeometry();
@@ -223,9 +233,13 @@ if (typeof InteractionState !== 'undefined')
 group.rotation.x = -0.2;
 group.rotation.y = 0.0;
 
-function animate()
+let frameCount = 0;
+
+function animate(timestamp)
 {
     requestAnimationFrame(animate);
+    frameCount++;
+    frameSampler.sample(timestamp);
 
     // 1. 地表逆行自转 (极慢)
     venusSurfaceGroup.rotation.y -= 0.0002;
@@ -234,31 +248,29 @@ function animate()
     cloudGroup.rotation.y -= 0.0015;
 
     // 3. 云层颜色动画 (仅通过颜色/亮度变化模拟流动)
-    const time      = Date.now() * 0.00005;
-    const colors    = cloudPoints.geometry.attributes.color.array;
-    const positions = cloudPoints.geometry.attributes.position.array;
-    const noiseGen  = new SimplexNoise('venus-atmosphere-flow');
-
-    const colBase = new THREE.Color('#ffae20');
-
-    for (let i = 0; i < positions.length / 3; i++)
+    if (frameCount % frameSampler.dynamicStride === 0)
     {
-        let x = positions[i * 3];
-        let y = positions[i * 3 + 1];
-        let z = positions[i * 3 + 2];
+        const time      = Date.now() * 0.00005;
+        const colors    = cloudPoints.geometry.attributes.color.array;
+        const positions = cloudPoints.geometry.attributes.position.array;
 
-        const flowNoise = noiseGen.noise3D(x * 0.2 + time, y * 0.2 + time, z * 0.2 + time);
+        for (let i = 0; i < positions.length / 3; i++)
+        {
+            const x = positions[i * 3];
+            const y = positions[i * 3 + 1];
+            const z = positions[i * 3 + 2];
 
-        const brightness = 1.0 + flowNoise * 0.25;
+            const flowNoise = venusFlowNoise.noise3D(x * 0.2 + time, y * 0.2 + time, z * 0.2 + time);
 
-        const c = colBase.clone().multiplyScalar(brightness);
+            const brightness = 1.0 + flowNoise * 0.25;
 
-        colors[i * 3]     = c.r;
-        colors[i * 3 + 1] = c.g;
-        colors[i * 3 + 2] = c.b;
+            colors[i * 3]     = venusCloudBaseColor.r * brightness;
+            colors[i * 3 + 1] = venusCloudBaseColor.g * brightness;
+            colors[i * 3 + 2] = venusCloudBaseColor.b * brightness;
+        }
+
+        cloudPoints.geometry.attributes.color.needsUpdate = true;
     }
-
-    cloudPoints.geometry.attributes.color.needsUpdate = true;
 
     // 4. 视角和缩放控制
     currentZoom = updateInteraction(group, camera, zoomDisplay, currentZoom);
