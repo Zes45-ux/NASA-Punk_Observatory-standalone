@@ -18,6 +18,10 @@
 
 项目坚持 `texture-less` 路线，不依赖外部贴图资源。星球表面、云层、大气、地形背景和部分 UI 装饰均通过程序化生成完成，因此整体体积较小，并支持离线运行。
 
+## 来源说明
+
+本仓库是从原始项目 [flowersauce/NASA-Punk_Observatory](https://github.com/flowersauce/NASA-Punk_Observatory) 复制而来的独立二次开发版本。复制时保留了原始 Git 提交历史与 MIT 许可证；当前仓库由 `Zes45-ux` 独立维护，不要求与原仓库同步。
+
 ## 项目特点
 
 - 纯静态项目，直接由 `HTML + CSS + JavaScript` 构成，无构建步骤。

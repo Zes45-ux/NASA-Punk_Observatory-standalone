@@ -20,6 +20,10 @@ panels, terminal layouts, and procedural rendering.
 The project is intentionally `texture-less`. Planet surfaces, clouds, atmospheres, topographic backgrounds, and parts of
 the UI decoration are generated procedurally at runtime, which keeps the project lightweight and fully offline-capable.
 
+## Source repository
+
+This repository is an independent development copy of [flowersauce/NASA-Punk_Observatory](https://github.com/flowersauce/NASA-Punk_Observatory). It preserves the original Git history and MIT license. It is maintained independently by `Zes45-ux` and does not require synchronization with the original repository.
+
 ## Highlights
 
 - Pure static project built with `HTML + CSS + JavaScript`
