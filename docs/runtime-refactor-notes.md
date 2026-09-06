@@ -196,20 +196,21 @@ Active builds are cancelled centrally on `observatory:navigate-start` and
 
 Approved high-profile surface budgets and dynamic-layer ceilings. Surface
 budgets were rescaled on 2026-09-06 from the original million-particle baseline
-to the ~2e5 range because the million-scale counts oversampled the visible
-surface by roughly 6x without adding readable detail:
+and are coverage-normalized: each value targets ~2.5-3.2x particle coverage of
+the visible disk at the planet's default zoom and point size, the
+empirically best-looking band on a 1080p display:
 
 | Body | Surface | Dynamic |
 | --- | ---: | ---: |
-| Sun | 260,000 | 80,000 |
+| Sun | 200,000 | 80,000 |
 | Mercury | 160,000 | 30,000 |
-| Venus | 200,000 | 60,000 |
+| Venus | 150,000 | 60,000 |
 | Earth | 210,000 | 50,000 |
 | Mars | 180,000 | 40,000 |
-| Jupiter | 250,000 | 80,000 |
-| Saturn | 220,000 | 60,000 |
-| Uranus | 200,000 | 40,000 |
-| Neptune | 200,000 | 60,000 |
+| Jupiter | 200,000 | 80,000 |
+| Saturn | 160,000 | 60,000 |
+| Uranus | 130,000 | 40,000 |
+| Neptune | 170,000 | 60,000 |
 
 Rings are independent auxiliary geometry. Static surfaces are not updated per
 frame; only dynamic overlays upload changing attributes. When frame sampling

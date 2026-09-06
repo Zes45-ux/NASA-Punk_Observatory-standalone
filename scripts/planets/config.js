@@ -16,7 +16,7 @@ const PLANET_DOCK_CONFIG = {
         rows   : [
             '&gt; TOPO_SCAN: <span>SCORCHED_BASALT</span>',
             '&gt; ATMOS_SCAN: <span>Na / K</span> <span class="alert">[TRACE_EXOSPHERE]</span>',
-            '&gt; ORBITAL_ASSETS: <span>0 DETECTED</span>'
+            '&gt; ROT_LOCK: <span>3:2 RESONANCE</span> <span class="alert">[58.6 D]</span>'
         ]
     },
     venus  : {
@@ -26,7 +26,7 @@ const PLANET_DOCK_CONFIG = {
         rows   : [
             '&gt; TOPO_SCAN: <span>VOLCANIC_PLAINS</span>',
             '&gt; ATMOS_SCAN: <span>CO2 / H2SO4</span> <span class="alert">[SUPERCRITICAL]</span>',
-            '&gt; ORBITAL_ASSETS: <span>0 DETECTED</span>'
+            '&gt; ROT_LOCK: <span>243 D SIDEREAL</span> <span class="alert">[RETROGRADE]</span>'
         ]
     },
     earth  : {
@@ -36,7 +36,7 @@ const PLANET_DOCK_CONFIG = {
         rows   : [
             '&gt; TOPO_SCAN: <span>SILICATE / LIQUID_H2O</span>',
             '&gt; ATMOS_SCAN: <span>N2 / O2</span> <span class="alert">[LIFE_SUPPORT]</span>',
-            '&gt; ORBITAL_ASSETS: <span>5 DETECTED</span>'
+            '&gt; ORBITAL_ASSETS: <span>1 MOON // 4 LEO</span> TRACKED'
         ]
     },
     mars   : {
@@ -45,8 +45,8 @@ const PLANET_DOCK_CONFIG = {
         subText: 'SYS: <b>SOL</b> // ORB: <b>1.52 AU</b> // ECC: <b>0.0934</b>',
         rows   : [
             '&gt; TOPO_SCAN: <span>IRON_OXIDE_DUST</span>',
-            '&gt; ATMOS_COMP: <span>CO2 / ARGON</span> <span class="alert">[THIN]</span>',
-            '&gt; ORBITAL_ASSETS: <span>2 DETECTED</span>'
+            '&gt; ATMOS_COMP: <span>CO2 95% / N2 / AR</span> <span class="alert">[THIN]</span>',
+            '&gt; ORBITAL_ASSETS: <span>2 CONFIRMED</span> <span class="alert">[PHOBOS // DEIMOS]</span>'
         ]
     },
     jupiter: {
@@ -56,7 +56,7 @@ const PLANET_DOCK_CONFIG = {
         rows   : [
             '&gt; TOPO_SCAN: <span>N/A</span> <span class="alert">[GAS_GIANT]</span>',
             '&gt; ATMOS-SCAN: <span>H2 / He / NH3</span> <span class="alert">[STORM_BANDS]</span>',
-            '&gt; ORBITAL ASSETS: <span>10 DETECTED</span>'
+            '&gt; ORBITAL_ASSETS: <span>95 CONFIRMED</span> <span class="alert">[10 TRACKED]</span>'
         ]
     },
     saturn : {
@@ -66,7 +66,7 @@ const PLANET_DOCK_CONFIG = {
         rows   : [
             '&gt; TOPO_SCAN: <span>N/A</span> <span class="alert">[GAS_GIANT]</span>',
             '&gt; ATMOS_SCAN: <span>H2 / He</span> <span class="alert">[HEX_POLE]</span>',
-            '&gt; ORBITAL_ASSETS: <span>9 DETECTED</span>'
+            '&gt; ORBITAL_ASSETS: <span>274 CONFIRMED</span> <span class="alert">[9 TRACKED]</span>'
         ]
     },
     uranus : {
@@ -76,7 +76,7 @@ const PLANET_DOCK_CONFIG = {
         rows   : [
             '&gt; TOPO_SCAN: <span>N/A</span> <span class="alert">[ICE_GIANT]</span>',
             '&gt; ATMOS_SCAN: <span>H2 / He / CH4</span> <span class="alert">[COLD]</span>',
-            '&gt; ORBITAL_ASSETS: <span>16 DETECTED</span>'
+            '&gt; ORBITAL_ASSETS: <span>28 CONFIRMED</span> <span class="alert">[16 TRACKED]</span>'
         ]
     },
     neptune: {
@@ -86,7 +86,7 @@ const PLANET_DOCK_CONFIG = {
         rows   : [
             '&gt; TOPO_SCAN: <span>N/A</span> <span class="alert">[ICE_GIANT]</span>',
             '&gt; ATMOS_SCAN: <span>H2 / He / CH4</span> <span class="alert">[SUPERSONIC]</span>',
-            '&gt; ORBITAL_ASSETS: <span>5 DETECTED</span>'
+            '&gt; ORBITAL_ASSETS: <span>16 CONFIRMED</span> <span class="alert">[TRITON RETROGRADE]</span>'
         ]
     }
 };
@@ -126,19 +126,21 @@ const PLANET_MONITOR_CONFIG = {
     }
 };
 
-// Surface budgets target the ~2e5 range: the previous million-scale counts
-// oversampled the visible surface by roughly 6x without adding readable detail.
+// Surface budgets are coverage-normalized: each value targets ~2.5-3.2x
+// particle coverage of the visible disk at the planet's default zoom and point
+// size (the empirically best-looking band on a 1080p display; below ~2x the
+// sphere shows gaps, above ~4x translucent layers blur into mush).
 // Dynamic ceilings stay as-is; hardcoded dynamic layers run well below them.
 const PLANET_PARTICLE_CONFIG = {
-    sun:     {surface: 260000, dynamic: 80000},
+    sun:     {surface: 200000, dynamic: 80000},
     mercury: {surface: 160000, dynamic: 30000},
-    venus:   {surface: 200000, dynamic: 60000},
+    venus:   {surface: 150000, dynamic: 60000},
     earth:   {surface: 210000, dynamic: 50000},
     mars:    {surface: 180000, dynamic: 40000},
-    jupiter: {surface: 250000, dynamic: 80000},
-    saturn:  {surface: 220000, dynamic: 60000},
-    uranus:  {surface: 200000, dynamic: 40000},
-    neptune: {surface: 200000, dynamic: 60000}
+    jupiter: {surface: 200000, dynamic: 80000},
+    saturn:  {surface: 160000, dynamic: 60000},
+    uranus:  {surface: 130000, dynamic: 40000},
+    neptune: {surface: 170000, dynamic: 60000}
 };
 
 const PLANET_UI_CONFIG = Object.keys(PLANET_DOCK_CONFIG).reduce((acc, planetName) =>

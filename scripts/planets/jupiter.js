@@ -526,11 +526,12 @@ function createMoon(config)
     });
 }
 
-// 卫星配置
+// 卫星配置（公转速率按真实恒星周期换算）
 createMoon({
     name  : "Metis",
     radius: 6.7,
-    speed : 0.035,
+    // 公转周期 0.295 天
+    speed : 0.00507,
     size  : 0.04,
     color : 0xaa5555,
     type  : 'Minor'
@@ -538,7 +539,8 @@ createMoon({
 createMoon({
     name  : "Adrastea",
     radius: 6.8,
-    speed : 0.034,
+    // 公转周期 0.294 天
+    speed : 0.00506,
     size  : 0.03,
     color : 0xaa5555,
     type  : 'Minor'
@@ -546,7 +548,8 @@ createMoon({
 createMoon({
     name  : "Amalthea",
     radius: 7.0,
-    speed : 0.030,
+    // 公转周期 0.498 天
+    speed : 0.003,
     size  : 0.06,
     color : 0xcc6666,
     type  : 'Minor'
@@ -554,7 +557,8 @@ createMoon({
 createMoon({
     name  : "Thebe",
     radius: 7.2,
-    speed : 0.028,
+    // 公转周期 0.675 天
+    speed : 0.00222,
     size  : 0.05,
     color : 0xaa5555,
     type  : 'Minor'
@@ -563,7 +567,8 @@ createMoon({
 createMoon({
     name  : "Io",
     radius: 7.8,
-    speed : 0.015,
+    // 公转周期 1.769 天（与欧罗巴 2:1、盖尼米德 4:1 拉普拉斯共振）
+    speed : 0.000845,
     size  : 0.25,
     color : 0xffd700,
     type  : 'Major'
@@ -571,7 +576,8 @@ createMoon({
 createMoon({
     name  : "Europa",
     radius: 10.5,
-    speed : 0.010,
+    // 公转周期 3.551 天
+    speed : 0.000421,
     size  : 0.22,
     color : 0xd0f0ff,
     type  : 'Major'
@@ -579,7 +585,8 @@ createMoon({
 createMoon({
     name  : "Ganymede",
     radius: 13.5,
-    speed : 0.007,
+    // 公转周期 7.155 天
+    speed : 0.000209,
     size  : 0.35,
     color : 0xa09080,
     type  : 'Major'
@@ -587,7 +594,8 @@ createMoon({
 createMoon({
     name  : "Callisto",
     radius: 18.0,
-    speed : 0.004,
+    // 公转周期 16.689 天
+    speed : 0.0000896,
     size  : 0.32,
     color : 0x555555,
     type  : 'Major'
@@ -596,7 +604,8 @@ createMoon({
 createMoon({
     name  : "Himalia",
     radius: 21.0,
-    speed : 0.002,
+    // 公转周期 250.6 天
+    speed : 0.00000597,
     size  : 0.05,
     color : 0x888888,
     type  : 'Minor'
@@ -604,7 +613,8 @@ createMoon({
 createMoon({
     name  : "Elara",
     radius: 23.0,
-    speed : 0.0018,
+    // 公转周期 259.6 天
+    speed : 0.00000576,
     size  : 0.04,
     color : 0x888888,
     type  : 'Minor'
@@ -615,6 +625,7 @@ createMoon({
 
 // 初始化交互模块
 initInteraction(group, INITIAL_ZOOM);
+initPlanetFocus(group, camera, 6.6);
 
 // [NEW] 初始相机倾角设置
 if (typeof InteractionState !== 'undefined')
@@ -635,12 +646,13 @@ function animate(timestamp)
     const time = Date.now() * 0.001;
 
     // 1. 木星自转
-    jupiterSpinGroup.rotation.y += 0.0025;
+    // 自转周期 9.93 小时（太阳系最快行星），相对速率按真实值换算
+    jupiterSpinGroup.rotation.y += 0.00362;
 
     // 2. 大红斑独立漂移
     if (redSpotGroup)
     {
-        redSpotGroup.rotation.y -= 0.0004;
+        redSpotGroup.rotation.y -= 0.00058;
         redSpotGroup.rotation.x = Math.sin(time * 0.5) * 0.002;
     }
 

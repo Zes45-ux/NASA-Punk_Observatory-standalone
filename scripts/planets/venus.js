@@ -224,6 +224,7 @@ createVenusClouds();
 
 // 初始化交互模块
 initInteraction(group, INITIAL_ZOOM);
+initPlanetFocus(group, camera, 5.0);
 
 if (typeof InteractionState !== 'undefined')
 {
@@ -241,11 +242,11 @@ function animate(timestamp)
     frameCount++;
     frameSampler.sample(timestamp);
 
-    // 1. 地表逆行自转 (极慢)
-    venusSurfaceGroup.rotation.y -= 0.0002;
+    // 1. 地表逆行自转（恒星周 243 天，真实相对速率）
+    venusSurfaceGroup.rotation.y -= 0.0000062;
 
-    // 2. 大气超自转 (快 7.5 倍)
-    cloudGroup.rotation.y -= 0.0015;
+    // 2. 大气超自转（云顶约 4.4 天绕行一周，约为地表 60 倍）
+    cloudGroup.rotation.y -= 0.00034;
 
     // 3. 云层颜色动画 (仅通过颜色/亮度变化模拟流动)
     if (frameCount % frameSampler.dynamicStride === 0)

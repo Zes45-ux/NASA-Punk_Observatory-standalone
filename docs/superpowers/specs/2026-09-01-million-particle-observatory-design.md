@@ -3,10 +3,12 @@
 Date: 2026-09-01
 
 > **Update (2026-09-06):** High-profile surface budgets were rescaled from the
-> original 1.0-1.6 million baseline to the 160,000-260,000 range (roughly one
-> order of magnitude down) because the million-scale counts oversampled the
-> visible surface by about 6x at the target viewport without adding readable
-> detail. Readiness now fires at ~30% of the surface (minimum 25,000
+> original 1.0-1.6 million baseline to the 130,000-210,000 range (roughly one
+> order of magnitude down). The counts are coverage-normalized: each budget
+> targets ~2.5-3.2x particle coverage of the visible disk at the planet's
+> default zoom and point size, the empirically best-looking band on a 1080p
+> display (below ~2x the sphere shows gaps, above ~4x translucent layers blur
+> into mush). Readiness fires at ~30% of the surface (minimum 25,000
 > particles), and the recovery profile draws 25% of the built budget.
 > `scripts/planets/config.js` is the source of truth for the current numbers;
 > the tables below reflect the rescaled values.
@@ -28,7 +30,7 @@ The upgrade covers:
 
 Use a hybrid particle architecture:
 
-- Each body receives a static surface layer containing 160,000-260,000 particles in the high profile.
+- Each body receives a static surface layer containing 130,000-210,000 particles in the high profile.
 - Smaller dynamic layers continue to animate clouds, storms, coronae, tails, and eruptions.
 - Surface data is stored in preallocated typed arrays and generated progressively.
 - Dynamic layers remain deliberately smaller so the runtime never performs per-frame CPU updates across the full surface.
@@ -40,15 +42,15 @@ This retains the existing planet-specific procedural implementations. A shared s
 
 | Body | High-profile surface particles | Dynamic layer ceiling | Distinguishing visual treatment |
 | --- | ---: | ---: | --- |
-| Sun | 260,000 | 80,000 | Corona, flares, eruptions, restrained pulsation |
+| Sun | 200,000 | 80,000 | Corona, flares, eruptions, restrained pulsation |
 | Mercury | 160,000 | 30,000 | Craters, terminator contrast, sodium tail |
-| Venus | 200,000 | 60,000 | Volcanic surface, dense clouds, retrograde super-rotation |
+| Venus | 150,000 | 60,000 | Volcanic surface, dense clouds, retrograde super-rotation |
 | Earth | 210,000 | 50,000 | Land/ocean separation, clouds, atmospheric limb, Moon and orbital assets |
 | Mars | 180,000 | 40,000 | Iron-oxide terrain, polar detail, thin atmosphere, Phobos and Deimos |
-| Jupiter | 250,000 | 80,000 | Atmospheric bands, Great Red Spot, flows, principal moons |
-| Saturn | 220,000 | 60,000 | Bands, polar hexagon, independently generated dense rings |
-| Uranus | 200,000 | 40,000 | Axial tilt, ice-giant atmosphere, dark rings and moons |
-| Neptune | 200,000 | 60,000 | High-speed storms, deep-blue atmosphere, Triton and ring arcs |
+| Jupiter | 200,000 | 80,000 | Atmospheric bands, Great Red Spot, flows, principal moons |
+| Saturn | 160,000 | 60,000 | Bands, polar hexagon, independently generated dense rings |
+| Uranus | 130,000 | 40,000 | Axial tilt, ice-giant atmosphere, dark rings and moons |
+| Neptune | 170,000 | 60,000 | High-speed storms, deep-blue atmosphere, Triton and ring arcs |
 
 The values are visual budgets informed by body scale and feature complexity, not literal ratios of astronomical surface area. Literal ratios would make the gas giants dominate memory and would not produce a useful comparative experience.
 
@@ -211,7 +213,7 @@ Manual browser verification covers:
 
 The work is complete when:
 
-- every body stays within its approved 160,000-260,000 high-profile surface budget;
+- every body stays within its approved 130,000-210,000 high-profile surface budget;
 - each body retains visibly distinct procedural structure and auxiliary features;
 - initial interaction is available before full particle generation completes;
 - particle generation progresses without a long blocking task;

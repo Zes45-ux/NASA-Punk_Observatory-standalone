@@ -353,18 +353,20 @@ function createTriton()
     tritonData = {
         mesh  : tBody,
         angle : 0,
-        speed : -0.004,
+        // 公转周期 5.877 天，逆行
+        speed : -0.000254,
         radius: tOrbitRadius
     };
 }
 
 function createMinorMoons()
 {
+    // 内侧卫星与 Nereid（公转速率按真实恒星周期换算）
     const moonsConfig = [
-        {name: "Galatea", radius: 5.5, speed: 0.015, size: 0.05, color: 0x6677aa},
-        {name: "Larissa", radius: 5.75, speed: 0.0125, size: 0.06, color: 0x556699},
-        {name: "Proteus", radius: 6.0, speed: 0.01, size: 0.08, color: 0x6677aa},
-        {name: "Nereid", radius: 24.0, speed: 0.001, size: 0.07, color: 0x8899cc, eccentric: true}
+        {name: "Galatea", radius: 5.5, speed: 0.00349, size: 0.05, color: 0x6677aa},
+        {name: "Larissa", radius: 5.75, speed: 0.0027, size: 0.06, color: 0x556699},
+        {name: "Proteus", radius: 6.0, speed: 0.00133, size: 0.08, color: 0x6677aa},
+        {name: "Nereid", radius: 24.0, speed: 0.0000042, size: 0.07, color: 0x8899cc, eccentric: true}
     ];
 
     moonsConfig.forEach(config =>
@@ -413,6 +415,7 @@ createMinorMoons();
 // ==========================================
 
 initInteraction(group, INITIAL_ZOOM);
+initPlanetFocus(group, camera, 5.3);
 
 if (typeof InteractionState !== 'undefined')
 {
@@ -430,7 +433,8 @@ function animate(timestamp)
     frameCount++;
     frameSampler.sample(timestamp);
 
-    planetSpinGroup.rotation.y += 0.003;
+    // 自转周期 16.11 小时，相对速率按真实值换算
+    planetSpinGroup.rotation.y += 0.00223;
 
     // 光环自转动画
     ringLayers.forEach(layer =>
@@ -440,10 +444,12 @@ function animate(timestamp)
 
     if (tritonData)
     {
+        // 公转周期 5.877 天，逆行轨道
         tritonData.angle += tritonData.speed;
         tritonData.mesh.position.x = tritonData.radius * Math.cos(tritonData.angle);
         tritonData.mesh.position.z = tritonData.radius * Math.sin(tritonData.angle);
-        tritonData.mesh.rotation.y += 0.01;
+        // 潮汐锁定：自转角等于公转角
+        tritonData.mesh.rotation.y = tritonData.angle;
     }
 
     minorMoonsData.forEach(moon =>

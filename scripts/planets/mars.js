@@ -228,7 +228,8 @@ function createMarsMoons()
         {
             name  : "Phobos",
             radius: 7.5,
-            speed : 0.008,
+            // 公转周期 0.319 天，比火星自转更快（西升东落）
+            speed : 0.00469,
             // 基础大小 0.25, 形状扭曲因子(土豆状)
             baseSize     : 0.25,
             scale        : {x: 1.3, y: 1.0, z: 0.8},
@@ -238,7 +239,8 @@ function createMarsMoons()
         {
             name         : "Deimos",
             radius       : 12.0,
-            speed        : 0.003,
+            // 公转周期 1.263 天
+            speed        : 0.00118,
             baseSize     : 0.18,
             scale        : {x: 0.9, y: 0.7, z: 0.7}, // 极度不规则
             color        : 0xaaaaaa,
@@ -362,6 +364,7 @@ createMarsMoons();
 // ==========================================
 
 initInteraction(group, INITIAL_ZOOM);
+initPlanetFocus(group, camera, 5.3);
 
 if (typeof InteractionState !== 'undefined')
 {
@@ -379,10 +382,11 @@ function animate(timestamp)
     frameCount++;
     frameSampler.sample(timestamp);
 
-    marsSurfaceGroup.rotation.y += 0.0025;
+    // 自转周期 24.62 小时，相对速率按真实值换算
+    marsSurfaceGroup.rotation.y += 0.00146;
     if (frameCount % frameSampler.dynamicStride === 0)
     {
-        marsAtmosGroup.rotation.y += 0.003;
+        marsAtmosGroup.rotation.y += 0.00175;
 
         moonsData.forEach(moon =>
         {

@@ -362,15 +362,15 @@ test('planet config exposes every approved particle budget', () => {
         '\n;globalThis.__particleConfig = PLANET_PARTICLE_CONFIG;';
     vm.runInNewContext(source, sandbox);
     const config = sandbox.__particleConfig;
-    assert.equal(config.sun.surface, 260_000);
+    assert.equal(config.sun.surface, 200_000);
     assert.equal(config.mercury.surface, 160_000);
-    assert.equal(config.venus.surface, 200_000);
+    assert.equal(config.venus.surface, 150_000);
     assert.equal(config.earth.surface, 210_000);
     assert.equal(config.mars.surface, 180_000);
-    assert.equal(config.jupiter.surface, 250_000);
-    assert.equal(config.saturn.surface, 220_000);
-    assert.equal(config.uranus.surface, 200_000);
-    assert.equal(config.neptune.surface, 200_000);
+    assert.equal(config.jupiter.surface, 200_000);
+    assert.equal(config.saturn.surface, 160_000);
+    assert.equal(config.uranus.surface, 130_000);
+    assert.equal(config.neptune.surface, 170_000);
     assert.deepEqual(
         Object.fromEntries(Object.entries(config).map(([name, value]) => [name, value.dynamic])),
         {sun: 80_000, mercury: 30_000, venus: 60_000, earth: 50_000, mars: 40_000,
@@ -393,9 +393,9 @@ test('planet layout exposes surface generation progress', () => {
     assert.match(html, /id="particle-build-progress">0%/);
 });
 
-const ROCKY_BUDGETS = {mercury: 160_000, venus: 200_000, earth: 210_000, mars: 180_000};
-const GIANT_BUDGETS = {jupiter: 250_000, saturn: 220_000, uranus: 200_000, neptune: 200_000};
-const SUN_BUDGET = 260_000;
+const ROCKY_BUDGETS = {mercury: 160_000, venus: 150_000, earth: 210_000, mars: 180_000};
+const GIANT_BUDGETS = {jupiter: 200_000, saturn: 160_000, uranus: 130_000, neptune: 170_000};
+const SUN_BUDGET = 200_000;
 const DYNAMIC_CEILINGS = {sun: 80_000, jupiter: 80_000, saturn: 60_000, uranus: 40_000, neptune: 60_000};
 
 function allocationTiers(budget) {
@@ -789,6 +789,7 @@ function loadPlanetRuntime(planetName, {allocationCount = 300000, includeProgres
         DisplayArea: {getSize: () => ({width: 100, height: 100})},
         createTopoBackground: () => ({resize() {}}),
         initInteraction() {},
+        initPlanetFocus() { return null; },
         updateInteraction: (_group, _camera, _display, zoom) => zoom,
         updatePlanetTelemetry() {},
         InteractionState: {},

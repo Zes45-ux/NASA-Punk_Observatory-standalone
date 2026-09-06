@@ -174,6 +174,8 @@ createUranus();
 // --- PART 5: 星环系统 ---
 function createProceduralRings()
 {
+    // 环系按真实相对半径排布（天王星半径 = 5.0）：
+    // ζ(内弥漫) → 6/5/4 → α/β → η/γ/δ → ε（最外、最亮，两侧为牧羊犬卫星）
     const ringDefs = [
         {
             r      : 6.9,
@@ -184,36 +186,36 @@ function createProceduralRings()
             spread : 0.08
         },
         {
-            r      : 9.0,
+            r      : 8.26,
             width  : 0.2,
             color  : '#2a4f50',
-            opacity: 0.25,
+            opacity: 0.2,
             density: 5000,
             spread : 0.04
         },
         {
-            r      : 9.7,
+            r      : 8.85,
+            width  : 0.25,
+            color  : '#2f4f4f',
+            opacity: 0.25,
+            density: 8000,
+            spread : 0.05
+        },
+        {
+            r      : 9.5,
+            width  : 0.4,
+            color  : '#3a5f60',
+            opacity: 0.3,
+            density: 5000,
+            spread : 0.04
+        },
+        {
+            r      : 10.05,
             width  : 0.3,
             color  : '#40e0d0',
             opacity: 0.5,
-            density: 12000,
+            density: 11000,
             spread : 0.02
-        },
-        {
-            r      : 10.3,
-            width  : 0.1,
-            color  : '#3a5f60',
-            opacity: 0.3,
-            density: 4000,
-            spread : 0.03
-        },
-        {
-            r      : 11.4,
-            width  : 0.8,
-            color  : '#2f4f4f',
-            opacity: 0.15,
-            density: 8000,
-            spread : 0.06
         }
     ];
 
@@ -394,10 +396,12 @@ function createMoon(config)
     });
 }
 
+// 卫星配置（公转速率按真实恒星周期换算）
 createMoon({
     name  : "Bianca",
     radius: 7.5,
-    speed : 0.018,
+    // 公转周期 0.435 天
+    speed : 0.00344,
     size  : 0.05,
     color : 0x447777,
     type  : 'Minor'
@@ -405,15 +409,17 @@ createMoon({
 createMoon({
     name  : "Cressida",
     radius: 7.8,
-    speed : 0.017,
+    // 公转周期 0.464 天
+    speed : 0.00323,
     size  : 0.06,
     color : 0x447777,
     type  : 'Minor'
 });
 createMoon({
     name  : "Puck",
-    radius: 8.0,
-    speed : 0.015,
+    radius: 9.1,
+    // 公转周期 0.762 天（内侧卫星群最外侧）
+    speed : 0.00196,
     size  : 0.08,
     color : 0x55aaaa,
     type  : 'Minor'
@@ -421,7 +427,8 @@ createMoon({
 createMoon({
     name  : "Desdemona",
     radius: 8.1,
-    speed : 0.016,
+    // 公转周期 0.474 天
+    speed : 0.00316,
     size  : 0.05,
     color : 0x447777,
     type  : 'Minor'
@@ -429,7 +436,8 @@ createMoon({
 createMoon({
     name  : "Juliet",
     radius: 8.4,
-    speed : 0.015,
+    // 公转周期 0.493 天
+    speed : 0.00303,
     size  : 0.06,
     color : 0x447777,
     type  : 'Minor'
@@ -437,23 +445,26 @@ createMoon({
 createMoon({
     name  : "Portia",
     radius: 8.7,
-    speed : 0.014,
+    // 公转周期 0.513 天
+    speed : 0.00291,
     size  : 0.08,
     color : 0x559999,
     type  : 'Minor'
 });
 createMoon({
     name  : "Cordelia",
-    radius: 9.35,
-    speed : 0.013,
+    radius: 9.73,
+    // 公转周期 0.335 天，ε 环内牧羊犬
+    speed : 0.00446,
     size  : 0.04,
     color : 0x558888,
     type  : 'Minor'
 });
 createMoon({
     name  : "Ophelia",
-    radius: 10.05,
-    speed : 0.012,
+    radius: 10.35,
+    // 公转周期 0.376 天，ε 环外牧羊犬
+    speed : 0.00397,
     size  : 0.04,
     color : 0x558888,
     type  : 'Minor'
@@ -461,7 +472,8 @@ createMoon({
 createMoon({
     name  : "Miranda",
     radius: 10.6,
-    speed : 0.008,
+    // 公转周期 1.413 天
+    speed : 0.00106,
     size  : 0.22,
     color : 0xcccccc,
     type  : 'Major',
@@ -470,7 +482,8 @@ createMoon({
 createMoon({
     name  : "Ariel",
     radius: 12.2,
-    speed : 0.006,
+    // 公转周期 2.520 天
+    speed : 0.000593,
     size  : 0.28,
     color : 0xe0ffff,
     type  : 'Major',
@@ -479,7 +492,8 @@ createMoon({
 createMoon({
     name  : "Umbriel",
     radius: 14.0,
-    speed : 0.005,
+    // 公转周期 4.144 天
+    speed : 0.000361,
     size  : 0.28,
     color : 0x666666,
     type  : 'Major',
@@ -488,7 +502,8 @@ createMoon({
 createMoon({
     name  : "Titania",
     radius: 16.2,
-    speed : 0.004,
+    // 公转周期 8.706 天
+    speed : 0.000172,
     size  : 0.38,
     color : 0xe0d0b0,
     type  : 'Major',
@@ -497,7 +512,8 @@ createMoon({
 createMoon({
     name  : "Oberon",
     radius: 19.0,
-    speed : 0.003,
+    // 公转周期 13.46 天
+    speed : 0.000111,
     size  : 0.35,
     color : 0xa08080,
     type  : 'Major',
@@ -506,7 +522,8 @@ createMoon({
 createMoon({
     name        : "Caliban",
     radius      : 23.0,
-    speed       : 0.0008,
+    // 公转周期 579.7 天，逆行不规则卫星
+    speed       : 0.0000026,
     size        : 0.06,
     color       : 0xaa5555,
     type        : 'Minor',
@@ -516,7 +533,8 @@ createMoon({
 createMoon({
     name        : "Sycorax",
     radius      : 27.0,
-    speed       : 0.0005,
+    // 公转周期 1288 天，逆行不规则卫星
+    speed       : 0.00000116,
     size        : 0.08,
     color       : 0xcc6666,
     type        : 'Minor',
@@ -526,7 +544,8 @@ createMoon({
 createMoon({
     name        : "Setebos",
     radius      : 31.0,
-    speed       : 0.0003,
+    // 公转周期 2225 天，逆行不规则卫星
+    speed       : 0.00000067,
     size        : 0.05,
     color       : 0x888888,
     type        : 'Minor',
@@ -539,6 +558,7 @@ createMoon({
 
 // 初始化交互模块
 initInteraction(group, INITIAL_ZOOM);
+initPlanetFocus(group, camera, 5.1);
 
 // [NEW] 初始相机倾角设置
 if (typeof InteractionState !== 'undefined')
@@ -558,8 +578,8 @@ function animate(timestamp)
     frameSampler.sample(timestamp);
 
     // 物理更新
-    // 逆行自转
-    uranusSpinGroup.rotation.y -= 0.004;
+    // 逆行自转（自转周期 17.24 小时，相对速率按真实值换算）
+    uranusSpinGroup.rotation.y -= 0.00208;
     ringGroup.rotation.y += 0.0005;
     moons.forEach(sat =>
     {

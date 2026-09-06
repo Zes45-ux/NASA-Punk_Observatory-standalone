@@ -325,6 +325,7 @@ createMoon();
 
 // 初始化交互模块
 initInteraction(group, INITIAL_ZOOM);
+initPlanetFocus(group, camera, 5.0);
 
 // [NEW] 初始相机倾角设置
 if (typeof InteractionState !== 'undefined')
@@ -361,8 +362,8 @@ function animate(timestamp)
             sat.mesh.rotation.z = -sat.angle;
         });
 
-        // 4. 月球公转 & 自转
-        moonAngle += 0.0002;
+        // 4. 月球公转 & 自转（恒星月 27.32 天，潮汐锁定）
+        moonAngle += 0.0000547;
         moonBodyGroup.position.x = moonRadius * Math.cos(moonAngle);
         moonBodyGroup.position.z = moonRadius * Math.sin(moonAngle);
         moonBodyGroup.rotation.y = moonAngle;

@@ -302,6 +302,7 @@ function updateSodiumTail()
 // --- PART 5: 交互与动画 ---
 
 initInteraction(group, INITIAL_ZOOM);
+initPlanetFocus(group, camera, 5.0);
 
 if (typeof InteractionState !== 'undefined')
 {
@@ -319,7 +320,8 @@ function animate(timestamp)
     frameCount++;
     frameSampler.sample(timestamp);
 
-    planetSpinGroup.rotation.y += 0.0003;
+    // 自转周期 58.6 天（3:2 自旋轨道共振），相对速率按真实值换算
+    planetSpinGroup.rotation.y += 0.0000255;
 
     if (frameCount % frameSampler.dynamicStride === 0)
     {

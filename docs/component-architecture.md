@@ -224,6 +224,11 @@ These are effectively stable interfaces inside the refactor:
 - `renderPlanetUI(planetName)`
 - `PLANET_UI_CONFIG`
 - `SYSTEM_SELECT_CONFIG`
+- `InteractionState` / `initInteraction(group, initialZoom)` / `updateInteraction(group, camera)`
+- `initPlanetFocus(group, camera, focusRadius, options?)` — click-to-focus camera zoom.
+  Adds an invisible raycast sphere to the group, animates the existing slider-driven
+  zoom to a close-up distance (default 45% of `initialZ`, i.e. ~222% zoom), and
+  restores the previous zoom on a second body click, an empty-space click, or Escape.
 
 If these contracts change, update all call sites in the same change and verify that rendered output remains identical.
 

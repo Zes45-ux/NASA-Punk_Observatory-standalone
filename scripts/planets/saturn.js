@@ -55,9 +55,9 @@ const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
 const group = new THREE.Group();
 scene.add(group);
 
-// 1. 倾角容器 (保持原设计)
+// 1. 倾角容器（真实 axial tilt 26.73°，x 轴为展示视角补偿）
 const saturnTiltGroup      = new THREE.Group();
-saturnTiltGroup.rotation.z = 27 * (Math.PI / 180);
+saturnTiltGroup.rotation.z = 26.73 * (Math.PI / 180);
 saturnTiltGroup.rotation.x = 15 * (Math.PI / 180);
 group.add(saturnTiltGroup);
 
@@ -528,21 +528,22 @@ function createMoon(name, parentGroup, orbitRadius, speed, inclinationDeg, color
     }
 }
 
-// 卫星视觉配置
-createMoon("Mimas", saturnTiltGroup, 12.4, 0.009, 0.0, 0x8090a0, 0.08);
-createMoon("Enceladus", saturnTiltGroup, 13.0, 0.0075, 0.0, 0xaaffff, 0.09);
-createMoon("Tethys", saturnTiltGroup, 13.6, 0.006, 0.0, 0xe6e0c0, 0.10);
-createMoon("Dione", saturnTiltGroup, 14.2, 0.005, 0.0, 0xc0c0e0, 0.10);
-createMoon("Rhea", saturnTiltGroup, 14.8, 0.004, 0.0, 0xb0a090, 0.12);
-createMoon("Hyperion", saturnTiltGroup, 17.6, 0.0025, 0.0, 0xcd853f, 0.09);
-createMoon("Iapetus", saturnTiltGroup, 19.0, 0.0015, 15.47, 0xffffff, 0.13, false, true);
-createMoon("Phoebe", group, 20.5, -0.001, 20.0, 0x2f4f4f, 0.07, true);
+// 卫星视觉配置（公转速率按真实恒星周期换算：Mimas 0.94d … Phoebe 550.3d 逆行）
+createMoon("Mimas", saturnTiltGroup, 12.4, 0.00159, 0.0, 0x8090a0, 0.08);
+createMoon("Enceladus", saturnTiltGroup, 13.0, 0.00109, 0.0, 0xaaffff, 0.09);
+createMoon("Tethys", saturnTiltGroup, 13.6, 0.000792, 0.0, 0xe6e0c0, 0.10);
+createMoon("Dione", saturnTiltGroup, 14.2, 0.000546, 0.0, 0xc0c0e0, 0.10);
+createMoon("Rhea", saturnTiltGroup, 14.8, 0.000331, 0.0, 0xb0a090, 0.12);
+createMoon("Hyperion", saturnTiltGroup, 17.6, 0.0000703, 0.0, 0xcd853f, 0.09);
+createMoon("Iapetus", saturnTiltGroup, 19.0, 0.0000188, 15.47, 0xffffff, 0.13, false, true);
+createMoon("Phoebe", group, 20.5, -0.0000027, 20.0, 0x2f4f4f, 0.07, true);
 
 
 // --- 交互与动画 ---
 
 // 初始化交互模块
 initInteraction(group, INITIAL_ZOOM);
+initPlanetFocus(group, camera, 5.6);
 
 // [NEW] 初始相机倾角设置
 if (typeof InteractionState !== 'undefined')
@@ -563,13 +564,14 @@ function animate(timestamp)
     frameSampler.sample(timestamp);
     time += 0.002;
 
-    planetSpinGroup.rotation.y += 0.002;
-    planetAtmoGroup.rotation.y += 0.0015;
+    // 自转周期 10.66 小时，相对速率按真实值换算
+    planetSpinGroup.rotation.y += 0.00337;
+    planetAtmoGroup.rotation.y += 0.00253;
 
     ringUniforms.uTime.value = time;
 
-    // 泰坦公转和潮汐锁定
-    titanAngle += 0.0005;
+    // 泰坦公转和潮汐锁定（公转周期 15.95 天）
+    titanAngle += 0.0000938;
     titanBodyGroup.position.x = titanOrbitRadius * Math.cos(titanAngle);
     titanBodyGroup.position.z = titanOrbitRadius * Math.sin(titanAngle);
     // 潮汐锁定：自转角等于公转角

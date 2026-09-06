@@ -60,8 +60,13 @@ const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
 const group = new THREE.Group();
 scene.add(group);
 
+// 太阳自转轴相对黄道面倾角 7.25 度
+const sunTiltGroup      = new THREE.Group();
+sunTiltGroup.rotation.z = 7.25 * (Math.PI / 180);
+group.add(sunTiltGroup);
+
 const sunGroup = new THREE.Group();
-group.add(sunGroup);
+sunTiltGroup.add(sunGroup);
 
 
 // --- A. 静态高密度粒子光球 + 动态叠加层 (Photosphere) ---
@@ -495,6 +500,7 @@ function triggerEruption()
 }
 
 initInteraction(group, INITIAL_ZOOM);
+initPlanetFocus(group, camera, 6.2);
 
 if (typeof InteractionState !== 'undefined')
 {
@@ -514,7 +520,8 @@ function animate(timestamp)
     frameSampler.sample(timestamp);
     time += timeStep;
 
-    sunGroup.rotation.y += 0.001;
+    // 自转周期 ~25.4 天（赤道），相对速率按真实值换算
+    sunGroup.rotation.y += 0.000059;
 
     if (coreParticles)
     {
