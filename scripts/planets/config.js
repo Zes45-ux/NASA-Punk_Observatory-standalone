@@ -132,7 +132,7 @@ const PLANET_MONITOR_CONFIG = {
 // sphere shows gaps, above ~4x translucent layers blur into mush).
 // Dynamic ceilings stay as-is; hardcoded dynamic layers run well below them.
 const PLANET_PARTICLE_CONFIG = {
-    sun:     {surface: 200000, dynamic: 80000},
+    sun:     {surface: 150000, dynamic: 80000},
     mercury: {surface: 160000, dynamic: 30000},
     venus:   {surface: 150000, dynamic: 60000},
     earth:   {surface: 210000, dynamic: 50000},

@@ -578,8 +578,8 @@ function animate(timestamp)
     frameSampler.sample(timestamp);
 
     // 物理更新
-    // 逆行自转（自转周期 17.24 小时，相对速率按真实值换算）
-    uranusSpinGroup.rotation.y -= 0.00208;
+    // 逆行自转（自转周期 17.24 小时）；演示节奏压缩至 ~70 秒/圈
+    uranusSpinGroup.rotation.y -= 0.0015;
     ringGroup.rotation.y += 0.0005;
     moons.forEach(sat =>
     {

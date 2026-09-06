@@ -17,9 +17,8 @@ const displaySize     = DisplayArea.getSize(canvasContainer);
 const scene           = new THREE.Scene();
 const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
 
-let currentZoom    = 28;
 const INITIAL_ZOOM = 28;
-camera.position.z  = currentZoom;
+camera.position.z  = INITIAL_ZOOM;
 
 const renderer = new THREE.WebGLRenderer({
     antialias: true,
@@ -51,7 +50,6 @@ window.addEventListener('resize', () =>
     sharedTopoBackground.resize();
 });
 
-const zoomDisplay = document.getElementById('zoom-text-display');
 const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
 
 const group = new THREE.Group();
@@ -320,15 +318,16 @@ function animate(timestamp)
     frameCount++;
     frameSampler.sample(timestamp);
 
-    // 自转周期 58.6 天（3:2 自旋轨道共振），相对速率按真实值换算
-    planetSpinGroup.rotation.y += 0.0000255;
+    // 自转周期 58.6 天（3:2 自旋轨道共振）。真实速率下几乎不可见，
+    // 演示节奏压缩至 ~5 分钟/圈，保持"最慢行星"的相对次序
+    planetSpinGroup.rotation.y += 0.00035;
 
     if (frameCount % frameSampler.dynamicStride === 0)
     {
         updateSodiumTail();
     }
 
-    currentZoom = updateInteraction(group, camera, zoomDisplay, currentZoom);
+    updateInteraction(group, camera);
     updatePlanetTelemetry(planetSpinGroup, tgtLabel, 1);
 
     renderer.render(scene, camera);

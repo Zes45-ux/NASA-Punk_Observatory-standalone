@@ -522,7 +522,8 @@ function createMoon(config)
         meshGroup: moonMeshGroup,
         speed    : speed,
         radius   : radius,
-        angle    : Math.random() * Math.PI * 2
+        angle    : Math.random() * Math.PI * 2,
+        type     : type
     });
 }
 
@@ -646,13 +647,14 @@ function animate(timestamp)
     const time = Date.now() * 0.001;
 
     // 1. 木星自转
-    // 自转周期 9.93 小时（太阳系最快行星），相对速率按真实值换算
-    jupiterSpinGroup.rotation.y += 0.00362;
+    // 自转周期 9.93 小时（太阳系最快行星）。真实比例在演示中偏快，
+    // 压缩至 ~48 秒/圈，仍保持"最快行星"的相对次序
+    jupiterSpinGroup.rotation.y += 0.0022;
 
     // 2. 大红斑独立漂移
     if (redSpotGroup)
     {
-        redSpotGroup.rotation.y -= 0.00058;
+        redSpotGroup.rotation.y -= 0.00035;
         redSpotGroup.rotation.x = Math.sin(time * 0.5) * 0.002;
     }
 

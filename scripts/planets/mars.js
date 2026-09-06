@@ -18,9 +18,8 @@ const scene           = new THREE.Scene();
 const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
 
 // [CONFIG] 保持拉远的视角以容纳卫星
-let currentZoom    = 30;
 const INITIAL_ZOOM = 30;
-camera.position.z  = currentZoom;
+camera.position.z  = INITIAL_ZOOM;
 
 const renderer = new THREE.WebGLRenderer({
     antialias: true,
@@ -52,7 +51,6 @@ window.addEventListener('resize', () =>
     sharedTopoBackground.resize();
 });
 
-const zoomDisplay = document.getElementById('zoom-text-display');
 const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
 
 const group = new THREE.Group();
@@ -382,11 +380,11 @@ function animate(timestamp)
     frameCount++;
     frameSampler.sample(timestamp);
 
-    // 自转周期 24.62 小时，相对速率按真实值换算
-    marsSurfaceGroup.rotation.y += 0.00146;
+    // 自转周期 24.62 小时，与地球几乎相同；演示节奏与地球一致（~87 秒/圈）
+    marsSurfaceGroup.rotation.y += 0.0012;
     if (frameCount % frameSampler.dynamicStride === 0)
     {
-        marsAtmosGroup.rotation.y += 0.00175;
+        marsAtmosGroup.rotation.y += 0.00144;
 
         moonsData.forEach(moon =>
         {
@@ -408,7 +406,7 @@ function animate(timestamp)
         });
     }
 
-    currentZoom = updateInteraction(group, camera, zoomDisplay, currentZoom);
+    updateInteraction(group, camera);
     updatePlanetTelemetry(marsSurfaceGroup, tgtLabel, 1);
 
     renderer.render(scene, camera);

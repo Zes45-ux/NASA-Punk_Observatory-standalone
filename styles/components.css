@@ -292,6 +292,35 @@ h1 {
     z-index: 10;
 }
 
+/* 星图直达导航：悬停星图时冻结轨道便于瞄准；标记自带扩大命中区 */
+.system-monitor-container:hover .planet-container {
+    animation-play-state: paused;
+}
+
+.planet-marker,
+.sun-marker {
+    pointer-events: auto;
+    cursor: pointer;
+    transition: filter 0.15s;
+}
+
+.planet-marker::before,
+.sun-marker::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+}
+
+.planet-marker:hover,
+.sun-marker:hover {
+    filter: brightness(1.6);
+}
+
 .orbit-path {
     position: absolute;
     border-radius: 50%;

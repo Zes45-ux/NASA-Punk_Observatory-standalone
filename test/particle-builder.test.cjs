@@ -362,7 +362,7 @@ test('planet config exposes every approved particle budget', () => {
         '\n;globalThis.__particleConfig = PLANET_PARTICLE_CONFIG;';
     vm.runInNewContext(source, sandbox);
     const config = sandbox.__particleConfig;
-    assert.equal(config.sun.surface, 200_000);
+    assert.equal(config.sun.surface, 150_000);
     assert.equal(config.mercury.surface, 160_000);
     assert.equal(config.venus.surface, 150_000);
     assert.equal(config.earth.surface, 210_000);
@@ -393,9 +393,29 @@ test('planet layout exposes surface generation progress', () => {
     assert.match(html, /id="particle-build-progress">0%/);
 });
 
+test('system monitor markers expose direct per-planet links', () => {
+    const sandbox = {
+        PLANET_UI_CONFIG: {},
+        ObservatoryUI: {
+            buildRightDock: (config) => config.footerRow,
+            buildVerticalZoomControl: () => ''
+        },
+        document: {getElementById: () => null}
+    };
+    sandbox.window = sandbox;
+    vm.runInNewContext(fs.readFileSync('scripts/components/planetUi.js', 'utf8'), sandbox);
+    const html = sandbox.buildPlanetLayout({active: 'earth', rows: []});
+    assert.match(html, /class="sun-marker" data-planet-link="sun\.html"/, 'sun marker links to sun page');
+    for (const name of ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune']) {
+        assert.match(html, new RegExp(`data-planet-link="${name}\\.html"`), `${name} marker links to its page`);
+    }
+    const activeMarker = html.match(/<div class="planet-marker p-earth[^"]*" data-planet-link="earth\.html">/);
+    assert.ok(activeMarker, 'active planet marker keeps its link so clicks stay no-ops');
+});
+
 const ROCKY_BUDGETS = {mercury: 160_000, venus: 150_000, earth: 210_000, mars: 180_000};
 const GIANT_BUDGETS = {jupiter: 200_000, saturn: 160_000, uranus: 130_000, neptune: 170_000};
-const SUN_BUDGET = 200_000;
+const SUN_BUDGET = 150_000;
 const DYNAMIC_CEILINGS = {sun: 80_000, jupiter: 80_000, saturn: 60_000, uranus: 40_000, neptune: 60_000};
 
 function allocationTiers(budget) {
@@ -968,7 +988,7 @@ test('giant runtimes complete progressive surfaces without consuming auxiliary g
 
 test('Sun streams its million-particle photosphere without animate allocations', () => {
     const source = fs.readFileSync('scripts/planets/sun.js', 'utf8');
-    const animateSource = source.slice(source.indexOf('function animate()'));
+    const animateSource = source.slice(source.indexOf('function animate('));
     assert.doesNotMatch(animateSource, /new THREE\.(Color|Vector3)/);
 
     const env = loadPlanetRuntime('sun');

@@ -8,7 +8,6 @@ const sharedTopoBackground = createTopoBackground({
     noiseOffset: 100,
     overlayFill: 'rgba(200, 35, 55, 0.03)'
 });
-sharedTopoBackground.resize();
 
 
 // ==========================================
@@ -19,9 +18,8 @@ const displaySize     = DisplayArea.getSize(canvasContainer);
 const scene           = new THREE.Scene();
 const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
 
-let currentZoom    = 30;
 const INITIAL_ZOOM = 30;
-camera.position.z  = currentZoom;
+camera.position.z  = INITIAL_ZOOM;
 
 const renderer = new THREE.WebGLRenderer({
     antialias: true,
@@ -50,11 +48,10 @@ if (typeof ResizeObserver !== 'undefined')
 
 window.addEventListener('resize', () =>
 {
+    // 画布尺寸由 canvas-container 上的 ResizeObserver 统一处理
     sharedTopoBackground.resize();
-    resizeScene();
 });
 
-const zoomDisplay = document.getElementById('zoom-text-display');
 const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
 
 const group = new THREE.Group();
@@ -71,7 +68,6 @@ sunTiltGroup.add(sunGroup);
 
 // --- A. 静态高密度粒子光球 + 动态叠加层 (Photosphere) ---
 let sunSurfaceGeometry;
-let sunSurfaceParticles;
 let sunGeometry;
 let sunParticles;
 let frameSampler;
@@ -163,7 +159,6 @@ function createSunSurface()
         }
     });
     sunSurfaceGeometry = surface.geometry;
-    sunSurfaceParticles = surface.points;
     frameSampler = surface.frameSampler;
 }
 
@@ -191,8 +186,9 @@ function createDynamicSun()
     sunGeometry = new THREE.BufferGeometry();
     sunGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     sunGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    // 逐帧读取的基准位置用类型化数组存储，避免 90k 元素的普通数组常驻
     sunGeometry.userData = {
-        originalPositions: positions
+        originalPositions: new Float32Array(positions)
     };
 
     const sunMat = new THREE.PointsMaterial({
@@ -520,8 +516,9 @@ function animate(timestamp)
     frameSampler.sample(timestamp);
     time += timeStep;
 
-    // 自转周期 ~25.4 天（赤道），相对速率按真实值换算
-    sunGroup.rotation.y += 0.000059;
+    // 自转周期 ~25.4 天（赤道）。真实速率下几乎不可见，
+    // 演示节奏压缩至 ~4 分钟/圈，慢于地球、快于水星（保持真实次序）
+    sunGroup.rotation.y += 0.00045;
 
     if (coreParticles)
     {
@@ -537,7 +534,9 @@ function animate(timestamp)
         sunGrids.outer.rotation.z += 0.0002;
     }
 
-    if (sunParticles && sunGeometry && frameCount % frameSampler.dynamicStride === 0)
+    // 光球脉动场以 time*0.3/time*0.5 的速率缓慢漂移，逐帧刷新与隔帧刷新
+    // 在视觉上不可区分；隔帧可减半 30k×2 次 noise3D 与约 720KB 的属性回传
+    if (sunParticles && sunGeometry && frameCount % (frameSampler.dynamicStride * 2) === 0)
     {
         const positions = sunGeometry.attributes.position.array;
         const colors    = sunGeometry.attributes.color.array;
@@ -705,7 +704,7 @@ function animate(timestamp)
         eruptionGeo.attributes.color.needsUpdate    = true;
     }
 
-    currentZoom = updateInteraction(group, camera, zoomDisplay, currentZoom);
+    updateInteraction(group, camera);
     updatePlanetTelemetry(sunGroup, tgtLabel, 1);
 
     renderer.render(scene, camera);

@@ -344,8 +344,8 @@ function animate(timestamp)
     frameCount++;
     frameSampler.sample(timestamp);
 
-    // 1. 地球自转
-    earthSystemGroup.rotation.y += 0.0015;
+    // 1. 地球自转（演示节奏基准，~87 秒/圈）
+    earthSystemGroup.rotation.y += 0.0012;
 
     if (frameCount % frameSampler.dynamicStride === 0)
     {

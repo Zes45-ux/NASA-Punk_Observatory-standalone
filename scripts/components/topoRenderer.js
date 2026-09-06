@@ -247,8 +247,26 @@
             draw();
         }
 
+        // 拖拽窗口边缘时 resize 事件可能每秒触发数十次，全量重绘
+        // （数万次噪声采样 + 行进方块）代价高；用 rAF 合并为每帧至多一次
+        let resizeQueued = false;
+
+        function requestResize()
+        {
+            if (resizeQueued)
+            {
+                return;
+            }
+            resizeQueued = true;
+            requestAnimationFrame(() =>
+            {
+                resizeQueued = false;
+                resize();
+            });
+        }
+
         resize();
-        return {resize: resize};
+        return {resize: requestResize};
     }
 
     global.createTopoBackground = createTopoBackground;

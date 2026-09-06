@@ -42,7 +42,7 @@ This retains the existing planet-specific procedural implementations. A shared s
 
 | Body | High-profile surface particles | Dynamic layer ceiling | Distinguishing visual treatment |
 | --- | ---: | ---: | --- |
-| Sun | 200,000 | 80,000 | Corona, flares, eruptions, restrained pulsation |
+| Sun | 150,000 | 80,000 | Corona, flares, eruptions, restrained pulsation |
 | Mercury | 160,000 | 30,000 | Craters, terminator contrast, sodium tail |
 | Venus | 150,000 | 60,000 | Volcanic surface, dense clouds, retrograde super-rotation |
 | Earth | 210,000 | 50,000 | Land/ocean separation, clouds, atmospheric limb, Moon and orbital assets |

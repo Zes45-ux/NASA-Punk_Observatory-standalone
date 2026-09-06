@@ -17,9 +17,8 @@ const displaySize     = DisplayArea.getSize(canvasContainer);
 const scene           = new THREE.Scene();
 const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
 
-let currentZoom    = 25;
 const INITIAL_ZOOM = 25;
-camera.position.z  = currentZoom;
+camera.position.z  = INITIAL_ZOOM;
 
 const renderer = new THREE.WebGLRenderer({
     antialias: true,
@@ -51,7 +50,6 @@ window.addEventListener('resize', () =>
     sharedTopoBackground.resize();
 });
 
-const zoomDisplay = document.getElementById('zoom-text-display');
 const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
 
 const group = new THREE.Group();
@@ -242,14 +240,17 @@ function animate(timestamp)
     frameCount++;
     frameSampler.sample(timestamp);
 
-    // 1. 地表逆行自转（恒星周 243 天，真实相对速率）
-    venusSurfaceGroup.rotation.y -= 0.0000062;
+    // 1. 地表逆行自转（真实恒星周 243 天几乎不可见，
+    //    演示节奏压缩至 ~7 分钟/圈，保持"最慢天体"的相对次序）
+    venusSurfaceGroup.rotation.y -= 0.00025;
 
-    // 2. 大气超自转（云顶约 4.4 天绕行一周，约为地表 60 倍）
-    cloudGroup.rotation.y -= 0.00034;
+    // 2. 大气超自转（云层明显快于地表，保留差速流动观感）
+    cloudGroup.rotation.y -= 0.0011;
 
     // 3. 云层颜色动画 (仅通过颜色/亮度变化模拟流动)
-    if (frameCount % frameSampler.dynamicStride === 0)
+    // 流动场以约 0.05 噪声单位/秒 的速度漂移，逐帧刷新与每 4 个动态帧刷新
+    // 在视觉上不可区分；降频可减少 45k 次 noise3D 与约 540KB 的颜色回传
+    if (frameCount % (frameSampler.dynamicStride * 4) === 0)
     {
         const time      = Date.now() * 0.00005;
         const colors    = cloudPoints.geometry.attributes.color.array;
@@ -274,7 +275,7 @@ function animate(timestamp)
     }
 
     // 4. 视角和缩放控制
-    currentZoom = updateInteraction(group, camera, zoomDisplay, currentZoom);
+    updateInteraction(group, camera);
 
     // 5. 遥测数据更新 (以云层组作为参考系，因为它是主要视觉对象)
     updatePlanetTelemetry(cloudGroup, tgtLabel, 2);

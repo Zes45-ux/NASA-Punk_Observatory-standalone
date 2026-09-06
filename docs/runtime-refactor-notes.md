@@ -202,7 +202,7 @@ empirically best-looking band on a 1080p display:
 
 | Body | Surface | Dynamic |
 | --- | ---: | ---: |
-| Sun | 200,000 | 80,000 |
+| Sun | 150,000 | 80,000 |
 | Mercury | 160,000 | 30,000 |
 | Venus | 150,000 | 60,000 |
 | Earth | 210,000 | 50,000 |
@@ -212,11 +212,34 @@ empirically best-looking band on a 1080p display:
 | Uranus | 130,000 | 40,000 |
 | Neptune | 170,000 | 60,000 |
 
+Self-rotation pacing: rates are compressed into a demo-friendly band while
+keeping the real relative ordering. The slowest bodies (Mercury, Venus, Sun)
+run at ~4-7 minutes per revolution (Venus slowest, then Mercury, then the
+Sun); the rocky planets sit near ~90 seconds per revolution; the gas giants
+run ~45-70 seconds per revolution with Jupiter visibly fastest. True sidereal
+ratios are noted in the per-planet source comments.
+
 Rings are independent auxiliary geometry. Static surfaces are not updated per
 frame; only dynamic overlays upload changing attributes. When frame sampling
 finds sustained slowdown, the runtime first changes dynamic updates to every
 second frame, then selects `balanced`, `low`, or `recovery`. It never raises a
 profile automatically during the same page session.
+
+Two dynamic overlays run on fixed sub-cadences on top of the stride gate,
+because their fields drift far slower than any stride: the Sun photosphere
+recomputes every second dynamic frame and the Venus cloud flow every fourth;
+at their drift rates this is visually indistinguishable from per-frame
+updates while cutting the dominant noise and attribute-upload cost. The
+telemetry HUD throttles DOM writes to 10 Hz with identical-content
+suppression, and the topography background coalesces resize events to at
+most one full redraw per frame.
+
+The system monitor doubles as a navigation star map: hovering it pauses the
+orbit animation, and each body marker carries a direct per-planet link
+(click marker to jump straight to that planet's page; clicking the map
+background still returns to the system-select overview, and clicking the
+active body is a no-op). Markers expose enlarged invisible hit areas since
+the visible dots are only a few pixels.
 
 ## Run and validation
 

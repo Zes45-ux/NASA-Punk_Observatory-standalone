@@ -3,7 +3,7 @@
     const MONITOR_ORDER        = ['neptune', 'uranus', 'saturn', 'jupiter', 'mars', 'earth', 'venus', 'mercury'];
     const PLANET_ZOOM_FOOTER   = '&gt; CAM_ZOOM: <span id="zoom-text-display">100%</span>' +
         '<br>&gt; SURFACE_GEN: <span id="particle-build-progress">0%</span>';
-    const MONITOR_LABEL_TOP    = '<div class="monitor-label label-top">SYSTEM OVERVIEW // SOL</div>';
+    const MONITOR_LABEL_TOP    = '<div class="monitor-label label-top">SYSTEM OVERVIEW // SOL // CLICK BODY TO JUMP</div>';
     const MONITOR_LABEL_BOTTOM = '<div class="monitor-label label-bottom">TGT: RA 00h 00m | DEC +00° <span style="margin-left:10px; color:var(--const-orange)">EPOCH: J2000.0</span></div>';
 
     function buildReticle(isLarge)
@@ -17,14 +17,26 @@
         </div>`;
     }
 
+    function navigateTo(url)
+    {
+        if (typeof TransitionManager !== 'undefined')
+        {
+            TransitionManager.navigate(url);
+        }
+        else
+        {
+            window.location.href = url;
+        }
+    }
+
     function buildSunMarker(config)
     {
         if (config.active === 'sun')
         {
-            return `<div class="sun-marker">${buildReticle(Boolean(config.reticleLarge))}</div>`;
+            return `<div class="sun-marker" data-planet-link="sun.html">${buildReticle(Boolean(config.reticleLarge))}</div>`;
         }
 
-        return '<div class="sun-marker"></div>';
+        return '<div class="sun-marker" data-planet-link="sun.html" title="GO TO SOL"></div>';
     }
 
     function buildMonitorOrbit(name, config)
@@ -35,11 +47,13 @@
 
     function buildMonitorPlanet(name, config)
     {
-        const markerExtra = config.active === name && config.activeMarkerExtraClass ? ` ${config.activeMarkerExtraClass}` : '';
-        const reticle     = config.active === name ? buildReticle(Boolean(config.reticleLarge)) : '';
+        const isActive    = config.active === name;
+        const markerExtra = isActive && config.activeMarkerExtraClass ? ` ${config.activeMarkerExtraClass}` : '';
+        const reticle     = isActive ? buildReticle(Boolean(config.reticleLarge)) : '';
+        const linkTitle   = isActive ? '' : ` title="GO TO ${name.toUpperCase()}"`;
 
         return `<div class="planet-container c-${name}">
-                <div class="planet-marker p-${name}${markerExtra}">${reticle}</div>
+                <div class="planet-marker p-${name}${markerExtra}" data-planet-link="${name}.html"${linkTitle}>${reticle}</div>
             </div>`;
     }
 
@@ -92,16 +106,16 @@
         if (monitor)
         {
             monitor.style.cursor = 'pointer';
-            monitor.addEventListener('click', () =>
+            monitor.addEventListener('click', (event) =>
             {
-                if (typeof TransitionManager !== 'undefined')
+                // 命中星图天体标记：直接切换到该星球页面；点击其余区域回系统总览
+                const marker = event.target.closest('[data-planet-link]');
+                const target = marker ? marker.dataset.planetLink : 'index.html';
+                if (marker && target === `${planetName}.html`)
                 {
-                    TransitionManager.navigate('index.html');
+                    return;
                 }
-                else
-                {
-                    window.location.href = 'index.html';
-                }
+                navigateTo(target);
             });
         }
     }

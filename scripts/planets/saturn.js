@@ -564,9 +564,9 @@ function animate(timestamp)
     frameSampler.sample(timestamp);
     time += 0.002;
 
-    // 自转周期 10.66 小时，相对速率按真实值换算
-    planetSpinGroup.rotation.y += 0.00337;
-    planetAtmoGroup.rotation.y += 0.00253;
+    // 自转周期 10.66 小时；演示节奏压缩至 ~50 秒/圈，仍快于地球
+    planetSpinGroup.rotation.y += 0.0021;
+    planetAtmoGroup.rotation.y += 0.00158;
 
     ringUniforms.uTime.value = time;
 

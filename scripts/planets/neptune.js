@@ -193,6 +193,8 @@ function createNeptuneRings()
     {
         const pos = [];
         const col = [];
+        const ringColor = new THREE.Color(config.color);
+        const c = new THREE.Color();
 
         for (let i = 0; i < config.particles; i++)
         {
@@ -221,8 +223,7 @@ function createNeptuneRings()
 
             pos.push(x, 0, z);
 
-            const c = new THREE.Color(config.color);
-            c.multiplyScalar(0.7 + Math.random() * 0.5);
+            c.copy(ringColor).multiplyScalar(0.7 + Math.random() * 0.5);
             col.push(c.r, c.g, c.b);
         }
 
@@ -433,8 +434,8 @@ function animate(timestamp)
     frameCount++;
     frameSampler.sample(timestamp);
 
-    // 自转周期 16.11 小时，相对速率按真实值换算
-    planetSpinGroup.rotation.y += 0.00223;
+    // 自转周期 16.11 小时；演示节奏压缩至 ~65 秒/圈，快于天王星
+    planetSpinGroup.rotation.y += 0.0016;
 
     // 光环自转动画
     ringLayers.forEach(layer =>
