@@ -6,7 +6,9 @@ const vm = require('node:vm');
 function loadInteraction(extra = {}) {
     const fakeCanvas = {
         style               : {},
-        getBoundingClientRect: () => ({left: 0, top: 0, width: 100, height: 100})
+        getBoundingClientRect: () => ({left: 0, top: 0, width: 100, height: 100}),
+        addEventListener    : () => {},
+        setPointerCapture   : () => {}
     };
     const documentStub = {
         getElementById : (id) => (id === 'canvas-container' ? {appendChild() {}} : null),

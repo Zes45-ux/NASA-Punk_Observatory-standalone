@@ -217,7 +217,9 @@ keeping the real relative ordering. The slowest bodies (Mercury, Venus, Sun)
 run at ~4-7 minutes per revolution (Venus slowest, then Mercury, then the
 Sun); the rocky planets sit near ~90 seconds per revolution; the gas giants
 run ~45-70 seconds per revolution with Jupiter visibly fastest. True sidereal
-ratios are noted in the per-planet source comments.
+ratios are noted in the per-planet source comments. Every per-frame animation
+increment is scaled by a clamped delta-time factor (60 fps calibration base),
+so the calibrated pacing holds on 120 Hz+ displays and during frame drops.
 
 Rings are independent auxiliary geometry. Static surfaces are not updated per
 frame; only dynamic overlays upload changing attributes. When frame sampling
@@ -225,21 +227,38 @@ finds sustained slowdown, the runtime first changes dynamic updates to every
 second frame, then selects `balanced`, `low`, or `recovery`. It never raises a
 profile automatically during the same page session.
 
-Two dynamic overlays run on fixed sub-cadences on top of the stride gate,
-because their fields drift far slower than any stride: the Sun photosphere
-recomputes every second dynamic frame and the Venus cloud flow every fourth;
-at their drift rates this is visually indistinguishable from per-frame
-updates while cutting the dominant noise and attribute-upload cost. The
-telemetry HUD throttles DOM writes to 10 Hz with identical-content
-suppression, and the topography background coalesces resize events to at
-most one full redraw per frame.
+The heavy dynamic layers compute their noise on the GPU: the Sun photosphere
+pulsation, the Sun corona outflow, and the Venus cloud flow run in vertex
+shaders (GLSL simplex noise shared from `planetScene.js`), so the CPU only
+updates time uniforms instead of per-particle buffers. The solar eruption
+layer stays CPU-side and keeps the adaptive stride gate. The telemetry HUD
+throttles DOM writes to 10 Hz with identical-content suppression, and the
+topography background coalesces resize events to at most one full redraw per
+frame.
 
-The system monitor doubles as a navigation star map: hovering it pauses the
-orbit animation, and each body marker carries a direct per-planet link
-(click marker to jump straight to that planet's page; clicking the map
-background still returns to the system-select overview, and clicking the
-active body is a no-op). Markers expose enlarged invisible hit areas since
-the visible dots are only a few pixels.
+Shared planet runtime kit (`scripts/core/planetScene.js`): `createPlanetScene`
+wires scene, camera, renderer (pixel ratio clamped to 2), resize handling and
+the topography background for every planet page; `createFrameDelta` provides
+the delta-time factor described above.
+
+Quality is user-overridable: the QUALITY control on planet pages cycles
+auto / high / balanced / low and persists the choice in localStorage. A
+manual profile locks the adaptive profile ladder (dynamic-stride automation
+keeps running) until switched back to auto; samplers created after the
+override inherit it. Interaction runs on Pointer Events: a single pointer
+drags rotation, a two-pointer pinch zooms, click-to-focus ignores multi-touch
+gestures, and the canvas opts out of browser touch gestures via
+`touch-action: none`.
+
+The system monitor is the entry to a two-state navigation flow. Clicking the
+mini star map animates it into a horizontal system strip - a borderless,
+transparent fixed overlay reusing the system-select planet-node visuals (axis
+line drawing in, bodies staggering into place, always-visible English labels,
+and a gentle floating bob on each body so they hover over the page). Clicking
+a body in the strip jumps straight to that planet's page; the active body is
+a no-op. Collapse via Escape, a click outside the strip, or a click on the
+strip's empty area - the mini map fades back in. The mini map's caption bar
+is always the way back to the system-select overview.
 
 ## Run and validation
 

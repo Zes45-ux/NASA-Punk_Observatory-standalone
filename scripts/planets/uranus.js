@@ -2,57 +2,17 @@
 // NASA-Punk Project: URANUS
 // ==========================================
 
-// --- PART 1: 基础观测背景 ---
-const sharedTopoBackground = createTopoBackground({
-    canvasId   : 'topo-canvas',
+// --- PART 1+2: 场景初始化（共享工厂：背景/相机/渲染器/resize） ---
+const INITIAL_ZOOM = 38;
+
+const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
+    name       : 'uranus',
+    zoom       : INITIAL_ZOOM,
     noiseOffset: 800
 });
 
-
-// --- PART 2: Three.js 场景 ---
-const canvasContainer = document.getElementById('canvas-container');
-const displaySize     = DisplayArea.getSize(canvasContainer);
-const scene           = new THREE.Scene();
-const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
-
-const INITIAL_ZOOM = 38;
-
-camera.position.z = INITIAL_ZOOM;
-
-const renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    alpha    : true
-});
-renderer.setSize(displaySize.width, displaySize.height);
-renderer.setPixelRatio(window.devicePixelRatio);
-canvasContainer.appendChild(renderer.domElement);
-
-function resizeScene()
-{
-    const nextDisplaySize = DisplayArea.getSize(canvasContainer);
-    camera.aspect         = nextDisplaySize.width / nextDisplaySize.height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(nextDisplaySize.width, nextDisplaySize.height);
-}
-
-if (typeof ResizeObserver !== 'undefined')
-{
-    const displayResizeObserver = new ResizeObserver(() =>
-    {
-        resizeScene();
-    });
-    displayResizeObserver.observe(canvasContainer);
-}
-
-window.addEventListener('resize', () =>
-{
-    sharedTopoBackground.resize();
-});
-
-const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
-
-const group = new THREE.Group();
-scene.add(group);
+// 帧率无关的动画步长因子（60fps 校准基准）
+const nextDeltaTime = createFrameDelta();
 
 const uranusTiltGroup      = new THREE.Group();
 uranusTiltGroup.rotation.z = -97.77 * (Math.PI / 180);
@@ -574,27 +534,28 @@ let frameCount = 0;
 function animate(timestamp)
 {
     requestAnimationFrame(animate);
+    const dt = nextDeltaTime(timestamp);
     frameCount++;
     frameSampler.sample(timestamp);
 
     // 物理更新
     // 逆行自转（自转周期 17.24 小时）；演示节奏压缩至 ~70 秒/圈
-    uranusSpinGroup.rotation.y -= 0.0015;
-    ringGroup.rotation.y += 0.0005;
+    uranusSpinGroup.rotation.y -= 0.0015 * dt;
+    ringGroup.rotation.y += 0.0005 * dt;
     moons.forEach(sat =>
     {
-        sat.angle += sat.speed;
+        sat.angle += sat.speed * dt;
         sat.meshGroup.position.x = sat.radius * Math.cos(sat.angle);
         sat.meshGroup.position.z = sat.radius * Math.sin(sat.angle);
 
         if (sat.type === 'Major')
         {
-            sat.meshGroup.rotation.y += 0.01;
+            sat.meshGroup.rotation.y += 0.01 * dt;
         }
         else
         {
-            sat.meshGroup.rotation.x += 0.02;
-            sat.meshGroup.rotation.y += 0.02;
+            sat.meshGroup.rotation.x += 0.02 * dt;
+            sat.meshGroup.rotation.y += 0.02 * dt;
         }
     });
 

@@ -2,59 +2,17 @@
 // NASA-Punk Project: JUPITER
 // ==========================================
 
-// --- PART 1: 基础观测背景 ---
-const sharedTopoBackground = createTopoBackground({
-    canvasId   : 'topo-canvas',
+// --- PART 1+2: 场景初始化（共享工厂：背景/相机/渲染器/resize） ---
+const INITIAL_ZOOM = 38;
+
+const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
+    name       : 'jupiter',
+    zoom       : INITIAL_ZOOM,
     noiseOffset: 800
 });
 
-
-// ==========================================
-// PART 2: Three.js 场景初始化
-// ==========================================
-const canvasContainer = document.getElementById('canvas-container');
-const displaySize     = DisplayArea.getSize(canvasContainer);
-const scene           = new THREE.Scene();
-const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
-
-const INITIAL_ZOOM = 38;
-camera.position.z  = INITIAL_ZOOM;
-
-const renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    alpha    : true
-});
-renderer.setSize(displaySize.width, displaySize.height);
-renderer.setPixelRatio(window.devicePixelRatio);
-canvasContainer.appendChild(renderer.domElement);
-
-function resizeScene()
-{
-    const nextDisplaySize = DisplayArea.getSize(canvasContainer);
-    camera.aspect         = nextDisplaySize.width / nextDisplaySize.height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(nextDisplaySize.width, nextDisplaySize.height);
-}
-
-if (typeof ResizeObserver !== 'undefined')
-{
-    const displayResizeObserver = new ResizeObserver(() =>
-    {
-        resizeScene();
-    });
-    displayResizeObserver.observe(canvasContainer);
-}
-
-window.addEventListener('resize', () =>
-{
-    sharedTopoBackground.resize();
-});
-
-const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
-
-// 场景层级结构
-const group = new THREE.Group();
-scene.add(group);
+// 帧率无关的动画步长因子（60fps 校准基准）
+const nextDeltaTime = createFrameDelta();
 
 // 1. 倾角容器 (木星轴倾角 3.13度)
 const jupiterTiltGroup      = new THREE.Group();
@@ -642,6 +600,7 @@ let frameCount = 0;
 function animate(timestamp)
 {
     requestAnimationFrame(animate);
+    const dt = nextDeltaTime(timestamp);
     frameCount++;
     frameSampler.sample(timestamp);
     const time = Date.now() * 0.001;
@@ -649,30 +608,30 @@ function animate(timestamp)
     // 1. 木星自转
     // 自转周期 9.93 小时（太阳系最快行星）。真实比例在演示中偏快，
     // 压缩至 ~48 秒/圈，仍保持"最快行星"的相对次序
-    jupiterSpinGroup.rotation.y += 0.0022;
+    jupiterSpinGroup.rotation.y += 0.0022 * dt;
 
     // 2. 大红斑独立漂移
     if (redSpotGroup)
     {
-        redSpotGroup.rotation.y -= 0.00035;
+        redSpotGroup.rotation.y -= 0.00035 * dt;
         redSpotGroup.rotation.x = Math.sin(time * 0.5) * 0.002;
     }
 
     // 3. 卫星公转
     moons.forEach(sat =>
     {
-        sat.angle += sat.speed;
+        sat.angle += sat.speed * dt;
         sat.meshGroup.position.x = sat.radius * Math.cos(sat.angle);
         sat.meshGroup.position.z = sat.radius * Math.sin(sat.angle);
 
         if (sat.type === 'Major')
         {
-            sat.meshGroup.rotation.y += 0.01;
+            sat.meshGroup.rotation.y += 0.01 * dt;
         }
         else
         {
-            sat.meshGroup.rotation.x += 0.02;
-            sat.meshGroup.rotation.y += 0.02;
+            sat.meshGroup.rotation.x += 0.02 * dt;
+            sat.meshGroup.rotation.y += 0.02 * dt;
         }
     });
 
@@ -686,7 +645,7 @@ function animate(timestamp)
         {
             const p = data[i];
 
-            p.angle += p.speed;
+            p.angle += p.speed * dt;
 
             const dLat     = Math.sin(p.angle) * p.dist * 0.22 * p.height;
             const dLon     = Math.cos(p.angle) * p.dist * 0.22 * p.width;

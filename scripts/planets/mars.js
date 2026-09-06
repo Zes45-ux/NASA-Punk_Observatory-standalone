@@ -2,59 +2,18 @@
 // NASA-Punk Project: SOL-IV (MARS) - POINT CLOUD MOONS
 // ==========================================
 
-// --- PART 1: 基础观测背景 ---
-const sharedTopoBackground = createTopoBackground({
-    canvasId   : 'topo-canvas',
+// --- PART 1+2: 场景初始化（共享工厂：背景/相机/渲染器/resize） ---
+// [CONFIG] 保持拉远的视角以容纳卫星
+const INITIAL_ZOOM = 30;
+
+const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
+    name       : 'mars',
+    zoom       : INITIAL_ZOOM,
     noiseOffset: 100
 });
 
-
-// ==========================================
-// PART 2: Three.js 场景初始化
-// ==========================================
-const canvasContainer = document.getElementById('canvas-container');
-const displaySize     = DisplayArea.getSize(canvasContainer);
-const scene           = new THREE.Scene();
-const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
-
-// [CONFIG] 保持拉远的视角以容纳卫星
-const INITIAL_ZOOM = 30;
-camera.position.z  = INITIAL_ZOOM;
-
-const renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    alpha    : true
-});
-renderer.setSize(displaySize.width, displaySize.height);
-renderer.setPixelRatio(window.devicePixelRatio);
-canvasContainer.appendChild(renderer.domElement);
-
-function resizeScene()
-{
-    const nextDisplaySize = DisplayArea.getSize(canvasContainer);
-    camera.aspect         = nextDisplaySize.width / nextDisplaySize.height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(nextDisplaySize.width, nextDisplaySize.height);
-}
-
-if (typeof ResizeObserver !== 'undefined')
-{
-    const displayResizeObserver = new ResizeObserver(() =>
-    {
-        resizeScene();
-    });
-    displayResizeObserver.observe(canvasContainer);
-}
-
-window.addEventListener('resize', () =>
-{
-    sharedTopoBackground.resize();
-});
-
-const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
-
-const group = new THREE.Group();
-scene.add(group);
+// 帧率无关的动画步长因子（60fps 校准基准）
+const nextDeltaTime = createFrameDelta();
 
 // 1. 倾角容器
 const planetTiltGroup      = new THREE.Group();
@@ -377,31 +336,32 @@ let frameCount = 0;
 function animate(timestamp)
 {
     requestAnimationFrame(animate);
+    const dt = nextDeltaTime(timestamp);
     frameCount++;
     frameSampler.sample(timestamp);
 
     // 自转周期 24.62 小时，与地球几乎相同；演示节奏与地球一致（~87 秒/圈）
-    marsSurfaceGroup.rotation.y += 0.0012;
+    marsSurfaceGroup.rotation.y += 0.0012 * dt;
     if (frameCount % frameSampler.dynamicStride === 0)
     {
-        marsAtmosGroup.rotation.y += 0.00144;
+        marsAtmosGroup.rotation.y += 0.00144 * dt;
 
         moonsData.forEach(moon =>
         {
-            moon.angle += moon.speed;
+            moon.angle += moon.speed * dt;
             moon.mesh.position.x = moon.radius * Math.cos(moon.angle);
             moon.mesh.position.z = moon.radius * Math.sin(moon.angle);
 
             // 缓慢的不规则自转
             if (moon.isPhobos)
             {
-                moon.mesh.rotation.z -= 0.01;
-                moon.mesh.rotation.y += 0.005;
+                moon.mesh.rotation.z -= 0.01 * dt;
+                moon.mesh.rotation.y += 0.005 * dt;
             }
             else
             {
-                moon.mesh.rotation.y += 0.002;
-                moon.mesh.rotation.x += 0.003;
+                moon.mesh.rotation.y += 0.002 * dt;
+                moon.mesh.rotation.x += 0.003 * dt;
             }
         });
     }

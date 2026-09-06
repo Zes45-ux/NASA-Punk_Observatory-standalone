@@ -144,6 +144,46 @@ test('frame sampler lowers balanced and low profiles, clamps to built count, and
     assert.equal(pausedSampler.profile, 'high', 'background pause does not trigger downgrade');
 });
 
+test('manual quality profile locks degradation until set back to auto', () => {
+    const {api, events} = loadBuilder();
+    const draws = [];
+    const sampler = api.createFrameSampler({
+        geometry: {setDrawRange: (start, count) => draws.push([start, count])},
+        maxCount: 1_000_000,
+        setDynamicStride: () => {},
+        sampleSize: 4
+    });
+
+    sampler.setBuiltCount(1_000_000);
+    api.setQualityProfile('balanced');
+    assert.equal(sampler.profile, 'balanced');
+    assert.equal(api.getQualityProfile(), 'balanced');
+    assert.deepEqual(draws.at(-1), [0, 750_000]);
+    const qualityEvent = events.find((event) => event.type === 'observatory:quality');
+    assert.equal(qualityEvent.detail.profile, 'balanced');
+
+    api.markReady({page: 'test'});
+    [0, 40, 80, 120, 160, 200, 240, 280].forEach((time) => sampler.sample(time));
+    assert.equal(sampler.profile, 'balanced', 'locked profile ignores adaptive degradation');
+    assert.equal(sampler.dynamicStride, 2, 'dynamic cadence automation keeps running');
+
+    api.setQualityProfile('auto');
+    assert.equal(api.getQualityProfile(), 'auto');
+    [320, 360, 400, 440].forEach((time) => sampler.sample(time));
+    assert.equal(sampler.profile, 'recovery', 'adaptive degradation resumes after auto');
+
+    api.setQualityProfile('low');
+    const inherited = api.createFrameSampler({
+        geometry: {setDrawRange() {}},
+        maxCount: 1_000_000,
+        setDynamicStride: () => {}
+    });
+    assert.equal(inherited.profile, 'low', 'samplers created later inherit the override');
+
+    api.setQualityProfile('turbo');
+    assert.equal(api.getQualityProfile(), 'low', 'unknown profile names are rejected');
+});
+
 test('allocate falls through to the first feasible count', () => {
     const {api} = loadBuilder();
     const result = api.allocate([1_000_000, 750_000, 500_000, 250_000], (count) => {
@@ -393,7 +433,7 @@ test('planet layout exposes surface generation progress', () => {
     assert.match(html, /id="particle-build-progress">0%/);
 });
 
-test('system monitor markers expose direct per-planet links', () => {
+test('system monitor expands into a strip exposing direct per-planet links', () => {
     const sandbox = {
         PLANET_UI_CONFIG: {},
         ObservatoryUI: {
@@ -405,12 +445,27 @@ test('system monitor markers expose direct per-planet links', () => {
     sandbox.window = sandbox;
     vm.runInNewContext(fs.readFileSync('scripts/components/planetUi.js', 'utf8'), sandbox);
     const html = sandbox.buildPlanetLayout({active: 'earth', rows: []});
-    assert.match(html, /class="sun-marker" data-planet-link="sun\.html"/, 'sun marker links to sun page');
-    for (const name of ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune']) {
-        assert.match(html, new RegExp(`data-planet-link="${name}\\.html"`), `${name} marker links to its page`);
+
+    // 小地图本体：纯触发器，不再携带跳转链接
+    assert.match(html, /class="sun-marker"/);
+    assert.match(html, /class="planet-marker p-mars"/);
+    assert.match(html, /SYSTEM OVERVIEW \/\/ CLICK MAP TO EXPAND/);
+    assert.match(html, /system-monitor-caption" title="GO TO SYSTEM SELECT"/);
+
+    // 展开导航条：九个天体节点带直达链接与常显英文名
+    for (const node of [
+        ['sun', 'SOL'], ['mercury', 'MERCURY'], ['venus', 'VENUS'], ['earth', 'EARTH'],
+        ['mars', 'MARS'], ['jupiter', 'JUPITER'], ['saturn', 'SATURN'],
+        ['uranus', 'URANUS'], ['neptune', 'NEPTUNE']
+    ]) {
+        const [name, label] = node;
+        assert.match(html, new RegExp(`planet-node node-${name}[ "]`), `${name} strip node rendered`);
+        assert.match(html, new RegExp(`data-planet-link="${name}\\.html"`), `${name} node links to its page`);
+        assert.match(html, new RegExp(`class="node-label">${label}</div>`), `${name} strip label rendered`);
     }
-    const activeMarker = html.match(/<div class="planet-marker p-earth[^"]*" data-planet-link="earth\.html">/);
-    assert.ok(activeMarker, 'active planet marker keeps its link so clicks stay no-ops');
+    assert.match(html, /strip-active" data-planet-link="earth\.html"/, 'active planet highlighted in strip');
+    assert.match(html, /strip-overview" title="GO TO SYSTEM SELECT"/, 'strip overview entry present');
+    assert.match(html, /CLICK BODY TO JUMP \/\/ ESC TO CLOSE/, 'strip close hint present');
 });
 
 const ROCKY_BUDGETS = {mercury: 160_000, venus: 150_000, earth: 210_000, mars: 180_000};
@@ -827,6 +882,12 @@ function loadPlanetRuntime(planetName, {allocationCount = 300000, includeProgres
     vm.runInNewContext(fs.readFileSync('scripts/core/particle-builder.js', 'utf8'), sandbox, {
         filename: 'scripts/core/particle-builder.js'
     });
+    vm.runInNewContext(fs.readFileSync('scripts/core/planetScene.js', 'utf8'), sandbox, {
+        filename: 'scripts/core/planetScene.js'
+    });
+    sandbox.createPlanetScene = window.createPlanetScene;
+    sandbox.createFrameDelta = window.createFrameDelta;
+    sandbox.PLANET_GLSL = window.PLANET_GLSL;
     const ParticleBuilder = sandbox.ParticleBuilder = window.ParticleBuilder;
     function captureSurfaceFactory(factory) {
         return (options) => {

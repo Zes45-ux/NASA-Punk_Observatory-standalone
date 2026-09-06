@@ -2,58 +2,17 @@
 // NASA-Punk Project: SOL-VIII (NEPTUNE) - FINAL SPEED TUNE
 // ==========================================
 
-// --- PART 1: 基础观测背景 ---
-const sharedTopoBackground = createTopoBackground({
-    canvasId   : 'topo-canvas',
+// --- PART 1+2: 场景初始化（共享工厂：背景/相机/渲染器/resize） ---
+const INITIAL_ZOOM = 30;
+
+const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
+    name       : 'neptune',
+    zoom       : INITIAL_ZOOM,
     noiseOffset: 100
 });
 
-
-// ==========================================
-// PART 2: Three.js 场景初始化
-// ==========================================
-const canvasContainer = document.getElementById('canvas-container');
-const displaySize     = DisplayArea.getSize(canvasContainer);
-const scene           = new THREE.Scene();
-const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
-
-const INITIAL_ZOOM = 30;
-camera.position.z  = INITIAL_ZOOM;
-
-const renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    alpha    : true
-});
-renderer.setSize(displaySize.width, displaySize.height);
-renderer.setPixelRatio(window.devicePixelRatio);
-canvasContainer.appendChild(renderer.domElement);
-
-function resizeScene()
-{
-    const nextDisplaySize = DisplayArea.getSize(canvasContainer);
-    camera.aspect         = nextDisplaySize.width / nextDisplaySize.height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(nextDisplaySize.width, nextDisplaySize.height);
-}
-
-if (typeof ResizeObserver !== 'undefined')
-{
-    const displayResizeObserver = new ResizeObserver(() =>
-    {
-        resizeScene();
-    });
-    displayResizeObserver.observe(canvasContainer);
-}
-
-window.addEventListener('resize', () =>
-{
-    sharedTopoBackground.resize();
-});
-
-const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
-
-const group = new THREE.Group();
-scene.add(group);
+// 帧率无关的动画步长因子（60fps 校准基准）
+const nextDeltaTime = createFrameDelta();
 
 // 1. 倾角容器
 const planetTiltGroup      = new THREE.Group();
@@ -431,22 +390,23 @@ let frameCount = 0;
 function animate(timestamp)
 {
     requestAnimationFrame(animate);
+    const dt = nextDeltaTime(timestamp);
     frameCount++;
     frameSampler.sample(timestamp);
 
     // 自转周期 16.11 小时；演示节奏压缩至 ~65 秒/圈，快于天王星
-    planetSpinGroup.rotation.y += 0.0016;
+    planetSpinGroup.rotation.y += 0.0016 * dt;
 
     // 光环自转动画
     ringLayers.forEach(layer =>
     {
-        layer.mesh.rotation.y += layer.speed;
+        layer.mesh.rotation.y += layer.speed * dt;
     });
 
     if (tritonData)
     {
         // 公转周期 5.877 天，逆行轨道
-        tritonData.angle += tritonData.speed;
+        tritonData.angle += tritonData.speed * dt;
         tritonData.mesh.position.x = tritonData.radius * Math.cos(tritonData.angle);
         tritonData.mesh.position.z = tritonData.radius * Math.sin(tritonData.angle);
         // 潮汐锁定：自转角等于公转角
@@ -455,11 +415,11 @@ function animate(timestamp)
 
     minorMoonsData.forEach(moon =>
     {
-        moon.angle += moon.speed;
+        moon.angle += moon.speed * dt;
         moon.mesh.position.x = moon.xRad * Math.cos(moon.angle);
         moon.mesh.position.z = moon.yRad * Math.sin(moon.angle);
-        moon.mesh.rotation.x += 0.02;
-        moon.mesh.rotation.y += 0.02;
+        moon.mesh.rotation.x += 0.02 * dt;
+        moon.mesh.rotation.y += 0.02 * dt;
     });
 
     updateInteraction(group, camera);

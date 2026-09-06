@@ -2,58 +2,17 @@
 // NASA-Punk Project: SOL-III (EARTH)
 // ==========================================
 
-// --- PART 1: 基础观测背景 (SOL-III / Terra) ---
-const sharedTopoBackground = createTopoBackground({
-    canvasId   : 'topo-canvas',
+// --- PART 1+2: 场景初始化（共享工厂：背景/相机/渲染器/resize） ---
+const INITIAL_ZOOM = 25;
+
+const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
+    name       : 'earth',
+    zoom       : INITIAL_ZOOM,
     noiseOffset: 100
 });
 
-
-// ==========================================
-// PART 2: Three.js 3D 场景
-// ==========================================
-const canvasContainer = document.getElementById('canvas-container');
-const displaySize     = DisplayArea.getSize(canvasContainer);
-const scene           = new THREE.Scene();
-const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
-
-// [CONFIG] 初始相机距离
-const INITIAL_ZOOM = 25;
-camera.position.z  = INITIAL_ZOOM;
-
-const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
-renderer.setSize(displaySize.width, displaySize.height);
-renderer.setPixelRatio(window.devicePixelRatio);
-canvasContainer.appendChild(renderer.domElement);
-
-function resizeScene()
-{
-    const nextDisplaySize = DisplayArea.getSize(canvasContainer);
-    camera.aspect         = nextDisplaySize.width / nextDisplaySize.height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(nextDisplaySize.width, nextDisplaySize.height);
-}
-
-if (typeof ResizeObserver !== 'undefined')
-{
-    const displayResizeObserver = new ResizeObserver(() =>
-    {
-        resizeScene();
-    });
-    displayResizeObserver.observe(canvasContainer);
-}
-
-window.addEventListener('resize', () =>
-{
-    sharedTopoBackground.resize();
-});
-
-// UI 元素引用
-const tgtLabel = document.querySelector('.monitor-label.label-bottom');
-
-// 1. 全局容器
-const group = new THREE.Group();
-scene.add(group);
+// 帧率无关的动画步长因子（60fps 校准基准）
+const nextDeltaTime = createFrameDelta();
 
 // 2. 倾角容器 (Earth Tilt ~23.44 deg)
 const earthTiltGroup      = new THREE.Group();
@@ -341,29 +300,30 @@ let frameCount = 0;
 function animate(timestamp)
 {
     requestAnimationFrame(animate);
+    const dt = nextDeltaTime(timestamp);
     frameCount++;
     frameSampler.sample(timestamp);
 
     // 1. 地球自转（演示节奏基准，~87 秒/圈）
-    earthSystemGroup.rotation.y += 0.0012;
+    earthSystemGroup.rotation.y += 0.0012 * dt;
 
     if (frameCount % frameSampler.dynamicStride === 0)
     {
         // 2. 云层差速
-        cloudGroup.rotation.y += 0.0005;
+        cloudGroup.rotation.y += 0.0005 * dt;
 
         // 3. LEO 卫星动画
         leoSats.forEach(sat =>
         {
-            sat.angle += sat.speed;
+            sat.angle += sat.speed * dt;
             sat.mesh.position.x = sat.radius * Math.cos(sat.angle);
             sat.mesh.position.z = sat.radius * Math.sin(sat.angle);
-            sat.mesh.rotation.y += 0.02;
+            sat.mesh.rotation.y += 0.02 * dt;
             sat.mesh.rotation.z = -sat.angle;
         });
 
         // 4. 月球公转 & 自转（恒星月 27.32 天，潮汐锁定）
-        moonAngle += 0.0000547;
+        moonAngle += 0.0000547 * dt;
         moonBodyGroup.position.x = moonRadius * Math.cos(moonAngle);
         moonBodyGroup.position.z = moonRadius * Math.sin(moonAngle);
         moonBodyGroup.rotation.y = moonAngle;

@@ -147,6 +147,8 @@
     display: block;
     width: 100% !important;
     height: 100% !important;
+    /* 触屏拖拽旋转/捏合缩放由 Pointer Events 接管，禁用浏览器手势 */
+    touch-action: none;
 }
 
 #ui-layer {
@@ -261,6 +263,13 @@ h1 {
     pointer-events: auto !important;
     cursor: pointer;
     z-index: 50;
+    transition: opacity 0.3s ease;
+}
+
+/* 星图展开为横向导航条期间，小地图退为暗态背景 */
+.system-monitor-container.strip-open {
+    opacity: 0.25;
+    pointer-events: none !important;
 }
 
 .system-monitor-body {
@@ -319,6 +328,167 @@ h1 {
 .planet-marker:hover,
 .sun-marker:hover {
     filter: brightness(1.6);
+}
+
+.quality-control {
+    position: absolute;
+    right: calc(var(--display-ui-padding) + 52px);
+    bottom: var(--display-ui-padding);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 7px 10px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 100;
+    border: 1px solid rgba(91, 120, 156, 0.35);
+    background: rgba(16, 24, 33, 0.6);
+    transition: color 0.15s, border-color 0.15s;
+    user-select: none;
+}
+
+.quality-control:hover {
+    color: var(--text-white);
+    border-color: rgba(224, 98, 54, 0.6);
+}
+
+.quality-value {
+    color: var(--const-yellow);
+}
+
+/* =========================================
+   Star Map Strip (expanded navigation overlay)
+   点击小星图后动画展开的水平星球选择条，
+   复用首页 system select 的行星节点视觉；
+   无面板底色，星体直接悬浮在页面上
+   ========================================= */
+
+.system-strip {
+    position: fixed;
+    left: 50%;
+    bottom: 96px;
+    transform: translateX(-50%) translateY(40px);
+    width: max-content;
+    max-width: 96vw;
+    padding: 14px 28px 6px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+    z-index: 150;
+}
+
+.system-strip.open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+}
+
+.strip-hints {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    padding: 0 4px 4px;
+    white-space: nowrap;
+    text-shadow: 0 0 6px rgba(5, 10, 16, 0.95), 0 1px 2px rgba(5, 10, 16, 0.95);
+}
+
+.strip-overview {
+    color: var(--const-yellow);
+    cursor: pointer;
+}
+
+.strip-overview:hover {
+    text-decoration: underline;
+}
+
+.strip-axis-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    height: 300px;
+    padding: 0 18px;
+}
+
+.strip-axis-group .axis-line {
+    transform: translateY(-50%) scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.45s ease 0.15s;
+}
+
+.system-strip.open .strip-axis-group .axis-line {
+    transform: translateY(-50%) scaleX(1);
+}
+
+/* 节点逐个浮入，展开后带轻微浮动呼吸 */
+@keyframes strip-body-float {
+    from { translate: 0 -3px; }
+    to   { translate: 0 3px; }
+}
+
+.system-strip .planet-node {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.system-strip.open .planet-node {
+    opacity: 1;
+    transform: translateY(0);
+    animation: strip-body-float 4.5s ease-in-out infinite alternate;
+}
+
+.system-strip.open .strip-axis-group .planet-node:nth-child(2) { transition-delay: 0.05s; animation-delay: -0.3s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(3) { transition-delay: 0.1s; animation-delay: -1.2s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(4) { transition-delay: 0.15s; animation-delay: -2.1s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(5) { transition-delay: 0.2s; animation-delay: -0.8s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(6) { transition-delay: 0.25s; animation-delay: -1.7s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(7) { transition-delay: 0.3s; animation-delay: -2.6s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(8) { transition-delay: 0.35s; animation-delay: -1.3s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(9) { transition-delay: 0.4s; animation-delay: -2.2s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(10) { transition-delay: 0.45s; animation-delay: -0.5s; }
+
+.system-strip.open .node-sun {
+    animation-duration: 6.5s;
+}
+
+/* 名字常显，便于直接点选 */
+.system-strip .node-label {
+    opacity: 1;
+    top: -34px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: var(--text-white);
+}
+
+.system-strip .planet-node:hover .node-label {
+    transform: translateX(-50%);
+    color: var(--const-orange);
+}
+
+.system-strip .node-sun {
+    margin-left: 0;
+}
+
+.system-strip .strip-active .planet-body {
+    border-color: var(--const-orange);
+    box-shadow: 0 0 22px rgba(224, 98, 54, 0.45);
+}
+
+.system-strip .strip-active .node-label {
+    color: var(--const-orange);
 }
 
 .orbit-path {

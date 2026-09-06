@@ -2,58 +2,17 @@
 // NASA-Punk Project: SATURN
 // ==========================================
 
-// --- PART 1: 基础观测背景 ---
-const sharedTopoBackground = createTopoBackground({
-    canvasId   : 'topo-canvas',
+// --- PART 1+2: 场景初始化（共享工厂：背景/相机/渲染器/resize） ---
+const INITIAL_ZOOM = 42;
+
+const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
+    name       : 'saturn',
+    zoom       : INITIAL_ZOOM,
     noiseOffset: 100
 });
 
-
-// ==========================================
-// PART 2: Three.js 3D 场景 (SOL-VI SATURN SYSTEM)
-// ==========================================
-const canvasContainer = document.getElementById('canvas-container');
-const displaySize     = DisplayArea.getSize(canvasContainer);
-const scene           = new THREE.Scene();
-const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
-
-const INITIAL_ZOOM = 42;
-camera.position.z  = INITIAL_ZOOM;
-
-const renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    alpha    : true
-});
-renderer.setSize(displaySize.width, displaySize.height);
-renderer.setPixelRatio(window.devicePixelRatio);
-canvasContainer.appendChild(renderer.domElement);
-
-function resizeScene()
-{
-    const nextDisplaySize = DisplayArea.getSize(canvasContainer);
-    camera.aspect         = nextDisplaySize.width / nextDisplaySize.height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(nextDisplaySize.width, nextDisplaySize.height);
-}
-
-if (typeof ResizeObserver !== 'undefined')
-{
-    const displayResizeObserver = new ResizeObserver(() =>
-    {
-        resizeScene();
-    });
-    displayResizeObserver.observe(canvasContainer);
-}
-
-window.addEventListener('resize', () =>
-{
-    sharedTopoBackground.resize();
-});
-
-const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
-
-const group = new THREE.Group();
-scene.add(group);
+// 帧率无关的动画步长因子（60fps 校准基准）
+const nextDeltaTime = createFrameDelta();
 
 // 1. 倾角容器（真实 axial tilt 26.73°，x 轴为展示视角补偿）
 const saturnTiltGroup      = new THREE.Group();
@@ -560,35 +519,36 @@ let frameCount = 0;
 function animate(timestamp)
 {
     requestAnimationFrame(animate);
+    const dt = nextDeltaTime(timestamp);
     frameCount++;
     frameSampler.sample(timestamp);
-    time += 0.002;
+    time += 0.002 * dt;
 
     // 自转周期 10.66 小时；演示节奏压缩至 ~50 秒/圈，仍快于地球
-    planetSpinGroup.rotation.y += 0.0021;
-    planetAtmoGroup.rotation.y += 0.00158;
+    planetSpinGroup.rotation.y += 0.0021 * dt;
+    planetAtmoGroup.rotation.y += 0.00158 * dt;
 
     ringUniforms.uTime.value = time;
 
     // 泰坦公转和潮汐锁定（公转周期 15.95 天）
-    titanAngle += 0.0000938;
+    titanAngle += 0.0000938 * dt;
     titanBodyGroup.position.x = titanOrbitRadius * Math.cos(titanAngle);
     titanBodyGroup.position.z = titanOrbitRadius * Math.sin(titanAngle);
     // 潮汐锁定：自转角等于公转角
     titanBodyGroup.rotation.y = titanAngle - Math.PI / 2;
-    titanAtmoGroup.rotation.y += 0.001;
+    titanAtmoGroup.rotation.y += 0.001 * dt;
 
     moons.forEach(sat =>
     {
-        sat.angle += sat.speed;
+        sat.angle += sat.speed * dt;
         sat.mesh.position.x = sat.radius * Math.cos(sat.angle);
         sat.mesh.position.z = sat.radius * Math.sin(sat.angle);
 
         if (sat.isChaotic)
         {
             // Hyperion 的混沌自转
-            sat.mesh.rotation.x += 0.03;
-            sat.mesh.rotation.y += 0.05;
+            sat.mesh.rotation.x += 0.03 * dt;
+            sat.mesh.rotation.y += 0.05 * dt;
         }
         else if (sat.isTidalLocked)
         {
@@ -598,7 +558,7 @@ function animate(timestamp)
         else
         {
             // 一般自转
-            sat.mesh.rotation.y += 0.02;
+            sat.mesh.rotation.y += 0.02 * dt;
         }
     });
 

@@ -2,58 +2,17 @@
 // NASA-Punk Project: SOL-II (VENUS) - CHAOS & DENSITY CORRECTED
 // ==========================================
 
-// --- PART 1: 基础观测背景 (保持不变) ---
-const sharedTopoBackground = createTopoBackground({
-    canvasId   : 'topo-canvas',
+// --- PART 1+2: 场景初始化（共享工厂：背景/相机/渲染器/resize） ---
+const INITIAL_ZOOM = 25;
+
+const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
+    name       : 'venus',
+    zoom       : INITIAL_ZOOM,
     noiseOffset: 100
 });
 
-
-// ==========================================
-// PART 2: Three.js 场景初始化
-// ==========================================
-const canvasContainer = document.getElementById('canvas-container');
-const displaySize     = DisplayArea.getSize(canvasContainer);
-const scene           = new THREE.Scene();
-const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
-
-const INITIAL_ZOOM = 25;
-camera.position.z  = INITIAL_ZOOM;
-
-const renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    alpha    : true
-});
-renderer.setSize(displaySize.width, displaySize.height);
-renderer.setPixelRatio(window.devicePixelRatio);
-canvasContainer.appendChild(renderer.domElement);
-
-function resizeScene()
-{
-    const nextDisplaySize = DisplayArea.getSize(canvasContainer);
-    camera.aspect         = nextDisplaySize.width / nextDisplaySize.height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(nextDisplaySize.width, nextDisplaySize.height);
-}
-
-if (typeof ResizeObserver !== 'undefined')
-{
-    const displayResizeObserver = new ResizeObserver(() =>
-    {
-        resizeScene();
-    });
-    displayResizeObserver.observe(canvasContainer);
-}
-
-window.addEventListener('resize', () =>
-{
-    sharedTopoBackground.resize();
-});
-
-const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
-
-const group = new THREE.Group();
-scene.add(group);
+// 帧率无关的动画步长因子（60fps 校准基准）
+const nextDeltaTime = createFrameDelta();
 
 // 1. 倾角容器 (金星轴倾角极大 ~177度)
 const planetTiltGroup      = new THREE.Group();
@@ -70,10 +29,9 @@ planetTiltGroup.add(cloudGroup);
 
 
 // --- PART 3: 程序化金星主体 (双层点云结构) ---
-let cloudPoints;
 let frameSampler;
+let venusCloudUniforms;
 const coreRadius = 5.0;
-const venusFlowNoise = new SimplexNoise('venus-atmosphere-flow');
 const venusCloudBaseColor = new THREE.Color('#ffae20');
 
 // --- A. 地表点云 (Inner Surface: Magma Chaos) ---
@@ -163,7 +121,6 @@ function createVenusClouds()
     // [FIX 2] 粒子数量减半
     const cloudParticles = 45000;
     const cloudPos       = [];
-    const cloudColors    = [];
     const cloudGen       = new SimplexNoise('venus-atmosphere-sulphur');
 
     for (let i = 0; i < cloudParticles; i++)
@@ -178,29 +135,43 @@ function createVenusClouds()
         const z = r * Math.cos(phi);
 
         cloudPos.push(x, y, z);
-
-        const brightness = 0.9 + Math.random() * 0.2;
-        cloudColors.push(
-            venusCloudBaseColor.r * brightness,
-            venusCloudBaseColor.g * brightness,
-            venusCloudBaseColor.b * brightness
-        );
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(cloudPos, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(cloudColors, 3));
 
-    const mat = new THREE.PointsMaterial({
-        color          : 0xffffff,
-        size           : 0.06,
-        vertexColors   : true,
-        transparent    : true,
-        opacity        : 0.2,
-        sizeAttenuation: true
+    // 流动亮度在顶点着色器内计算，CPU 不再逐帧回传 45k 颜色
+    venusCloudUniforms = {
+        uTime : {value: 0},
+        uSize : {value: 0.06},
+        uScale: {value: 300},
+        uColor: {value: venusCloudBaseColor}
+    };
+
+    const mat = new THREE.ShaderMaterial({
+        uniforms      : venusCloudUniforms,
+        vertexShader  : PLANET_GLSL.snoise3D + `
+            uniform float uTime;
+            uniform float uSize;
+            uniform float uScale;
+            uniform vec3 uColor;
+            varying vec3 vColor;
+
+            void main() {
+                float flowNoise = snoise(position * 0.2 + vec3(uTime));
+                float brightness = 1.0 + flowNoise * 0.25;
+                vColor = uColor * brightness;
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                gl_PointSize = uSize * (uScale / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }`,
+        fragmentShader: `
+            varying vec3 vColor;
+            void main() { gl_FragColor = vec4(vColor, 0.2); }`,
+        transparent   : true
     });
 
-    cloudPoints = new THREE.Points(geo, mat);
+    const cloudPoints = new THREE.Points(geo, mat);
     cloudGroup.add(cloudPoints);
 
     // 测量网格
@@ -232,47 +203,22 @@ if (typeof InteractionState !== 'undefined')
 group.rotation.x = -0.2;
 group.rotation.y = 0.0;
 
-let frameCount = 0;
-
 function animate(timestamp)
 {
     requestAnimationFrame(animate);
-    frameCount++;
+    const dt = nextDeltaTime(timestamp);
     frameSampler.sample(timestamp);
 
     // 1. 地表逆行自转（真实恒星周 243 天几乎不可见，
     //    演示节奏压缩至 ~7 分钟/圈，保持"最慢天体"的相对次序）
-    venusSurfaceGroup.rotation.y -= 0.00025;
+    venusSurfaceGroup.rotation.y -= 0.00025 * dt;
 
     // 2. 大气超自转（云层明显快于地表，保留差速流动观感）
-    cloudGroup.rotation.y -= 0.0011;
+    cloudGroup.rotation.y -= 0.0011 * dt;
 
-    // 3. 云层颜色动画 (仅通过颜色/亮度变化模拟流动)
-    // 流动场以约 0.05 噪声单位/秒 的速度漂移，逐帧刷新与每 4 个动态帧刷新
-    // 在视觉上不可区分；降频可减少 45k 次 noise3D 与约 540KB 的颜色回传
-    if (frameCount % (frameSampler.dynamicStride * 4) === 0)
-    {
-        const time      = Date.now() * 0.00005;
-        const colors    = cloudPoints.geometry.attributes.color.array;
-        const positions = cloudPoints.geometry.attributes.position.array;
-
-        for (let i = 0; i < positions.length / 3; i++)
-        {
-            const x = positions[i * 3];
-            const y = positions[i * 3 + 1];
-            const z = positions[i * 3 + 2];
-
-            const flowNoise = venusFlowNoise.noise3D(x * 0.2 + time, y * 0.2 + time, z * 0.2 + time);
-
-            const brightness = 1.0 + flowNoise * 0.25;
-
-            colors[i * 3]     = venusCloudBaseColor.r * brightness;
-            colors[i * 3 + 1] = venusCloudBaseColor.g * brightness;
-            colors[i * 3 + 2] = venusCloudBaseColor.b * brightness;
-        }
-
-        cloudPoints.geometry.attributes.color.needsUpdate = true;
-    }
+    // 3. 云层流动亮度：顶点着色器计算，CPU 仅更新时间 uniform
+    venusCloudUniforms.uTime.value = Date.now() * 0.00005;
+    venusCloudUniforms.uScale.value = renderer.domElement.height * 0.5;
 
     // 4. 视角和缩放控制
     updateInteraction(group, camera);

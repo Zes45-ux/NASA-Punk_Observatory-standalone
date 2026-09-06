@@ -112,19 +112,22 @@ function initPlanetFocus(targetGroup, camera, focusRadius, options = {})
         setTimeout(() => { if (hint.parentNode) hint.parentNode.removeChild(hint); }, 4000);
     }
 
-    document.addEventListener('mousedown', (e) =>
+    // 点击聚焦：Pointer Events 同时覆盖鼠标与触屏；多指（捏合缩放）不算点击
+    canvas.addEventListener('pointerdown', (e) =>
     {
-        if (e.target === canvas)
+        if (!e.isPrimary)
         {
-            InteractionState.focus.downPosition = {x: e.clientX, y: e.clientY};
+            InteractionState.focus.downPosition = null;
+            return;
         }
+        InteractionState.focus.downPosition = {x: e.clientX, y: e.clientY};
     });
 
-    document.addEventListener('mouseup', (e) =>
+    canvas.addEventListener('pointerup', (e) =>
     {
         const start = InteractionState.focus.downPosition;
         InteractionState.focus.downPosition = null;
-        if (!start || !isClickGesture(start, {x: e.clientX, y: e.clientY}) || e.target !== canvas)
+        if (!e.isPrimary || !start || !isClickGesture(start, {x: e.clientX, y: e.clientY}))
         {
             return;
         }
@@ -139,18 +142,18 @@ function initPlanetFocus(targetGroup, camera, focusRadius, options = {})
         }
     });
 
-    document.addEventListener('mousemove', (e) =>
+    canvas.addEventListener('pointermove', (e) =>
     {
-        if (InteractionState.isDragging)
+        if (e.pointerType !== 'mouse' || InteractionState.isDragging)
         {
-            return;
-        }
-        if (e.target !== canvas)
-        {
-            canvas.style.cursor = '';
             return;
         }
         canvas.style.cursor = pickPlanet(e.clientX, e.clientY) ? 'pointer' : '';
+    });
+
+    canvas.addEventListener('pointerleave', () =>
+    {
+        canvas.style.cursor = '';
     });
 
     document.addEventListener('keydown', (e) =>
@@ -170,33 +173,104 @@ function initInteraction(targetGroup, initialZoomZ, sliderId = 'cam-zoom-slider'
     InteractionState.slider      = document.getElementById(sliderId);
     InteractionState.textDisplay = document.getElementById(textId);
 
-    document.addEventListener('mousedown', (e) =>
-    {
-        if (e.target.tagName === 'CANVAS')
-        {
-            InteractionState.isDragging            = true;
-            InteractionState.previousMousePosition = {x: e.offsetX, y: e.offsetY};
-        }
-    });
+    const canvas = document.querySelector('#canvas-container canvas') || document.querySelector('canvas');
+    const activePointers = new Map();
+    let pinchGesture = null;
 
-    document.addEventListener('mousemove', (e) =>
+    function canvasPoint(e)
     {
-        if (InteractionState.isDragging)
-        {
-            const deltaMove                        = {
-                x: e.offsetX - InteractionState.previousMousePosition.x,
-                y: e.offsetY - InteractionState.previousMousePosition.y
-            };
-            InteractionState.targetRotationY += deltaMove.x * 0.005;
-            InteractionState.targetRotationX += deltaMove.y * 0.005;
-            InteractionState.previousMousePosition = {x: e.offsetX, y: e.offsetY};
-        }
-    });
+        const rect = canvas.getBoundingClientRect();
+        return {x: e.clientX - rect.left, y: e.clientY - rect.top};
+    }
 
-    document.addEventListener('mouseup', () =>
+    function pinchDistance()
     {
-        InteractionState.isDragging = false;
-    });
+        const points = Array.from(activePointers.values());
+        const dx = points[0].x - points[1].x;
+        const dy = points[0].y - points[1].y;
+        return Math.max(1, Math.sqrt(dx * dx + dy * dy));
+    }
+
+    if (canvas)
+    {
+        // Pointer Events 统一鼠标与触屏：单指拖拽旋转，双指捏合缩放
+        canvas.addEventListener('pointerdown', (e) =>
+        {
+            if (canvas.setPointerCapture)
+            {
+                try
+                {
+                    canvas.setPointerCapture(e.pointerId);
+                }
+                catch (error)
+                {
+                    // 指针可能已经释放，忽略即可
+                }
+            }
+            const point = canvasPoint(e);
+            activePointers.set(e.pointerId, point);
+
+            if (activePointers.size === 1)
+            {
+                InteractionState.isDragging            = true;
+                InteractionState.previousMousePosition = point;
+            }
+            else if (activePointers.size === 2)
+            {
+                // 双指进入捏合缩放，暂停单指旋转
+                InteractionState.isDragging = false;
+                const factor = 0.5 * Math.pow(4, InteractionState.targetSliderVal / 100);
+                pinchGesture = {baseDistance: pinchDistance(), baseFactor: factor};
+            }
+        });
+
+        canvas.addEventListener('pointermove', (e) =>
+        {
+            if (!activePointers.has(e.pointerId))
+            {
+                return;
+            }
+            const point = canvasPoint(e);
+            activePointers.set(e.pointerId, point);
+
+            if (activePointers.size === 1 && InteractionState.isDragging)
+            {
+                InteractionState.targetRotationY += (point.x - InteractionState.previousMousePosition.x) * 0.005;
+                InteractionState.targetRotationX += (point.y - InteractionState.previousMousePosition.y) * 0.005;
+                InteractionState.previousMousePosition = point;
+            }
+            else if (activePointers.size === 2 && pinchGesture)
+            {
+                // 捏合：距离比换算为缩放因子，再反解到滑杆值域
+                const factor = pinchGesture.baseFactor * (pinchDistance() / pinchGesture.baseDistance);
+                const value  = Math.min(100, Math.max(0, computeFocusSliderValue(factor)));
+                InteractionState.targetSliderVal = value;
+                if (InteractionState.slider)
+                {
+                    InteractionState.slider.value = value;
+                }
+            }
+        });
+
+        const releasePointer = (e) =>
+        {
+            activePointers.delete(e.pointerId);
+            pinchGesture = null;
+            if (activePointers.size === 0)
+            {
+                InteractionState.isDragging = false;
+            }
+            else if (activePointers.size === 1)
+            {
+                // 从捏合回到单指：以剩余指位重新锚定旋转起点
+                InteractionState.isDragging            = true;
+                InteractionState.previousMousePosition = Array.from(activePointers.values())[0];
+            }
+        };
+
+        canvas.addEventListener('pointerup', releasePointer);
+        canvas.addEventListener('pointercancel', releasePointer);
+    }
 
     if (InteractionState.slider)
     {

@@ -2,58 +2,17 @@
 // NASA-Punk Project: SOL-I (MERCURY) - FINAL TUNING
 // ==========================================
 
-// --- PART 1: 基础观测背景 ---
-const sharedTopoBackground = createTopoBackground({
-    canvasId   : 'topo-canvas',
+// --- PART 1+2: 场景初始化（共享工厂：背景/相机/渲染器/resize） ---
+const INITIAL_ZOOM = 28;
+
+const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
+    name       : 'mercury',
+    zoom       : INITIAL_ZOOM,
     noiseOffset: 100
 });
 
-
-// ==========================================
-// PART 2: Three.js 场景初始化
-// ==========================================
-const canvasContainer = document.getElementById('canvas-container');
-const displaySize     = DisplayArea.getSize(canvasContainer);
-const scene           = new THREE.Scene();
-const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
-
-const INITIAL_ZOOM = 28;
-camera.position.z  = INITIAL_ZOOM;
-
-const renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    alpha    : true
-});
-renderer.setSize(displaySize.width, displaySize.height);
-renderer.setPixelRatio(window.devicePixelRatio);
-canvasContainer.appendChild(renderer.domElement);
-
-function resizeScene()
-{
-    const nextDisplaySize = DisplayArea.getSize(canvasContainer);
-    camera.aspect         = nextDisplaySize.width / nextDisplaySize.height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(nextDisplaySize.width, nextDisplaySize.height);
-}
-
-if (typeof ResizeObserver !== 'undefined')
-{
-    const displayResizeObserver = new ResizeObserver(() =>
-    {
-        resizeScene();
-    });
-    displayResizeObserver.observe(canvasContainer);
-}
-
-window.addEventListener('resize', () =>
-{
-    sharedTopoBackground.resize();
-});
-
-const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
-
-const group = new THREE.Group();
-scene.add(group);
+// 帧率无关的动画步长因子（60fps 校准基准）
+const nextDeltaTime = createFrameDelta();
 
 const planetTiltGroup      = new THREE.Group();
 planetTiltGroup.rotation.z = 0.03 * (Math.PI / 180);
@@ -244,7 +203,7 @@ function respawnParticle(p, warmStart = false)
 
 initSodiumTail();
 
-function updateSodiumTail()
+function updateSodiumTail(dt)
 {
     const positions = tailGeometry.attributes.position.array;
     const sizes     = tailGeometry.attributes.size.array;
@@ -253,10 +212,10 @@ function updateSodiumTail()
     {
         const p = tailData[i];
 
-        p.x += p.vx;
-        p.y += p.vy;
-        p.z += p.vz;
-        p.age++;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.z += p.vz * dt;
+        p.age += dt;
 
         // 边界检查：适应较慢的速度，消失距离稍微缩短一点也无妨
         if (p.age >= p.life || p.x < -25.0)
@@ -315,16 +274,17 @@ let frameCount = 0;
 function animate(timestamp)
 {
     requestAnimationFrame(animate);
+    const dt = nextDeltaTime(timestamp);
     frameCount++;
     frameSampler.sample(timestamp);
 
     // 自转周期 58.6 天（3:2 自旋轨道共振）。真实速率下几乎不可见，
     // 演示节奏压缩至 ~5 分钟/圈，保持"最慢行星"的相对次序
-    planetSpinGroup.rotation.y += 0.00035;
+    planetSpinGroup.rotation.y += 0.00035 * dt;
 
     if (frameCount % frameSampler.dynamicStride === 0)
     {
-        updateSodiumTail();
+        updateSodiumTail(dt);
     }
 
     updateInteraction(group, camera);

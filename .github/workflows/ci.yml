@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Syntax check all non-vendor scripts
+        run: |
+          find scripts -name '*.js' -not -path '*vendor*' -print0 | xargs -0 -n1 node --check
+
+      - name: Unit tests
+        run: node --test test/*.test.cjs
+
+      - name: Whitespace check
+        run: git diff --check HEAD

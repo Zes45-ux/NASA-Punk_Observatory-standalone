@@ -1,7 +1,19 @@
 (function initParticleBuilder(global) {
-    const PROFILE_RATIOS = {high: 1, balanced: 0.75, low: 0.5};
+    const PROFILE_RATIOS = {high: 1, balanced: 0.75, low: 0.5, recovery: 0.25};
     const activeBuilds = new Set();
     const frameSamplers = new Set();
+    let qualityOverride = null;
+
+    function setQualityProfile(profile) {
+        if (profile !== 'auto' && PROFILE_RATIOS[profile] === undefined) return;
+        qualityOverride = profile === 'auto' ? null : profile;
+        frameSamplers.forEach((entry) => entry.setProfile(profile));
+        global.dispatchEvent(new CustomEvent('observatory:quality', {detail: {profile}}));
+    }
+
+    function getQualityProfile() {
+        return qualityOverride === null ? 'auto' : qualityOverride;
+    }
 
     function visibleCount(maxCount, profile) {
         if (profile === 'recovery') return Math.floor(maxCount * 0.25);
@@ -205,11 +217,18 @@
         const order = ['high', 'balanced', 'low', 'recovery'];
         const sampleSize = options.sampleSize || 120;
         let profile = selectInitialProfile(options.signals);
+        let locked = false;
         let dynamicStride = 1;
         let builtCount = 0;
         let ready = false;
         let lastTime = null;
         let deltas = [];
+
+        // 会话开始前已手动选择档位时，直接锁定并跳过自动降档
+        if (qualityOverride) {
+            locked = true;
+            profile = qualityOverride;
+        }
 
         function applyDrawRange() {
             options.geometry.setDrawRange(0, Math.min(builtCount, visibleCount(options.maxCount, profile)));
@@ -224,13 +243,24 @@
             ready = true;
         }
 
+        function setProfile(next) {
+            if (next === 'auto' || next === null) {
+                locked = false;
+                return;
+            }
+            if (PROFILE_RATIOS[next] === undefined) return;
+            locked = true;
+            profile = next;
+            applyDrawRange();
+        }
+
         function reset() {
             ready = false;
             lastTime = null;
             deltas = [];
         }
 
-        const registryEntry = {setReady, reset};
+        const registryEntry = {setReady, reset, setProfile};
         frameSamplers.add(registryEntry);
 
         function dispose() {
@@ -258,7 +288,7 @@
             }
 
             const candidate = fps < 30 ? 'recovery' : fps < 40 ? 'low' : fps < 50 ? 'balanced' : 'high';
-            if (order.indexOf(candidate) > order.indexOf(profile)) {
+            if (!locked && order.indexOf(candidate) > order.indexOf(profile)) {
                 profile = candidate;
                 applyDrawRange();
             }
@@ -267,6 +297,7 @@
         return {
             sample,
             setBuiltCount,
+            setProfile,
             markReady: setReady,
             reset,
             dispose,
@@ -301,10 +332,12 @@
         createFrameSampler,
         createSurfaceBuild,
         createSurfaceLayer,
+        getQualityProfile,
         markAttributeRange,
         markReady,
         readyThreshold,
         selectInitialProfile,
+        setQualityProfile,
         visibleCount
     };
 })(window);

@@ -2,60 +2,18 @@
 // NASA-Punk Project: SUN
 // ==========================================
 
-// --- PART 1: 基础观测背景 (Standard SOL-III Config) ---
-const sharedTopoBackground = createTopoBackground({
-    canvasId   : 'topo-canvas',
+// --- PART 1+2: 场景初始化（共享工厂：背景/相机/渲染器/resize） ---
+const INITIAL_ZOOM = 30;
+
+const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
+    name       : 'sun',
+    zoom       : INITIAL_ZOOM,
     noiseOffset: 100,
     overlayFill: 'rgba(200, 35, 55, 0.03)'
 });
 
-
-// ==========================================
-// PART 2: Three.js 3D 场景 (SOL [STAR])
-// ==========================================
-const canvasContainer = document.getElementById('canvas-container');
-const displaySize     = DisplayArea.getSize(canvasContainer);
-const scene           = new THREE.Scene();
-const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
-
-const INITIAL_ZOOM = 30;
-camera.position.z  = INITIAL_ZOOM;
-
-const renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    alpha    : true
-});
-renderer.setSize(displaySize.width, displaySize.height);
-renderer.setPixelRatio(window.devicePixelRatio);
-canvasContainer.appendChild(renderer.domElement);
-
-function resizeScene()
-{
-    const nextDisplaySize = DisplayArea.getSize(canvasContainer);
-    camera.aspect         = nextDisplaySize.width / nextDisplaySize.height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(nextDisplaySize.width, nextDisplaySize.height);
-}
-
-if (typeof ResizeObserver !== 'undefined')
-{
-    const displayResizeObserver = new ResizeObserver(() =>
-    {
-        resizeScene();
-    });
-    displayResizeObserver.observe(canvasContainer);
-}
-
-window.addEventListener('resize', () =>
-{
-    // 画布尺寸由 canvas-container 上的 ResizeObserver 统一处理
-    sharedTopoBackground.resize();
-});
-
-const tgtLabel    = document.querySelector('.monitor-label.label-bottom');
-
-const group = new THREE.Group();
-scene.add(group);
+// 帧率无关的动画步长因子（60fps 校准基准）
+const nextDeltaTime = createFrameDelta();
 
 // 太阳自转轴相对黄道面倾角 7.25 度
 const sunTiltGroup      = new THREE.Group();
@@ -67,9 +25,6 @@ sunTiltGroup.add(sunGroup);
 
 
 // --- A. 静态高密度粒子光球 + 动态叠加层 (Photosphere) ---
-let sunSurfaceGeometry;
-let sunGeometry;
-let sunParticles;
 let frameSampler;
 const sunNoiseGen = new SimplexNoise('sol-core-v1');
 const timeStep    = 0.005;
@@ -158,17 +113,17 @@ function createSunSurface()
             ParticleBuilder.markReady({page: planetName});
         }
     });
-    sunSurfaceGeometry = surface.geometry;
     frameSampler = surface.frameSampler;
 }
 
 createSunSurface();
 
+let sunPhotosphereUniforms;
+
 function createDynamicSun()
 {
     const particleCount = 30000;
     const positions     = [];
-    const colors        = [];
 
     for (let i = 0; i < particleCount; i++)
     {
@@ -180,27 +135,70 @@ function createDynamicSun()
         const z     = r * Math.cos(phi);
 
         positions.push(x, y, z);
-        colors.push(1, 1, 1);
     }
 
-    sunGeometry = new THREE.BufferGeometry();
-    sunGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    sunGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    // 逐帧读取的基准位置用类型化数组存储，避免 90k 元素的普通数组常驻
-    sunGeometry.userData = {
-        originalPositions: new Float32Array(positions)
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+
+    // 光球脉动（噪声亮度 + 半径脉冲 + 临边昏暗）全部在顶点着色器内完成，
+    // CPU 每帧只更新 uTime/uScale，不再回传 30k×2 属性
+    sunPhotosphereUniforms = {
+        uTime : {value: 0},
+        uSize : {value: 0.09},
+        uScale: {value: 300},
+        uColCore   : {value: colCore},
+        uColSurface: {value: colSurface},
+        uColEdge   : {value: colEdge},
+        uColSpot   : {value: colSpot}
     };
 
-    const sunMat = new THREE.PointsMaterial({
-        size        : 0.09,
-        vertexColors: true,
-        transparent : true,
-        opacity     : 0.95,
-        blending    : THREE.AdditiveBlending
+    const sunMat = new THREE.ShaderMaterial({
+        uniforms      : sunPhotosphereUniforms,
+        vertexShader  : PLANET_GLSL.snoise3D + `
+            uniform float uTime;
+            uniform float uSize;
+            uniform float uScale;
+            uniform vec3 uColCore;
+            uniform vec3 uColSurface;
+            uniform vec3 uColEdge;
+            uniform vec3 uColSpot;
+            varying vec3 vColor;
+
+            void main() {
+                vec3 p = position;
+                float n = snoise(vec3(p.x * 0.4, p.y * 0.4, p.z * 0.4 + uTime * 0.3));
+                n += 0.5 * snoise(vec3(p.x * 1.5, p.y * 1.5, p.z * 1.5 - uTime * 0.5));
+
+                vec3 c;
+                if (n > 0.6) {
+                    c = uColCore;
+                } else if (n > 0.0) {
+                    c = mix(uColSurface, uColCore, n);
+                } else if (n > -0.5) {
+                    c = mix(uColEdge, uColSurface, (n + 0.5) * 2.0);
+                } else {
+                    c = mix(uColSpot, uColEdge, (n + 1.0) * 2.0);
+                }
+
+                float limbFactor = p.z / 6.0;
+                if (limbFactor < 0.5) {
+                    c = mix(c, uColSpot, (0.5 - limbFactor) * 1.5);
+                }
+                vColor = c;
+
+                vec3 newPos = p * (1.0 + n * 0.05);
+                vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
+                gl_PointSize = uSize * (uScale / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }`,
+        fragmentShader: `
+            varying vec3 vColor;
+            void main() { gl_FragColor = vec4(vColor, 0.95); }`,
+        transparent   : true,
+        blending      : THREE.AdditiveBlending
     });
 
-    sunParticles = new THREE.Points(sunGeometry, sunMat);
-    sunGroup.add(sunParticles);
+    sunGroup.add(new THREE.Points(geometry, sunMat));
 }
 
 createDynamicSun();
@@ -314,15 +312,21 @@ createMagneticLoops();
 const coronaGroup = new THREE.Group();
 sunGroup.add(coronaGroup);
 
+let coronaUniforms;
+
 function createCoronaSystem()
 {
     const coronaParticles = 6000;
     const positions       = [];
     const colors          = [];
     const sizes           = [];
+    const directions      = [];
+    const speeds          = [];
+    const phases          = [];
 
     const colInner = new THREE.Color('#ffcc66');
     const colOuter = new THREE.Color('#cc4400');
+    const coronaColor = new THREE.Color();
 
     for (let i = 0; i < coronaParticles; i++)
     {
@@ -339,45 +343,71 @@ function createCoronaSystem()
         positions.push(x, y, z);
 
         const normalizedDist = (r - 6.1) / 3.0;
-        const c              = new THREE.Color().copy(colInner).lerp(colOuter, normalizedDist);
-        c.multiplyScalar(0.8 + Math.random() * 0.4);
-        colors.push(c.r, c.g, c.b);
+        coronaColor.copy(colInner).lerp(colOuter, normalizedDist);
+        coronaColor.multiplyScalar(0.8 + Math.random() * 0.4);
+        colors.push(coronaColor.r, coronaColor.g, coronaColor.b);
 
         sizes.push(0.18 * (1.0 - normalizedDist * 0.5));
+
+        const len = Math.sqrt(x * x + y * y + z * z);
+        directions.push(x / len, y / len, z / len);
+        speeds.push(0.003 + Math.random() * 0.007);
+        phases.push(Math.random() * 3.0);
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    geo.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+    geo.setAttribute('aColor', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setAttribute('aDirection', new THREE.Float32BufferAttribute(directions, 3));
+    geo.setAttribute('aSpeed', new THREE.Float32BufferAttribute(speeds, 1));
+    geo.setAttribute('aPhase', new THREE.Float32BufferAttribute(phases, 1));
+    geo.setAttribute('aSize', new THREE.Float32BufferAttribute(sizes, 1));
 
-    const mat = new THREE.PointsMaterial({
-        size        : 0.1,
-        vertexColors: true,
-        transparent : true,
-        opacity     : 0.4,
-        blending    : THREE.AdditiveBlending,
-        depthWrite  : false
-    });
-
-    const mesh    = new THREE.Points(geo, mat);
-    mesh.userData = {
-        baseRadius: 5.1,
-        maxRadius : 8.1,
-        directions: [],
-        speeds    : []
+    // 日冕粒子沿径向循环外溢（模运算代替 CPU 逐帧积分），径向抖动在着色器内计算；
+    // uTime 用帧计数值驱动，速度保持与旧逐帧积分一致的量纲
+    coronaUniforms = {
+        uTime  : {value: 0},
+        uScale : {value: 300},
+        uBaseR : {value: 5.1},
+        uTravel: {value: 3.0}
     };
 
-    for (let i = 0; i < coronaParticles; i++)
-    {
-        const x = positions[i * 3];
-        const y = positions[i * 3 + 1];
-        const z = positions[i * 3 + 2];
-        const v = new THREE.Vector3(x, y, z).normalize();
-        mesh.userData.directions.push(v);
-        mesh.userData.speeds.push(0.003 + Math.random() * 0.007);
-    }
+    const mat = new THREE.ShaderMaterial({
+        uniforms      : coronaUniforms,
+        vertexShader  : PLANET_GLSL.snoise3D + `
+            uniform float uTime;
+            uniform float uScale;
+            uniform float uBaseR;
+            uniform float uTravel;
+            attribute vec3 aColor;
+            attribute vec3 aDirection;
+            attribute float aSpeed;
+            attribute float aPhase;
+            attribute float aSize;
+            varying vec3 vColor;
 
+            void main() {
+                float r = uBaseR + mod(aPhase + aSpeed * uTime, uTravel);
+                vec3 base = aDirection * r;
+                vec3 jitter = vec3(
+                    snoise(base * 0.5 + vec3(uTime * 0.5, 0.0, 0.0)),
+                    snoise(base * 0.5 + vec3(0.0, uTime * 0.5, 0.0)),
+                    snoise(base * 0.5 + vec3(0.0, 0.0, uTime * 0.5))
+                ) * 0.03;
+                vColor = aColor;
+                vec4 mvPosition = modelViewMatrix * vec4(base + jitter, 1.0);
+                gl_PointSize = aSize * (uScale / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }`,
+        fragmentShader: `
+            varying vec3 vColor;
+            void main() { gl_FragColor = vec4(vColor, 0.4); }`,
+        transparent   : true,
+        blending      : THREE.AdditiveBlending,
+        depthWrite    : false
+    });
+
+    const mesh = new THREE.Points(geo, mat);
     coronaGroup.add(mesh);
     return mesh;
 }
@@ -512,123 +542,35 @@ let frameCount = 0;
 function animate(timestamp)
 {
     requestAnimationFrame(animate);
+    const dt = nextDeltaTime(timestamp);
     frameCount++;
     frameSampler.sample(timestamp);
-    time += timeStep;
+    time += timeStep * dt;
 
     // 自转周期 ~25.4 天（赤道）。真实速率下几乎不可见，
     // 演示节奏压缩至 ~4 分钟/圈，慢于地球、快于水星（保持真实次序）
-    sunGroup.rotation.y += 0.00045;
+    sunGroup.rotation.y += 0.00045 * dt;
 
     if (coreParticles)
     {
-        coreParticles.rotation.y += 0.002;
+        coreParticles.rotation.y += 0.002 * dt;
         const pulse = 1.0 + Math.sin(time * 3.0) * 0.005;
         coreParticles.scale.set(pulse, pulse, pulse);
     }
 
     if (sunGrids)
     {
-        sunGrids.inner.rotation.y += 0.0005;
-        sunGrids.outer.rotation.y -= 0.0005;
-        sunGrids.outer.rotation.z += 0.0002;
+        sunGrids.inner.rotation.y += 0.0005 * dt;
+        sunGrids.outer.rotation.y -= 0.0005 * dt;
+        sunGrids.outer.rotation.z += 0.0002 * dt;
     }
 
-    // 光球脉动场以 time*0.3/time*0.5 的速率缓慢漂移，逐帧刷新与隔帧刷新
-    // 在视觉上不可区分；隔帧可减半 30k×2 次 noise3D 与约 720KB 的属性回传
-    if (sunParticles && sunGeometry && frameCount % (frameSampler.dynamicStride * 2) === 0)
-    {
-        const positions = sunGeometry.attributes.position.array;
-        const colors    = sunGeometry.attributes.color.array;
-        const origPos   = sunGeometry.userData.originalPositions;
-
-        for (let i = 0; i < positions.length / 3; i++)
-        {
-            const x = origPos[i * 3];
-            const y = origPos[i * 3 + 1];
-            const z = origPos[i * 3 + 2];
-
-            let n = sunNoiseGen.noise3D(x * 0.4, y * 0.4, z * 0.4 + time * 0.3);
-            n += 0.5 * sunNoiseGen.noise3D(x * 1.5, y * 1.5, z * 1.5 - time * 0.5);
-
-            const limbFactor = z / 6.0;
-            const c          = scratchColor;
-
-            if (n > 0.6)
-            {
-                c.copy(colCore);
-            }
-            else if (n > 0.0)
-            {
-                c.copy(colSurface).lerp(colCore, n);
-            }
-            else if (n > -0.5)
-            {
-                c.copy(colEdge).lerp(colSurface, (n + 0.5) * 2);
-            }
-            else
-            {
-                c.copy(colSpot).lerp(colEdge, (n + 1.0) * 2);
-            }
-
-            if (limbFactor < 0.5)
-            {
-                c.lerp(colSpot, (0.5 - limbFactor) * 1.5);
-            }
-
-            colors[i * 3]     = c.r;
-            colors[i * 3 + 1] = c.g;
-            colors[i * 3 + 2] = c.b;
-
-            const pulse          = 1.0 + n * 0.05;
-            positions[i * 3]     = x * pulse;
-            positions[i * 3 + 1] = y * pulse;
-            positions[i * 3 + 2] = z * pulse;
-        }
-        sunGeometry.attributes.position.needsUpdate = true;
-        sunGeometry.attributes.color.needsUpdate    = true;
-    }
-
-    if (coronaMesh && frameCount % frameSampler.dynamicStride === 0)
-    {
-        const positions  = coronaMesh.geometry.attributes.position.array;
-        const speeds     = coronaMesh.userData.speeds;
-        const directions = coronaMesh.userData.directions;
-        const baseR      = coronaMesh.userData.baseRadius;
-        const maxR       = coronaMesh.userData.maxRadius;
-
-        for (let i = 0; i < positions.length / 3; i++)
-        {
-            let x = positions[i * 3];
-            let y = positions[i * 3 + 1];
-            let z = positions[i * 3 + 2];
-
-            const dir = directions[i];
-
-            const noiseX = sunNoiseGen.noise4D(x * 0.5, y * 0.5, z * 0.5, time * 0.5) * 0.03;
-            const noiseY = sunNoiseGen.noise4D(y * 0.5, z * 0.5, x * 0.5, time * 0.5 + 100) * 0.03;
-            const noiseZ = sunNoiseGen.noise4D(z * 0.5, x * 0.5, y * 0.5, time * 0.5 + 200) * 0.03;
-
-            const speed = speeds[i] * (1.0 + Math.sin(time + i) * 0.3);
-
-            x += dir.x * speed + noiseX;
-            y += dir.y * speed + noiseY;
-            z += dir.z * speed + noiseZ;
-
-            const len = Math.sqrt(x * x + y * y + z * z);
-            if (len > maxR)
-            {
-                x = dir.x * baseR;
-                y = dir.y * baseR;
-                z = dir.z * baseR;
-            }
-
-            positions[i * 3]     = x;
-            positions[i * 3 + 1] = y;
-            positions[i * 3 + 2] = z;
-        }
-        coronaMesh.geometry.attributes.position.needsUpdate = true;
-    }
+    // 光球脉动与日冕外溢都在顶点着色器内完成，CPU 只更新 uniform
+    const pointScale = renderer.domElement.height * 0.5;
+    sunPhotosphereUniforms.uTime.value = time;
+    sunPhotosphereUniforms.uScale.value = pointScale;
+    coronaUniforms.uTime.value = frameCount;
+    coronaUniforms.uScale.value = pointScale;
 
     activeLoops.forEach((loop) =>
     {
@@ -651,9 +593,9 @@ function animate(timestamp)
         {
             if (eruptionData[i].active)
             {
-                pPos[i * 3] += eruptionData[i].velocity.x * slowMo;
-                pPos[i * 3 + 1] += eruptionData[i].velocity.y * slowMo;
-                pPos[i * 3 + 2] += eruptionData[i].velocity.z * slowMo;
+                pPos[i * 3] += eruptionData[i].velocity.x * slowMo * dt;
+                pPos[i * 3 + 1] += eruptionData[i].velocity.y * slowMo * dt;
+                pPos[i * 3 + 2] += eruptionData[i].velocity.z * slowMo * dt;
 
                 const cx          = pPos[i * 3];
                 const cy          = pPos[i * 3 + 1];
@@ -662,18 +604,18 @@ function animate(timestamp)
                 directionToCenter.set(-cx, -cy, -cz).normalize();
 
                 const noiseScale = 0.5;
-                const nX         = sunNoiseGen.noise4D(cx * noiseScale, cy * noiseScale, cz * noiseScale, time) * 0.003;
-                const nY         = sunNoiseGen.noise4D(cy * noiseScale, cz * noiseScale, cx * noiseScale, time + 100) * 0.003;
-                const nZ         = sunNoiseGen.noise4D(cz * noiseScale, cx * noiseScale, cy * noiseScale, time + 200) * 0.003;
+                const nX         = sunNoiseGen.noise4D(cx * noiseScale, cy * noiseScale, cz * noiseScale, time) * 0.003 * dt;
+                const nY         = sunNoiseGen.noise4D(cy * noiseScale, cz * noiseScale, cx * noiseScale, time + 100) * 0.003 * dt;
+                const nZ         = sunNoiseGen.noise4D(cz * noiseScale, cx * noiseScale, cy * noiseScale, time + 200) * 0.003 * dt;
 
                 eruptionData[i].velocity.x += nX * slowMo;
                 eruptionData[i].velocity.y += nY * slowMo;
                 eruptionData[i].velocity.z += nZ * slowMo;
 
-                eruptionData[i].velocity.addScaledVector(directionToCenter, 0.002 * slowMo);
-                eruptionData[i].velocity.multiplyScalar(1.0 - (0.003 * slowMo));
+                eruptionData[i].velocity.addScaledVector(directionToCenter, 0.002 * slowMo * dt);
+                eruptionData[i].velocity.multiplyScalar(1.0 - (0.003 * slowMo * dt));
 
-                eruptionData[i].life += 1.0 * slowMo;
+                eruptionData[i].life += 1.0 * slowMo * dt;
                 const progress = eruptionData[i].life / eruptionData[i].maxLife;
 
                 const c = scratchColor;
