@@ -2,14 +2,23 @@
 
 Date: 2026-09-01
 
+> **Update (2026-09-06):** High-profile surface budgets were rescaled from the
+> original 1.0-1.6 million baseline to the 160,000-260,000 range (roughly one
+> order of magnitude down) because the million-scale counts oversampled the
+> visible surface by about 6x at the target viewport without adding readable
+> detail. Readiness now fires at ~30% of the surface (minimum 25,000
+> particles), and the recovery profile draws 25% of the built budget.
+> `scripts/planets/config.js` is the source of truth for the current numbers;
+> the tables below reflect the rescaled values.
+
 ## Objective
 
-Upgrade every celestial-body page to a data-informed, million-particle presentation while preserving the project's offline, no-build, direct-HTML workflow. The target environment is Windows desktop and Lively Wallpaper at 1080p. High-profile rendering targets approximately 60 FPS; lower profiles may reduce visible particles to preserve at least 30 FPS.
+Upgrade every celestial-body page to a data-informed, high-density particle presentation while preserving the project's offline, no-build, direct-HTML workflow. The target environment is Windows desktop and Lively Wallpaper at 1080p. High-profile rendering targets approximately 60 FPS; lower profiles may reduce visible particles to preserve at least 30 FPS.
 
 The upgrade covers:
 
 - planet-specific particle counts and visual behavior;
-- million-scale static surface detail;
+- high-density static surface detail;
 - customized outlines, atmospheres, rings, storms, and satellites;
 - delayed, progressive generation that does not block initial navigation;
 - transition sequencing that avoids white flashes;
@@ -19,10 +28,10 @@ The upgrade covers:
 
 Use a hybrid particle architecture:
 
-- Each body receives a static surface layer containing 1.0-1.6 million particles in the high profile.
+- Each body receives a static surface layer containing 160,000-260,000 particles in the high profile.
 - Smaller dynamic layers continue to animate clouds, storms, coronae, tails, and eruptions.
 - Surface data is stored in preallocated typed arrays and generated progressively.
-- Dynamic layers remain deliberately smaller so the runtime never performs per-frame CPU updates across a million objects.
+- Dynamic layers remain deliberately smaller so the runtime never performs per-frame CPU updates across the full surface.
 - Rings use independent geometry and budgets; ring particles do not consume the surface budget.
 
 This retains the existing planet-specific procedural implementations. A shared scheduler coordinates batches, but it does not replace the individual visual algorithms with a generic planet generator.
@@ -31,15 +40,15 @@ This retains the existing planet-specific procedural implementations. A shared s
 
 | Body | High-profile surface particles | Dynamic layer ceiling | Distinguishing visual treatment |
 | --- | ---: | ---: | --- |
-| Sun | 1,600,000 | 80,000 | Corona, flares, eruptions, restrained pulsation |
-| Mercury | 1,000,000 | 30,000 | Craters, terminator contrast, sodium tail |
-| Venus | 1,200,000 | 60,000 | Volcanic surface, dense clouds, retrograde super-rotation |
-| Earth | 1,250,000 | 50,000 | Land/ocean separation, clouds, atmospheric limb, Moon and orbital assets |
-| Mars | 1,050,000 | 40,000 | Iron-oxide terrain, polar detail, thin atmosphere, Phobos and Deimos |
-| Jupiter | 1,500,000 | 80,000 | Atmospheric bands, Great Red Spot, flows, principal moons |
-| Saturn | 1,350,000 | 60,000 | Bands, polar hexagon, independently generated dense rings |
-| Uranus | 1,200,000 | 40,000 | Axial tilt, ice-giant atmosphere, dark rings and moons |
-| Neptune | 1,200,000 | 60,000 | High-speed storms, deep-blue atmosphere, Triton and ring arcs |
+| Sun | 260,000 | 80,000 | Corona, flares, eruptions, restrained pulsation |
+| Mercury | 160,000 | 30,000 | Craters, terminator contrast, sodium tail |
+| Venus | 200,000 | 60,000 | Volcanic surface, dense clouds, retrograde super-rotation |
+| Earth | 210,000 | 50,000 | Land/ocean separation, clouds, atmospheric limb, Moon and orbital assets |
+| Mars | 180,000 | 40,000 | Iron-oxide terrain, polar detail, thin atmosphere, Phobos and Deimos |
+| Jupiter | 250,000 | 80,000 | Atmospheric bands, Great Red Spot, flows, principal moons |
+| Saturn | 220,000 | 60,000 | Bands, polar hexagon, independently generated dense rings |
+| Uranus | 200,000 | 40,000 | Axial tilt, ice-giant atmosphere, dark rings and moons |
+| Neptune | 200,000 | 60,000 | High-speed storms, deep-blue atmosphere, Triton and ring arcs |
 
 The values are visual budgets informed by body scale and feature complexity, not literal ratios of astronomical surface area. Literal ratios would make the gas giants dominate memory and would not produce a useful comparative experience.
 
@@ -69,7 +78,7 @@ Each page follows this sequence:
 
 1. Render the topographic background, HUD, controls, and empty Three.js scene immediately.
 2. Allocate the highest feasible typed-array tier.
-3. Generate and display an initial tranche of approximately 250,000 surface particles.
+3. Generate and display an initial tranche of approximately 30% of the surface budget (minimum 25,000 particles).
 4. Render one successful frame and dispatch `observatory:ready`.
 5. Reveal the transition curtain.
 6. Continue filling the surface geometry in idle batches.
@@ -85,9 +94,9 @@ The preflight profile selects a starting target from available browser signals. 
 | Profile | Visible high-profile count | Intended result |
 | --- | ---: | --- |
 | High | 100% | Approximately 60 FPS on the target 1080p desktop |
-| Balanced | 75% | Reduced GPU load while retaining million-level detail where the body budget permits |
+| Balanced | 75% | Reduced GPU load while retaining full surface detail where the body budget permits |
 | Low | 50% | At least 30 FPS on weaker devices |
-| Recovery | 250,000 | Last-resort scene retained after allocation or generation failure |
+| Recovery | 25% | Last-resort scene retained after allocation or generation failure |
 
 The runtime lowers dynamic update frequency before reducing the static surface draw range. It never raises a profile automatically during the same page session, avoiding repeated oscillation.
 
@@ -202,7 +211,7 @@ Manual browser verification covers:
 
 The work is complete when:
 
-- every body has at least 1,000,000 high-profile surface particles;
+- every body stays within its approved 160,000-260,000 high-profile surface budget;
 - each body retains visibly distinct procedural structure and auxiliary features;
 - initial interaction is available before full particle generation completes;
 - particle generation progresses without a long blocking task;

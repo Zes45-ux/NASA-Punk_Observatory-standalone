@@ -4,7 +4,7 @@
     const frameSamplers = new Set();
 
     function visibleCount(maxCount, profile) {
-        if (profile === 'recovery') return Math.min(maxCount, 250000);
+        if (profile === 'recovery') return Math.floor(maxCount * 0.25);
         return Math.floor(maxCount * (PROFILE_RATIOS[profile] || 1));
     }
 
@@ -95,7 +95,7 @@
                 if (terminal) return;
                 cursor = end;
                 options.setDrawCount(cursor);
-                if (!readySent && cursor >= (options.readyCount || 250000)) {
+                if (!readySent && cursor >= (options.readyCount || options.total)) {
                     readySent = true;
                     if (options.onReady) options.onReady(cursor);
                 }
@@ -126,6 +126,10 @@
         return state;
     }
 
+    function readyThreshold(count) {
+        return Math.min(count, Math.max(25000, Math.floor(count * 0.3)));
+    }
+
     function createSurfaceBuild(options) {
         const three = options.THREE || global.THREE || (typeof globalThis !== 'undefined' && globalThis.THREE);
         const document = global.document || (typeof globalThis !== 'undefined' && globalThis.document);
@@ -133,7 +137,7 @@
             options.budget,
             Math.floor(options.budget * 0.75),
             Math.floor(options.budget * 0.5),
-            250000
+            Math.floor(options.budget * 0.25)
         ], (count) => ({
             positions: new Float32Array(count * 3),
             colors   : new Float32Array(count * 3)
@@ -164,7 +168,7 @@
 
         build({
             total           : allocation.count,
-            readyCount      : Math.min(250000, allocation.count),
+            readyCount      : readyThreshold(allocation.count),
             initialBatchSize: 10000,
             writeBatch(start, end)
             {
@@ -299,6 +303,7 @@
         createSurfaceLayer,
         markAttributeRange,
         markReady,
+        readyThreshold,
         selectInitialProfile,
         visibleCount
     };

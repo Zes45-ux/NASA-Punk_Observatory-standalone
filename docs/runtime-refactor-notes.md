@@ -170,8 +170,9 @@ The current planet runtime keeps a preallocated typed-array surface layer and
 uses a smaller dynamic overlay for clouds, storms, coronae, tails, eruptions,
 rings, and satellite motion. `ParticleBuilder.build(...)` fills the surface in
 idle batches (with a `requestAnimationFrame` fallback), updates the geometry
-draw range, reports integer progress, and calls `onReady` after the first
-250,000 particles. `ParticleBuilder.markReady(detail)` dispatches the shared
+draw range, reports integer progress, and calls `onReady` after roughly 30% of
+the surface is built (at least 25,000 particles).
+`ParticleBuilder.markReady(detail)` dispatches the shared
 `observatory:ready` event consumed by the transition curtain.
 
 Public builder methods:
@@ -179,7 +180,7 @@ Public builder methods:
 - `allocate([high, balanced, low, recovery], factory)` selects the first
   allocatable typed-array tier.
 - `visibleCount(maxCount, profile)` returns the draw count for `high` (100%),
-  `balanced` (75%), `low` (50%), or `recovery` (250,000).
+  `balanced` (75%), `low` (50%), or `recovery` (25% of the budget).
 - `build(options)` returns `cancel()` and accepts `writeBatch`, draw-range,
   progress, ready, completion, and error callbacks.
 - `markAttributeRange(attribute, offset, count)` merges pending typed-array
@@ -193,19 +194,22 @@ Public builder methods:
 Active builds are cancelled centrally on `observatory:navigate-start` and
 `pagehide`, so planet runtimes do not need per-page unload handlers.
 
-Approved high-profile surface budgets and dynamic-layer ceilings:
+Approved high-profile surface budgets and dynamic-layer ceilings. Surface
+budgets were rescaled on 2026-09-06 from the original million-particle baseline
+to the ~2e5 range because the million-scale counts oversampled the visible
+surface by roughly 6x without adding readable detail:
 
 | Body | Surface | Dynamic |
 | --- | ---: | ---: |
-| Sun | 1,600,000 | 80,000 |
-| Mercury | 1,000,000 | 30,000 |
-| Venus | 1,200,000 | 60,000 |
-| Earth | 1,250,000 | 50,000 |
-| Mars | 1,050,000 | 40,000 |
-| Jupiter | 1,500,000 | 80,000 |
-| Saturn | 1,350,000 | 60,000 |
-| Uranus | 1,200,000 | 40,000 |
-| Neptune | 1,200,000 | 60,000 |
+| Sun | 260,000 | 80,000 |
+| Mercury | 160,000 | 30,000 |
+| Venus | 200,000 | 60,000 |
+| Earth | 210,000 | 50,000 |
+| Mars | 180,000 | 40,000 |
+| Jupiter | 250,000 | 80,000 |
+| Saturn | 220,000 | 60,000 |
+| Uranus | 200,000 | 40,000 |
+| Neptune | 200,000 | 60,000 |
 
 Rings are independent auxiliary geometry. Static surfaces are not updated per
 frame; only dynamic overlays upload changing attributes. When frame sampling

@@ -42,7 +42,8 @@ test('visibleCount selects approved profile counts', () => {
     assert.equal(api.visibleCount(1_600_000, 'high'), 1_600_000);
     assert.equal(api.visibleCount(1_600_000, 'balanced'), 1_200_000);
     assert.equal(api.visibleCount(1_600_000, 'low'), 800_000);
-    assert.equal(api.visibleCount(1_600_000, 'recovery'), 250_000);
+    assert.equal(api.visibleCount(1_600_000, 'recovery'), 400_000);
+    assert.equal(api.visibleCount(300_000, 'recovery'), 75_000);
 });
 
 test('frame sampler selects a deterministic initial profile before the first draw', () => {
@@ -361,15 +362,15 @@ test('planet config exposes every approved particle budget', () => {
         '\n;globalThis.__particleConfig = PLANET_PARTICLE_CONFIG;';
     vm.runInNewContext(source, sandbox);
     const config = sandbox.__particleConfig;
-    assert.equal(config.sun.surface, 1_600_000);
-    assert.equal(config.mercury.surface, 1_000_000);
-    assert.equal(config.venus.surface, 1_200_000);
-    assert.equal(config.earth.surface, 1_250_000);
-    assert.equal(config.mars.surface, 1_050_000);
-    assert.equal(config.jupiter.surface, 1_500_000);
-    assert.equal(config.saturn.surface, 1_350_000);
-    assert.equal(config.uranus.surface, 1_200_000);
-    assert.equal(config.neptune.surface, 1_200_000);
+    assert.equal(config.sun.surface, 260_000);
+    assert.equal(config.mercury.surface, 160_000);
+    assert.equal(config.venus.surface, 200_000);
+    assert.equal(config.earth.surface, 210_000);
+    assert.equal(config.mars.surface, 180_000);
+    assert.equal(config.jupiter.surface, 250_000);
+    assert.equal(config.saturn.surface, 220_000);
+    assert.equal(config.uranus.surface, 200_000);
+    assert.equal(config.neptune.surface, 200_000);
     assert.deepEqual(
         Object.fromEntries(Object.entries(config).map(([name, value]) => [name, value.dynamic])),
         {sun: 80_000, mercury: 30_000, venus: 60_000, earth: 50_000, mars: 40_000,
@@ -392,10 +393,18 @@ test('planet layout exposes surface generation progress', () => {
     assert.match(html, /id="particle-build-progress">0%/);
 });
 
-const ROCKY_BUDGETS = {mercury: 1_000_000, venus: 1_200_000, earth: 1_250_000, mars: 1_050_000};
-const GIANT_BUDGETS = {jupiter: 1_500_000, saturn: 1_350_000, uranus: 1_200_000, neptune: 1_200_000};
-const SUN_BUDGET = 1_600_000;
+const ROCKY_BUDGETS = {mercury: 160_000, venus: 200_000, earth: 210_000, mars: 180_000};
+const GIANT_BUDGETS = {jupiter: 250_000, saturn: 220_000, uranus: 200_000, neptune: 200_000};
+const SUN_BUDGET = 260_000;
 const DYNAMIC_CEILINGS = {sun: 80_000, jupiter: 80_000, saturn: 60_000, uranus: 40_000, neptune: 60_000};
+
+function allocationTiers(budget) {
+    return [budget, Math.floor(budget * 0.75), Math.floor(budget * 0.5), Math.floor(budget * 0.25)];
+}
+
+function expectedReadyCount(count) {
+    return Math.min(count, Math.max(25_000, Math.floor(count * 0.3)));
+}
 
 function loadPlanetRuntime(planetName, {allocationCount = 300000, includeProgress = true} = {}) {
     const allocations = [];
@@ -800,12 +809,7 @@ function loadPlanetRuntime(planetName, {allocationCount = 300000, includeProgres
     const ParticleBuilder = sandbox.ParticleBuilder = window.ParticleBuilder;
     function captureSurfaceFactory(factory) {
         return (options) => {
-            allocations.push([
-                options.budget,
-                Math.floor(options.budget * 0.75),
-                Math.floor(options.budget * 0.5),
-                250000
-            ]);
+            allocations.push(allocationTiers(options.budget));
             const onComplete = options.onComplete;
             const surface = factory({
                 ...options,
@@ -818,7 +822,7 @@ function loadPlanetRuntime(planetName, {allocationCount = 300000, includeProgres
             });
             builds.push({
                 total: surface.allocation.count,
-                readyCount: Math.min(250000, surface.allocation.count),
+                readyCount: expectedReadyCount(surface.allocation.count),
                 initialBatchSize: 10000
             });
             samplers.push({options, sampler: surface.frameSampler});
@@ -864,17 +868,17 @@ test('rocky runtimes complete progressive surface builds within bounds', () => {
     for (const planetName of Object.keys(ROCKY_BUDGETS)) {
         const env = loadRockyRuntime(planetName);
         const budget = ROCKY_BUDGETS[planetName];
-        assert.deepEqual(env.allocations[0], [budget, Math.floor(budget * 0.75), Math.floor(budget * 0.5), 250000]);
+        assert.deepEqual(env.allocations[0], allocationTiers(budget));
         assert.equal(env.builds.length, 1, `${planetName} build count`);
         assert.equal(env.builds[0].total, env.allocationCount, `${planetName} total`);
-        assert.equal(env.builds[0].readyCount, 250000, `${planetName} ready count`);
+        assert.equal(env.builds[0].readyCount, expectedReadyCount(env.allocationCount), `${planetName} ready count`);
         assert.equal(env.builds[0].initialBatchSize, 10000, `${planetName} batch size`);
         env.renderEvents.length = 0;
         env.driveBuild();
 
         assert.equal(env.readiness.length, 1, `${planetName} readiness count`);
         assert.equal(env.readiness[0].page, planetName);
-        assert.ok(env.readinessDrawCounts[0] >= 250000, `${planetName} readiness threshold`);
+        assert.ok(env.readinessDrawCounts[0] >= expectedReadyCount(env.allocationCount), `${planetName} readiness threshold`);
         assert.ok(env.readinessDrawCounts[0] <= budget, `${planetName} readiness bound`);
         assert.deepEqual(env.renderEvents.slice(0, 2), ['render', 'ready'], `${planetName} render order`);
         assert.equal(env.completionEvents.length, 1, `${planetName} completion count`);
@@ -916,10 +920,10 @@ test('giant runtimes complete progressive surfaces without consuming auxiliary g
     for (const planetName of Object.keys(GIANT_BUDGETS)) {
         const env = loadPlanetRuntime(planetName);
         const budget = GIANT_BUDGETS[planetName];
-        assert.deepEqual(env.allocations[0], [budget, Math.floor(budget * 0.75), Math.floor(budget * 0.5), 250000]);
+        assert.deepEqual(env.allocations[0], allocationTiers(budget));
         assert.equal(env.builds.length, 1, `${planetName} build count`);
         assert.equal(env.builds[0].total, env.allocationCount, `${planetName} total`);
-        assert.equal(env.builds[0].readyCount, 250000, `${planetName} ready count`);
+        assert.equal(env.builds[0].readyCount, expectedReadyCount(env.allocationCount), `${planetName} ready count`);
         assert.equal(env.builds[0].initialBatchSize, 10000, `${planetName} batch size`);
 
         env.renderEvents.length = 0;
@@ -927,7 +931,7 @@ test('giant runtimes complete progressive surfaces without consuming auxiliary g
 
         assert.equal(env.readiness.length, 1, `${planetName} readiness count`);
         assert.equal(env.readiness[0].page, planetName);
-        assert.ok(env.readinessDrawCounts[0] >= 250000, `${planetName} readiness threshold`);
+        assert.ok(env.readinessDrawCounts[0] >= expectedReadyCount(env.allocationCount), `${planetName} readiness threshold`);
         assert.ok(env.readinessDrawCounts[0] <= budget, `${planetName} readiness bound`);
         assert.deepEqual(env.renderEvents.slice(0, 2), ['render', 'ready'], `${planetName} render order`);
         assert.equal(env.completionEvents.length, 1, `${planetName} completion count`);
@@ -967,10 +971,10 @@ test('Sun streams its million-particle photosphere without animate allocations',
     assert.doesNotMatch(animateSource, /new THREE\.(Color|Vector3)/);
 
     const env = loadPlanetRuntime('sun');
-    assert.deepEqual(env.allocations[0], [SUN_BUDGET, Math.floor(SUN_BUDGET * 0.75), Math.floor(SUN_BUDGET * 0.5), 250000]);
+    assert.deepEqual(env.allocations[0], allocationTiers(SUN_BUDGET));
     assert.equal(env.builds.length, 1, 'Sun build count');
     assert.equal(env.builds[0].total, env.allocationCount, 'Sun total');
-    assert.equal(env.builds[0].readyCount, 250000, 'Sun ready count');
+    assert.equal(env.builds[0].readyCount, expectedReadyCount(env.allocationCount), 'Sun ready count');
     assert.equal(env.builds[0].initialBatchSize, 10000, 'Sun batch size');
 
     env.renderEvents.length = 0;
@@ -978,7 +982,7 @@ test('Sun streams its million-particle photosphere without animate allocations',
 
     assert.equal(env.readiness.length, 1, 'Sun readiness count');
     assert.equal(env.readiness[0].page, 'sun');
-    assert.ok(env.readinessDrawCounts[0] >= 250000, 'Sun readiness threshold');
+    assert.ok(env.readinessDrawCounts[0] >= expectedReadyCount(env.allocationCount), 'Sun readiness threshold');
     assert.ok(env.readinessDrawCounts[0] <= SUN_BUDGET, 'Sun readiness bound');
     assert.deepEqual(env.renderEvents.slice(0, 2), ['render', 'ready'], 'Sun render order');
     assert.equal(env.completionEvents.length, 1, 'Sun completion count');

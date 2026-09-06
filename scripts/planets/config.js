@@ -126,16 +126,19 @@ const PLANET_MONITOR_CONFIG = {
     }
 };
 
+// Surface budgets target the ~2e5 range: the previous million-scale counts
+// oversampled the visible surface by roughly 6x without adding readable detail.
+// Dynamic ceilings stay as-is; hardcoded dynamic layers run well below them.
 const PLANET_PARTICLE_CONFIG = {
-    sun:     {surface: 1600000, dynamic: 80000},
-    mercury: {surface: 1000000, dynamic: 30000},
-    venus:   {surface: 1200000, dynamic: 60000},
-    earth:   {surface: 1250000, dynamic: 50000},
-    mars:    {surface: 1050000, dynamic: 40000},
-    jupiter: {surface: 1500000, dynamic: 80000},
-    saturn:  {surface: 1350000, dynamic: 60000},
-    uranus:  {surface: 1200000, dynamic: 40000},
-    neptune: {surface: 1200000, dynamic: 60000}
+    sun:     {surface: 260000, dynamic: 80000},
+    mercury: {surface: 160000, dynamic: 30000},
+    venus:   {surface: 200000, dynamic: 60000},
+    earth:   {surface: 210000, dynamic: 50000},
+    mars:    {surface: 180000, dynamic: 40000},
+    jupiter: {surface: 250000, dynamic: 80000},
+    saturn:  {surface: 220000, dynamic: 60000},
+    uranus:  {surface: 200000, dynamic: 40000},
+    neptune: {surface: 200000, dynamic: 60000}
 };
 
 const PLANET_UI_CONFIG = Object.keys(PLANET_DOCK_CONFIG).reduce((acc, planetName) =>

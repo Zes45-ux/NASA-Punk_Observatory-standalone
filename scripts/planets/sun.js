@@ -64,7 +64,7 @@ const sunGroup = new THREE.Group();
 group.add(sunGroup);
 
 
-// --- A. 静态百万粒子光球 + 动态叠加层 (Photosphere) ---
+// --- A. 静态高密度粒子光球 + 动态叠加层 (Photosphere) ---
 let sunSurfaceGeometry;
 let sunSurfaceParticles;
 let sunGeometry;
