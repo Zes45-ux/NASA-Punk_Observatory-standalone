@@ -25,6 +25,7 @@ const tailGroup = new THREE.Group();
 planetTiltGroup.add(tailGroup);
 
 let frameSampler;
+let surfaceConvergence;
 
 
 // --- PART 3: 水星本体 ---
@@ -83,7 +84,7 @@ function createMercury()
         colors[offset + 2] = c.b;
     }
 
-    frameSampler = ParticleBuilder.createSurfaceLayer({
+    const surface = ParticleBuilder.createSurfaceLayer({
         planetName,
         budget: PLANET_PARTICLE_CONFIG[planetName].surface,
         sample: sampleSurfaceParticle,
@@ -100,7 +101,9 @@ function createMercury()
             renderer.render(scene, camera);
             ParticleBuilder.markReady({page: planetName});
         }
-    }).frameSampler;
+    });
+    frameSampler = surface.frameSampler;
+    surfaceConvergence = createSurfaceConvergence(surface.points);
 
     // 测量网格
     const wireGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(5.02, 24, 12));
@@ -270,13 +273,16 @@ group.rotation.x = 0.2;
 group.rotation.y = -0.6;
 
 let frameCount = 0;
+let pendingDynamicDelta = 0;
 
 function animate(timestamp)
 {
     requestAnimationFrame(animate);
     const dt = nextDeltaTime(timestamp);
+    pendingDynamicDelta += dt;
     frameCount++;
     frameSampler.sample(timestamp);
+    surfaceConvergence.update(timestamp);
 
     // 自转周期 58.6 天（3:2 自旋轨道共振）。真实速率下几乎不可见，
     // 演示节奏压缩至 ~5 分钟/圈，保持"最慢行星"的相对次序
@@ -284,7 +290,9 @@ function animate(timestamp)
 
     if (frameCount % frameSampler.dynamicStride === 0)
     {
-        updateSodiumTail(dt);
+        const dynamicDt = pendingDynamicDelta;
+        pendingDynamicDelta = 0;
+        updateSodiumTail(dynamicDt);
     }
 
     updateInteraction(group, camera);

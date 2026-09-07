@@ -132,6 +132,17 @@
     opacity: 0.3;
 }
 
+#system-particle-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0.82;
+    mix-blend-mode: screen;
+}
+
 #canvas-container {
     position: absolute;
     top: var(--display-top-inset);
@@ -1041,6 +1052,39 @@ input[type=range].vertical::-webkit-slider-thumb {
     border-color: var(--text-white);
     box-shadow: 0 0 30px var(--planet-color);
     transform: scale(1.1);
+}
+
+@keyframes system-node-breathe {
+    0%, 100% {
+        transform: translateY(-1px);
+        opacity: 0.9;
+    }
+
+    50% {
+        transform: translateY(1px);
+        opacity: 1;
+    }
+}
+
+#system-select-root .planet-node {
+    animation: system-node-breathe 6s ease-in-out infinite;
+    will-change: transform;
+}
+
+#system-select-root .axis-group .planet-node:nth-child(2) { animation-delay: -0.4s; }
+#system-select-root .axis-group .planet-node:nth-child(3) { animation-delay: -1.1s; }
+#system-select-root .axis-group .planet-node:nth-child(4) { animation-delay: -2.0s; }
+#system-select-root .axis-group .planet-node:nth-child(5) { animation-delay: -0.8s; }
+#system-select-root .axis-group .planet-node:nth-child(6) { animation-delay: -1.7s; }
+#system-select-root .axis-group .planet-node:nth-child(7) { animation-delay: -2.6s; }
+#system-select-root .axis-group .planet-node:nth-child(8) { animation-delay: -1.4s; }
+#system-select-root .axis-group .planet-node:nth-child(9) { animation-delay: -2.3s; }
+#system-select-root .axis-group .planet-node:nth-child(10) { animation-delay: -0.6s; }
+
+@media (prefers-reduced-motion: reduce) {
+    #system-select-root .planet-node {
+        animation: none;
+    }
 }
 
 .ring-back {

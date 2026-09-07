@@ -318,8 +318,8 @@ test('markAttributeRange merges pending disjoint and adjacent ranges until uploa
     assert.equal(attribute.updateRange.count, 6);
 });
 
-test('navigation and pagehide cancel active builds and clear sampler readiness', () => {
-    for (const eventType of ['observatory:navigate-start', 'pagehide']) {
+test('non-persisted pagehide cancels active builds and clears sampler readiness', () => {
+    for (const eventType of ['pagehide']) {
         const env = loadBuilder();
         const queue = [];
         let writes = 0;
@@ -356,7 +356,7 @@ test('real lifecycle resets ready state and timing samples', () => {
     env.api.markReady({page: 'ready'});
     sampler.sample(0);
     sampler.sample(40);
-    env.window.dispatchEvent({type: 'observatory:navigate-start'});
+    env.window.dispatchEvent({type: 'pagehide'});
     assert.equal(sampler.ready, false);
 
     sampler.markReady();
@@ -389,11 +389,65 @@ test('persisted pagehide keeps builders and ready samplers alive', () => {
         now: () => 0
     });
 
+    env.window.dispatchEvent({type: 'observatory:navigate-start'});
     env.window.dispatchEvent({type: 'pagehide', persisted: true});
+    while (queue.length) queue.shift()();
+    assert.equal(writes, 0, 'navigation pauses queued work');
+    env.window.dispatchEvent({type: 'pageshow', persisted: true});
     while (queue.length) queue.shift()();
     assert.equal(sampler.ready, true);
     assert.ok(writes > 0);
     assert.equal(completions, 1);
+});
+
+test('adaptive stride preserves elapsed cloud motion on earth and mars', () => {
+    for (const name of ['earth', 'mars']) {
+        const env = loadPlanetRuntime(name);
+        env.driveBuild();
+        const tick = time => env.animationCallbacks.shift()(time);
+        for (let i = 0; i <= 120; i++) tick(i * 40);
+        assert.equal(env.samplers[0].sampler.dynamicStride, 2);
+        const cloud = name === 'earth' ? env.surface.parent.children[2] : env.surface.parent.parent.children[1];
+        const before = cloud.rotation.y;
+        for (let i = 121; i <= 130; i++) tick(i * 40);
+        const expected = (name === 'earth' ? 0.0005 : 0.00144) * 400 / 16.667;
+        assert.ok(Math.abs(cloud.rotation.y - before - expected) < 1e-8, `${name} consumes skipped time`);
+    }
+});
+
+test('cached restore keeps sampler registered and discards paused timing samples', () => {
+    const env = loadBuilder();
+    const sampler = env.api.createFrameSampler({
+        geometry: {setDrawRange() {}}, maxCount: 100,
+        setDynamicStride() {}, sampleSize: 2
+    });
+    env.api.markReady({});
+    sampler.sample(0);
+    sampler.sample(40);
+    env.window.dispatchEvent({type: 'observatory:navigate-start'});
+    sampler.sample(80);
+    sampler.sample(120);
+    assert.equal(sampler.dynamicStride, 1);
+    env.window.dispatchEvent({type: 'pageshow', persisted: true});
+    sampler.sample(160);
+    sampler.sample(200);
+    assert.equal(sampler.dynamicStride, 1);
+    sampler.sample(240);
+    assert.equal(sampler.dynamicStride, 2);
+    env.api.setQualityProfile('low');
+    assert.equal(sampler.profile, 'low');
+});
+
+test('restore before the pending build callback does not enqueue duplicate batches', () => {
+    const env = loadBuilder(), queue = [], ranges = [];
+    env.api.build({total: 20000, initialBatchSize: 10000,
+        writeBatch: (start, end) => ranges.push([start, end]),
+        setDrawCount() {}, schedule: callback => queue.push(callback)});
+    env.window.dispatchEvent({type: 'observatory:navigate-start'});
+    env.window.dispatchEvent({type: 'pageshow', persisted: true});
+    assert.equal(queue.length, 1);
+    while (queue.length) queue.shift()();
+    assert.deepEqual(ranges, [[0, 10000], [10000, 20000]]);
 });
 
 test('planet config exposes every approved particle budget', () => {
@@ -887,6 +941,9 @@ function loadPlanetRuntime(planetName, {allocationCount = 300000, includeProgres
     });
     sandbox.createPlanetScene = window.createPlanetScene;
     sandbox.createFrameDelta = window.createFrameDelta;
+    sandbox.createSurfaceConvergence = window.createSurfaceConvergence;
+    sandbox.createQualityDrawRange = window.createQualityDrawRange;
+    sandbox.createPointSizeJitter = window.createPointSizeJitter;
     sandbox.PLANET_GLSL = window.PLANET_GLSL;
     const ParticleBuilder = sandbox.ParticleBuilder = window.ParticleBuilder;
     function captureSurfaceFactory(factory) {
@@ -1077,6 +1134,30 @@ test('Sun streams its million-particle photosphere without animate allocations',
     assert.equal(env.drawRanges.at(-1)[1], env.allocationCount, 'Sun final draw range');
     assert.ok(env.points.slice(1).every((point) =>
         (point.geometry.attributes.position?.array.length || 0) / 3 <= env.dynamicCeiling), 'Sun dynamic particle ceiling');
+});
+
+test('Sun corona animation advances by elapsed time at high refresh rates', () => {
+    const env = loadPlanetRuntime('sun');
+    env.driveBuild();
+    const corona = env.points.find((point) => point.material?.options?.uniforms?.uBaseR);
+    assert.ok(corona, 'corona shader point layer is present');
+    const uniform = corona.material.options.uniforms.uTime;
+
+    const tick = (timestamp) => {
+        const callback = env.animationCallbacks.shift();
+        assert.equal(typeof callback, 'function');
+        callback(timestamp);
+    };
+
+    tick(0);
+    const first = uniform.value;
+    tick(8.3335);
+    const highRefreshDelta = uniform.value - first;
+    tick(25.0005);
+    const normalRefreshDelta = uniform.value - first - highRefreshDelta;
+
+    assert.ok(Math.abs(highRefreshDelta - 0.5) < 0.02, '8.33 ms advances the corona by half a 60 Hz step');
+    assert.ok(Math.abs(normalRefreshDelta - 1.0) < 0.02, '16.67 ms advances the corona by one 60 Hz step');
 });
 
 test('saturn keeps its polar hexagon as static geometry under the spin group', () => {

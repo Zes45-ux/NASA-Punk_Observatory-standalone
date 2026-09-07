@@ -133,11 +133,35 @@
         canvasId   : 'topo-canvas',
         noiseOffset: 100
     });
+    const overviewProfile = typeof ParticleBuilder !== 'undefined'
+        ? ParticleBuilder.selectInitialProfile()
+        : 'high';
+    const overviewParticleCount = {
+        high    : 320,
+        balanced: 240,
+        low     : 170,
+        recovery: 110
+    }[overviewProfile] || 320;
+    const systemParticleField = typeof createSystemParticleField === 'function'
+        ? createSystemParticleField({
+            count: overviewParticleCount,
+            seed : 20260906
+        })
+        : null;
+
+    if (systemParticleField)
+    {
+        systemParticleField.start();
+    }
 
     const recalculateLayout = initSystemSelectInteractions();
     window.addEventListener('resize', () =>
     {
         topoBackground.resize();
+        if (systemParticleField)
+        {
+            systemParticleField.resize();
+        }
         if (recalculateLayout)
         {
             recalculateLayout();

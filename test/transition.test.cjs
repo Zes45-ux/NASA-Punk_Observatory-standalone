@@ -16,6 +16,9 @@ function loadTransition() {
             contains: (name) => classes.has(name)
         },
         addEventListener: (type, callback) => curtainListeners.set(type, callback),
+        removeEventListener: (type, callback) => {
+            if (curtainListeners.get(type) === callback) curtainListeners.delete(type);
+        },
         offsetWidth: 1
     };
     const location = {};
@@ -42,6 +45,7 @@ function loadTransition() {
             timers.push({callback, delay});
             return timers.length;
         },
+        clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1].cancelled = true; },
         requestAnimationFrame: (callback) => callback(),
         CustomEvent: class { constructor(type, init = {}) { this.type = type; this.detail = init.detail; } },
         console
@@ -56,6 +60,34 @@ test('ready reveals the curtain once', () => {
     assert.equal(env.curtain.classList.contains('curtain-intro'), true);
     assert.equal(env.curtain.classList.contains('start-covered'), false);
     assert.equal(env.timers[0].delay, 1500);
+});
+
+test('cached page restore opens curtain and allows another navigation without stale callbacks', () => {
+    const env = loadTransition();
+    env.api.navigate('earth.html');
+    const staleFinish = env.curtainListeners.get('animationend');
+    staleFinish();
+    env.windowListeners.get('pageshow')?.({persisted: true});
+    assert.equal(env.curtain.classList.contains('curtain-exit'), false);
+    assert.equal(env.curtain.classList.contains('start-covered'), false);
+    env.api.navigate('mars.html');
+    staleFinish();
+    env.curtainListeners.get('animationend')();
+    assert.deepEqual(env.navigations, ['earth.html', 'mars.html']);
+    assert.ok(env.timers.filter(timer => timer.delay === 900).every(timer => timer.cancelled));
+});
+
+test('restore invalidates an unfinished exit callback and timeout', () => {
+    const env = loadTransition();
+    env.api.navigate('earth.html');
+    const staleFinish = env.curtainListeners.get('animationend');
+    env.windowListeners.get('pageshow')({persisted: true});
+    staleFinish();
+    env.timers.forEach(timer => timer.callback());
+    assert.deepEqual(env.navigations, []);
+    env.api.navigate('mars.html');
+    env.curtainListeners.get('animationend')();
+    assert.deepEqual(env.navigations, ['mars.html']);
 });
 
 test('readiness timeout reveals the curtain', () => {

@@ -3,6 +3,47 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
+test('precision slider synchronizes native input from keyboard and touch', () => {
+    const listeners = new Map();
+    const slider = {value: '50', addEventListener: (type, fn) => listeners.set(type, fn)};
+    const context = {};
+    vm.runInNewContext(fs.readFileSync('scripts/core/interaction.js', 'utf8'), context);
+    const values = [];
+    context.initPrecisionSlider(slider, value => values.push(value));
+    slider.value = '60';
+    listeners.get('input')?.({target: slider});
+    slider.value = '70';
+    listeners.get('input')?.({target: slider});
+    assert.deepEqual(values, [60, 70]);
+});
+
+test('precision mouse drag updates once and preserves focus and release cleanup', () => {
+    const listeners = new Map(), globalListeners = new Map(), values = [];
+    let focused = false, prevented = false;
+    const classes = new Set();
+    const slider = {
+        min: '0', max: '100', step: '10', value: '50',
+        focus: () => { focused = true; },
+        addEventListener: (type, fn) => listeners.set(type, fn),
+        classList: {contains: name => classes.has(name), add: name => classes.add(name), remove: name => classes.delete(name)},
+        getBoundingClientRect: () => ({left: 0, top: 0, width: 100, height: 100})
+    };
+    const context = {
+        document: {body: {style: {}}},
+        window: {addEventListener: (type, fn) => globalListeners.set(type, fn), removeEventListener: type => globalListeners.delete(type)}
+    };
+    vm.runInNewContext(fs.readFileSync('scripts/core/interaction.js', 'utf8'), context);
+    context.initPrecisionSlider(slider, value => values.push(value));
+    listeners.get('mousedown')({clientX: 60, clientY: 0, preventDefault() { prevented = true; }});
+    assert.deepEqual(values, [60]);
+    assert.ok(focused && prevented);
+    globalListeners.get('mousemove')({clientX: 80, clientY: 0, preventDefault() {}});
+    globalListeners.get('mouseup')();
+    assert.deepEqual(values, [60, 80]);
+    assert.equal(globalListeners.size, 0);
+    assert.equal(context.document.body.style.cursor, '');
+});
+
 function loadInteraction(extra = {}) {
     const fakeCanvas = {
         style               : {},

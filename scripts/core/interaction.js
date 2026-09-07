@@ -306,8 +306,16 @@ function updateInteraction(group, camera)
 function initPrecisionSlider(sliderElement, onUpdate)
 {
     let isDragging = false;
+    // 原生 range 的键盘和触屏操作统一通过 input 同步。
+    sliderElement.addEventListener('input', () =>
+    {
+        if (onUpdate) onUpdate(Number(sliderElement.value));
+    });
     sliderElement.addEventListener('mousedown', (e) =>
     {
+        // 鼠标使用精细坐标映射，避免浏览器再次执行默认拖动。
+        e.preventDefault();
+        sliderElement.focus();
         isDragging                 = true;
         document.body.style.cursor = 'grabbing';
         sliderElement.classList.add('active');

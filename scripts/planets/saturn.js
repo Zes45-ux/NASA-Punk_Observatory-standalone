@@ -34,6 +34,7 @@ const ringUniforms = {
     }
 };
 let frameSampler;
+let surfaceConvergence;
 
 
 // --- A. 程序化气态巨行星 (SATURN) ---
@@ -114,6 +115,7 @@ function createGasGiant()
         }
     });
     frameSampler = surface.frameSampler;
+    surfaceConvergence = createSurfaceConvergence(surface.points);
 
     // 平流层/雾霾
     const hazeCount = 15000;
@@ -522,6 +524,7 @@ function animate(timestamp)
     const dt = nextDeltaTime(timestamp);
     frameCount++;
     frameSampler.sample(timestamp);
+    surfaceConvergence.update(timestamp);
     time += 0.002 * dt;
 
     // 自转周期 10.66 小时；演示节奏压缩至 ~50 秒/圈，仍快于地球

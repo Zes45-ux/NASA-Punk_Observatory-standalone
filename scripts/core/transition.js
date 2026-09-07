@@ -7,6 +7,8 @@
     const NAV_TIMEOUT_MS = 900;
     let revealed = false;
     let navigating = false;
+    let cancelNavigation = null;
+    let readyTimer = null;
 
     function createCurtainMarkup()
     {
@@ -51,26 +53,45 @@
         void curtain.offsetWidth;
         curtain.classList.add('curtain-exit');
         let finished = false;
+        let navigationTimer = null;
+        const cleanup = () =>
+        {
+            finished = true;
+            clearTimeout(navigationTimer);
+            curtain.removeEventListener('animationend', finish);
+        };
         const finish = () =>
         {
             if (finished) return;
-            finished = true;
+            cleanup();
             global.location.href = url;
         };
+        cancelNavigation = cleanup;
         curtain.addEventListener('animationend', finish, {once: true});
-        setTimeout(finish, NAV_TIMEOUT_MS);
+        navigationTimer = setTimeout(finish, NAV_TIMEOUT_MS);
     }
 
     const TransitionManager = {
         init    : function ()
         {
             global.addEventListener('observatory:ready', reveal, {once: true});
-            setTimeout(reveal, READY_TIMEOUT_MS);
+            readyTimer = setTimeout(reveal, READY_TIMEOUT_MS);
         },
         navigate: navigate
     };
 
     global.TransitionManager = TransitionManager;
+
+    global.addEventListener('pageshow', (event) =>
+    {
+        if (!event.persisted) return;
+        if (cancelNavigation) cancelNavigation();
+        cancelNavigation = null;
+        clearTimeout(readyTimer);
+        navigating = false;
+        revealed = true;
+        ensureCurtain().classList.remove('curtain-exit', 'curtain-intro', 'start-covered');
+    });
 
     document.addEventListener('DOMContentLoaded', () =>
     {

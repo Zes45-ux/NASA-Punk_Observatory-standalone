@@ -28,6 +28,7 @@ const moonSystemGroup = new THREE.Group();
 group.add(moonSystemGroup);
 
 let frameSampler;
+let surfaceConvergence;
 
 
 // --- PART 3: 程序化海王星 (Atmosphere) ---
@@ -114,6 +115,7 @@ function createNeptune()
         }
     });
     frameSampler = surface.frameSampler;
+    surfaceConvergence = createSurfaceConvergence(surface.points);
 
     const wireGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(5.32, 32, 16));
     const wireMat = new THREE.LineBasicMaterial({
@@ -393,6 +395,7 @@ function animate(timestamp)
     const dt = nextDeltaTime(timestamp);
     frameCount++;
     frameSampler.sample(timestamp);
+    surfaceConvergence.update(timestamp);
 
     // 自转周期 16.11 小时；演示节奏压缩至 ~65 秒/圈，快于天王星
     planetSpinGroup.rotation.y += 0.0016 * dt;

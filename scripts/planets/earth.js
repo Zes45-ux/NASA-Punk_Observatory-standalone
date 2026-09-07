@@ -33,6 +33,7 @@ moonSystemGroup.rotation.z = 5.14 * (Math.PI / 180);
 group.add(moonSystemGroup);
 
 let frameSampler;
+let surfaceConvergence;
 
 
 // --- A. 程序化地球 ---
@@ -108,7 +109,7 @@ function createEarth()
         }
     }
 
-    frameSampler = ParticleBuilder.createSurfaceLayer({
+    const surface = ParticleBuilder.createSurfaceLayer({
         planetName,
         budget: PLANET_PARTICLE_CONFIG[planetName].surface,
         sample: sampleSurfaceParticle,
@@ -124,7 +125,9 @@ function createEarth()
             renderer.render(scene, camera);
             ParticleBuilder.markReady({page: planetName});
         }
-    }).frameSampler;
+    });
+    frameSampler = surface.frameSampler;
+    surfaceConvergence = createSurfaceConvergence(surface.points);
 
     // 地球网格 (基准参考面)
     const wireGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(5.0, 24, 24));
@@ -296,34 +299,39 @@ group.rotation.x = 0.2;
 group.rotation.y = 0.0;
 
 let frameCount = 0;
+let pendingDynamicDelta = 0;
 
 function animate(timestamp)
 {
     requestAnimationFrame(animate);
     const dt = nextDeltaTime(timestamp);
+    pendingDynamicDelta += dt;
     frameCount++;
     frameSampler.sample(timestamp);
+    surfaceConvergence.update(timestamp);
 
     // 1. 地球自转（演示节奏基准，~87 秒/圈）
     earthSystemGroup.rotation.y += 0.0012 * dt;
 
     if (frameCount % frameSampler.dynamicStride === 0)
     {
+        const dynamicDt = pendingDynamicDelta;
+        pendingDynamicDelta = 0;
         // 2. 云层差速
-        cloudGroup.rotation.y += 0.0005 * dt;
+        cloudGroup.rotation.y += 0.0005 * dynamicDt;
 
         // 3. LEO 卫星动画
         leoSats.forEach(sat =>
         {
-            sat.angle += sat.speed * dt;
+            sat.angle += sat.speed * dynamicDt;
             sat.mesh.position.x = sat.radius * Math.cos(sat.angle);
             sat.mesh.position.z = sat.radius * Math.sin(sat.angle);
-            sat.mesh.rotation.y += 0.02 * dt;
+            sat.mesh.rotation.y += 0.02 * dynamicDt;
             sat.mesh.rotation.z = -sat.angle;
         });
 
         // 4. 月球公转 & 自转（恒星月 27.32 天，潮汐锁定）
-        moonAngle += 0.0000547 * dt;
+        moonAngle += 0.0000547 * dynamicDt;
         moonBodyGroup.position.x = moonRadius * Math.cos(moonAngle);
         moonBodyGroup.position.z = moonRadius * Math.sin(moonAngle);
         moonBodyGroup.rotation.y = moonAngle;

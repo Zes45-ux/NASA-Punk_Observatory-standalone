@@ -35,6 +35,7 @@ jupiterTiltGroup.add(moonGroup);
 // --- PART 3: 程序化木星主体 ---
 let jupiterSurface, jupiterAtmos;
 let frameSampler;
+let surfaceConvergence;
 const ringUniforms = {
     uTime: {
         value: 0.0
@@ -150,6 +151,7 @@ function createJupiter()
     });
     jupiterSurface = surface.points;
     frameSampler = surface.frameSampler;
+    surfaceConvergence = createSurfaceConvergence(surface.points);
 
     // ==========================================
     // Layer 2: 平流层薄雾
@@ -596,13 +598,16 @@ group.rotation.x = 0.2;
 group.rotation.y = 0.0;
 
 let frameCount = 0;
+let pendingDynamicDelta = 0;
 
 function animate(timestamp)
 {
     requestAnimationFrame(animate);
     const dt = nextDeltaTime(timestamp);
+    pendingDynamicDelta += dt;
     frameCount++;
     frameSampler.sample(timestamp);
+    surfaceConvergence.update(timestamp);
     const time = Date.now() * 0.001;
 
     // 1. 木星自转
@@ -638,6 +643,8 @@ function animate(timestamp)
     // 4. 大红斑内部流体
     if (redSpotMesh && frameCount % frameSampler.dynamicStride === 0)
     {
+        const dynamicDt = pendingDynamicDelta;
+        pendingDynamicDelta = 0;
         const positions = redSpotMesh.geometry.attributes.position.array;
         const data      = redSpotMesh.userData.particles;
 
@@ -645,7 +652,7 @@ function animate(timestamp)
         {
             const p = data[i];
 
-            p.angle += p.speed * dt;
+            p.angle += p.speed * dynamicDt;
 
             const dLat     = Math.sin(p.angle) * p.dist * 0.22 * p.height;
             const dLon     = Math.cos(p.angle) * p.dist * 0.22 * p.width;

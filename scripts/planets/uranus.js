@@ -28,6 +28,7 @@ const moonGroup = new THREE.Group();
 uranusTiltGroup.add(moonGroup);
 
 let frameSampler;
+let surfaceConvergence;
 
 
 // --- PART 3: 天王星主体 ---
@@ -96,6 +97,7 @@ function createUranus()
         }
     });
     frameSampler = surface.frameSampler;
+    surfaceConvergence = createSurfaceConvergence(surface.points);
 
     const atmosGeo = new THREE.BufferGeometry();
     const atmosPos = [];
@@ -537,6 +539,7 @@ function animate(timestamp)
     const dt = nextDeltaTime(timestamp);
     frameCount++;
     frameSampler.sample(timestamp);
+    surfaceConvergence.update(timestamp);
 
     // 物理更新
     // 逆行自转（自转周期 17.24 小时）；演示节奏压缩至 ~70 秒/圈

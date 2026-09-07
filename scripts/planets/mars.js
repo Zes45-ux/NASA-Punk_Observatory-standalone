@@ -33,6 +33,7 @@ const marsMoonGroup = new THREE.Group();
 planetTiltGroup.add(marsMoonGroup);
 
 let frameSampler;
+let surfaceConvergence;
 
 
 // --- PART 3: 程序化火星主体 ---
@@ -98,7 +99,7 @@ function createMarsSurface()
         colors[offset + 2] = c.b;
     }
 
-    frameSampler = ParticleBuilder.createSurfaceLayer({
+    const surface = ParticleBuilder.createSurfaceLayer({
         planetName,
         budget: PLANET_PARTICLE_CONFIG[planetName].surface,
         sample: sampleSurfaceParticle,
@@ -115,7 +116,9 @@ function createMarsSurface()
             renderer.render(scene, camera);
             ParticleBuilder.markReady({page: planetName});
         }
-    }).frameSampler;
+    });
+    frameSampler = surface.frameSampler;
+    surfaceConvergence = createSurfaceConvergence(surface.points);
 
     // 测量网格
     const wireGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(coreRadius + 0.02, 24, 12));
@@ -332,36 +335,41 @@ group.rotation.x = 0.2;
 group.rotation.y = 0.0;
 
 let frameCount = 0;
+let pendingDynamicDelta = 0;
 
 function animate(timestamp)
 {
     requestAnimationFrame(animate);
     const dt = nextDeltaTime(timestamp);
+    pendingDynamicDelta += dt;
     frameCount++;
     frameSampler.sample(timestamp);
+    surfaceConvergence.update(timestamp);
 
     // 自转周期 24.62 小时，与地球几乎相同；演示节奏与地球一致（~87 秒/圈）
     marsSurfaceGroup.rotation.y += 0.0012 * dt;
     if (frameCount % frameSampler.dynamicStride === 0)
     {
-        marsAtmosGroup.rotation.y += 0.00144 * dt;
+        const dynamicDt = pendingDynamicDelta;
+        pendingDynamicDelta = 0;
+        marsAtmosGroup.rotation.y += 0.00144 * dynamicDt;
 
         moonsData.forEach(moon =>
         {
-            moon.angle += moon.speed * dt;
+            moon.angle += moon.speed * dynamicDt;
             moon.mesh.position.x = moon.radius * Math.cos(moon.angle);
             moon.mesh.position.z = moon.radius * Math.sin(moon.angle);
 
             // 缓慢的不规则自转
             if (moon.isPhobos)
             {
-                moon.mesh.rotation.z -= 0.01 * dt;
-                moon.mesh.rotation.y += 0.005 * dt;
+                moon.mesh.rotation.z -= 0.01 * dynamicDt;
+                moon.mesh.rotation.y += 0.005 * dynamicDt;
             }
             else
             {
-                moon.mesh.rotation.y += 0.002 * dt;
-                moon.mesh.rotation.x += 0.003 * dt;
+                moon.mesh.rotation.y += 0.002 * dynamicDt;
+                moon.mesh.rotation.x += 0.003 * dynamicDt;
             }
         });
     }

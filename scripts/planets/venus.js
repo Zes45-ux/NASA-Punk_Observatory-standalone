@@ -30,6 +30,7 @@ planetTiltGroup.add(cloudGroup);
 
 // --- PART 3: 程序化金星主体 (双层点云结构) ---
 let frameSampler;
+let surfaceConvergence;
 let venusCloudUniforms;
 const coreRadius = 5.0;
 const venusCloudBaseColor = new THREE.Color('#ffae20');
@@ -91,7 +92,7 @@ function createVenusSurface()
         colors[offset + 2] = c.b;
     }
 
-    frameSampler = ParticleBuilder.createSurfaceLayer({
+    const surface = ParticleBuilder.createSurfaceLayer({
         planetName,
         budget: PLANET_PARTICLE_CONFIG[planetName].surface,
         sample: sampleSurfaceParticle,
@@ -108,7 +109,9 @@ function createVenusSurface()
             renderer.render(scene, camera);
             ParticleBuilder.markReady({page: planetName});
         }
-    }).frameSampler;
+    });
+    frameSampler = surface.frameSampler;
+    surfaceConvergence = createSurfaceConvergence(surface.points);
 }
 
 createVenusSurface();
@@ -208,6 +211,7 @@ function animate(timestamp)
     requestAnimationFrame(animate);
     const dt = nextDeltaTime(timestamp);
     frameSampler.sample(timestamp);
+    surfaceConvergence.update(timestamp);
 
     // 1. 地表逆行自转（真实恒星周 243 天几乎不可见，
     //    演示节奏压缩至 ~7 分钟/圈，保持"最慢天体"的相对次序）

@@ -191,8 +191,10 @@ Public builder methods:
   dynamic update cadence before lowering static draw range; profiles only move
   down.
 
-Active builds are cancelled centrally on `observatory:navigate-start` and
-`pagehide`, so planet runtimes do not need per-page unload handlers.
+Active builds and frame sampling pause on `observatory:navigate-start` or a
+persisted `pagehide`, then resume on a persisted `pageshow` without losing
+progress or quality controls. A non-persisted `pagehide` cancels builds and
+clears samplers. The transition curtain also resets on cached-page restore.
 
 Approved high-profile surface budgets and dynamic-layer ceilings. Surface
 budgets were rescaled on 2026-09-06 from the original million-particle baseline
@@ -225,7 +227,10 @@ Rings are independent auxiliary geometry. Static surfaces are not updated per
 frame; only dynamic overlays upload changing attributes. When frame sampling
 finds sustained slowdown, the runtime first changes dynamic updates to every
 second frame, then selects `balanced`, `low`, or `recovery`. It never raises a
-profile automatically during the same page session.
+profile automatically during the same page session. Dynamic layers accumulate
+the clamped delta of skipped frames and consume it at their next update, so
+lower update cadence preserves motion speed. Solar eruption probability is
+scaled by elapsed time as well.
 
 The heavy dynamic layers compute their noise on the GPU: the Sun photosphere
 pulsation, the Sun corona outflow, and the Venus cloud flow run in vertex
@@ -249,6 +254,52 @@ override inherit it. Interaction runs on Pointer Events: a single pointer
 drags rotation, a two-pointer pinch zooms, click-to-focus ignores multi-touch
 gestures, and the canvas opts out of browser touch gestures via
 `touch-action: none`.
+
+Surface builds open with a convergence reveal: while the progressive build
+runs, drawn particles rest on a scattered shell around the body at ~20%
+opacity, gently breathing via a `uTime` term, and once `observatory:ready`
+fires each particle eases into its final position staggered by a per-particle
+hash. The scattered endpoint also rotates around the body's Y axis by an
+angle that decays with the reveal, so particles spiral in instead of falling
+straight radially, and a `vConvReveal` varying fades each particle from 20%
+to full opacity as it settles. All of it happens inside the vertex and
+fragment shaders via `onBeforeCompile` (`createSurfaceConvergence` in
+`planetScene.js`), so the CPU cost stays two uniform writes per frame; a
+6-second fallback starts the reveal even if the ready event is missed. When
+a material's fragment shader lacks the `color_fragment` anchor the patch
+degrades to a vertex-only effect, keeping both shaders consistent.
+
+Surface point materials also pass through a shared appearance patch. It gives
+each point a deterministic size variation and clips the point sprite to a
+soft circular edge, so dense surfaces read as layered volume rather than a
+grid of square pixels. The shader patches are chained in registration order,
+which lets convergence, quality, and appearance enhancements coexist on one
+material. Shader program cache keys include the original material key plus
+the ordered patch types and GLSL parameters; equivalent programs can share a
+cache entry, while convergence and size-jitter variants remain separate.
+
+The system-select page adds a separate `system-particle-canvas` orbital dust
+layer. It draws a small seeded set of moving dust sprites with a capped device
+pixel ratio and its own lightweight frame loop; the topographic canvas remains
+static between resize events. The overview selects 320, 240, 170, or 110 dust
+sprites from the same initial hardware profile ladder, and the CSS node
+breathing is disabled naturally when reduced motion is requested by the
+browser.
+
+Sun corona motion is driven by the same clamped 60 Hz delta factor as the
+other demo animations instead of raw frame count, keeping radial outflow speed
+consistent across 60 Hz, 120 Hz, and frame drops.
+
+The Sun page carries a static asteroid belt between the implied Mars and
+Jupiter orbits (30k particles generated once at 2.2-3.3 AU scale, normal
+blending, no per-particle updates); the whole belt group precesses slowly,
+which is a single O(1) update per frame. The belt uses two static-layer
+helpers from `planetScene.js`: `createPointSizeJitter` rewrites
+`gl_PointSize = size` at compile time into a per-particle hash spread
+(0.5-1.6x) so the band does not read as a single point size, and
+`createQualityDrawRange` scales its draw range with the quality profile
+(high 100%, balanced 75%, low 50%, recovery 25%), seeding from
+`ParticleBuilder` at init and following `observatory:quality` events live.
 
 The system monitor is the entry to a two-state navigation flow. Clicking the
 mini star map animates it into a horizontal system strip - a borderless,

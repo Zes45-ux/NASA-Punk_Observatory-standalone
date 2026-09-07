@@ -72,6 +72,8 @@
         let cursor = 0;
         let terminal = false;
         let readySent = false;
+        let paused = false;
+        let queued = false;
         let batchSize = Math.min(options.initialBatchSize || 10000, options.total);
         let lastPercent = -1;
         const schedule = options.schedule || defaultSchedule;
@@ -89,6 +91,14 @@
         }
 
         const state = {
+            pause() { paused = true; },
+            resume() {
+                if (terminal || !paused) return;
+                paused = false;
+                if (!queued) {
+                    try { enqueue(); } catch (error) { fail(error); }
+                }
+            },
             cancel() {
                 if (terminal) return;
                 terminal = true;
@@ -98,8 +108,14 @@
 
         activeBuilds.add(state);
 
+        function enqueue() {
+            queued = true;
+            schedule(run);
+        }
+
         function run() {
-            if (terminal) return;
+            queued = false;
+            if (terminal || paused) return;
             try {
                 const started = now();
                 const end = Math.min(options.total, cursor + batchSize);
@@ -119,7 +135,7 @@
                 if (terminal) return;
                 const elapsed = Math.max(1, now() - started);
                 batchSize = Math.min(50000, Math.max(1000, Math.round(batchSize * 5 / elapsed)));
-                if (cursor < options.total) schedule(run);
+                if (cursor < options.total) enqueue();
                 else {
                     terminal = true;
                     cleanup();
@@ -131,7 +147,7 @@
         }
 
         try {
-            schedule(run);
+            enqueue();
         } catch (error) {
             fail(error);
         }
@@ -161,6 +177,10 @@
 
         const points = new three.Points(geometry, new three.PointsMaterial(options.material));
         options.group.add(points);
+        if (typeof global.createParticleAppearance === 'function')
+        {
+            global.createParticleAppearance(points, options.appearance);
+        }
 
         const frameSampler = createFrameSampler({
             geometry,
@@ -223,6 +243,7 @@
         let ready = false;
         let lastTime = null;
         let deltas = [];
+        let paused = false;
 
         // 会话开始前已手动选择档位时，直接锁定并跳过自动降档
         if (qualityOverride) {
@@ -260,7 +281,13 @@
             deltas = [];
         }
 
-        const registryEntry = {setReady, reset, setProfile};
+        function setPaused(next) {
+            paused = next;
+            lastTime = null;
+            deltas = [];
+        }
+
+        const registryEntry = {setReady, reset, setProfile, setPaused};
         frameSamplers.add(registryEntry);
 
         function dispose() {
@@ -269,7 +296,7 @@
         }
 
         function sample(timestamp) {
-            if (!ready || !Number.isFinite(timestamp)) return;
+            if (paused || !ready || !Number.isFinite(timestamp)) return;
             if (lastTime !== null) {
                 const delta = timestamp - lastTime;
                 if (delta > 0 && delta <= 250) deltas.push(delta);
@@ -319,10 +346,19 @@
     }
 
     if (typeof global.addEventListener === 'function') {
-        global.addEventListener('observatory:navigate-start', cancelActiveBuilds);
+        const pause = () => {
+            activeBuilds.forEach((job) => job.pause());
+            frameSamplers.forEach((entry) => entry.setPaused(true));
+        };
+        global.addEventListener('observatory:navigate-start', pause);
         global.addEventListener('pagehide', (event) => {
-            if (event && event.persisted === true) return;
+            if (event && event.persisted === true) { pause(); return; }
             cancelActiveBuilds();
+        });
+        global.addEventListener('pageshow', (event) => {
+            if (!event || !event.persisted) return;
+            frameSamplers.forEach((entry) => entry.setPaused(false));
+            Array.from(activeBuilds).forEach((job) => job.resume());
         });
     }
 
