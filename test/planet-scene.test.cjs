@@ -205,7 +205,7 @@ test('static layers get hashed point size jitter and profile-scaled draw ranges'
 });
 
 test('quality draw range seeds from ParticleBuilder when present', () => {
-    const {api} = loadPlanetScene({
+    const {api, fire} = loadPlanetScene({
         ParticleBuilder: {
             getQualityProfile: () => 'auto',
             selectInitialProfile: () => 'balanced'
@@ -222,6 +222,9 @@ test('quality draw range seeds from ParticleBuilder when present', () => {
 
     api.createQualityDrawRange(points);
     assert.deepEqual(drawCalls[0], [0, 22500], 'auto profile falls back to the device signal profile');
+    fire({type: 'observatory:quality', detail: {profile: 'high'}});
+    fire({type: 'observatory:quality', detail: {profile: 'auto'}});
+    assert.deepEqual(drawCalls.at(-1), [0, 22500], 'returning to auto respects device limits');
 
     const manualCalls = [];
     const manual = {

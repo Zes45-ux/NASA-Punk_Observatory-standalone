@@ -84,6 +84,20 @@ test('system particle field is inert when its canvas is unavailable', () => {
     assert.equal(env.callbacks.length, 0);
 });
 
+test('reduced motion redraws after resize without starting an animation loop', () => {
+    const env = loadSystemParticleField();
+    const field = env.api({count: 12, reducedMotion: true});
+    field.start();
+    env.drawCalls.length = 0;
+    field.resize();
+    assert.equal(env.drawCalls.filter(([type]) => type === 'arc').length, 12);
+    assert.equal(env.callbacks.length, 0);
+    field.stop();
+    env.drawCalls.length = 0;
+    field.resize();
+    assert.equal(env.drawCalls.filter(([type]) => type === 'arc').length, 0);
+});
+
 test('system select mounts the orbital field before its page bootstrap', () => {
     const html = fs.readFileSync('index.html', 'utf8');
     const canvasIndex = html.indexOf('<canvas id="system-particle-canvas"');

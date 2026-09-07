@@ -350,6 +350,12 @@
 
         function apply(profile)
         {
+            if (profile === 'auto')
+            {
+                profile = global.ParticleBuilder
+                    ? global.ParticleBuilder.selectInitialProfile(global.navigator)
+                    : 'high';
+            }
             const ratio = ratios[profile];
             points.geometry.setDrawRange(0, ratio === undefined ? maxCount : Math.floor(maxCount * ratio));
         }

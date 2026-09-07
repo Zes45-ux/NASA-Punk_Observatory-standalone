@@ -118,6 +118,11 @@
             {
                 context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
             }
+            // Resizing clears the canvas; static mode has no next frame to repaint it.
+            if (running && (reducedMotion || !requestFrame))
+            {
+                draw(lastTimestamp === null ? now() : lastTimestamp);
+            }
         }
 
         function draw(timestamp)
