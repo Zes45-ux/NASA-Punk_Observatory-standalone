@@ -8,6 +8,7 @@ const InteractionState = {
     targetSliderVal      : 50,
     slider               : null,
     textDisplay          : null,
+    lastZoomText         : '',
     focus                : {
         active         : false,
         preFocusSlider : 50,
@@ -172,6 +173,7 @@ function initInteraction(targetGroup, initialZoomZ, sliderId = 'cam-zoom-slider'
     InteractionState.initialZ    = initialZoomZ;
     InteractionState.slider      = document.getElementById(sliderId);
     InteractionState.textDisplay = document.getElementById(textId);
+    InteractionState.lastZoomText = '';
 
     const canvas = document.querySelector('#canvas-container canvas') || document.querySelector('canvas');
     const activePointers = new Map();
@@ -298,7 +300,13 @@ function updateInteraction(group, camera)
     }
     if (InteractionState.textDisplay)
     {
-        InteractionState.textDisplay.innerText = Math.round(factor * 100) + '%';
+        const zoomText = Math.round(factor * 100) + '%';
+        if (zoomText !== InteractionState.lastZoomText)
+        {
+            // textContent avoids the synchronous layout work caused by innerText.
+            InteractionState.textDisplay.textContent = zoomText;
+            InteractionState.lastZoomText = zoomText;
+        }
     }
     return newZ;
 }

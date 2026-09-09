@@ -76,7 +76,7 @@
             const axisScale       = Math.min(1, availableWidth / Math.max(1, axisWidth));
             axisGroup.style.gap = `${finalGap}px`;
             axisGroup.style.setProperty('--axis-scale', axisScale.toFixed(4));
-            scaleVal.innerText = `${Math.round(factor * 100)}%`;
+            scaleVal.textContent = `${Math.round(factor * 100)}%`;
         }
 
         function calculateBaseGap()
@@ -167,6 +167,14 @@
     if (systemParticleField)
     {
         systemParticleField.start();
+        window.addEventListener('pagehide', () => systemParticleField.stop());
+        window.addEventListener('pageshow', (event) =>
+        {
+            if (event && event.persisted === true)
+            {
+                systemParticleField.start();
+            }
+        });
     }
 
     const recalculateLayout = initSystemSelectInteractions();

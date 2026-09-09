@@ -35,6 +35,7 @@
     function createMotionAwareAnimation(animate)
     {
         const mediaQuery   = getReducedMotionMediaQuery();
+        const document     = global.document;
         const requestFrame = typeof global.requestAnimationFrame === 'function'
             ? global.requestAnimationFrame.bind(global)
             : null;
@@ -43,17 +44,43 @@
             : null;
         let frameHandle = null;
 
+        function isPageHidden()
+        {
+            return Boolean(document && document.hidden);
+        }
+
         function schedule()
         {
-            if (!requestFrame || frameHandle !== null || (mediaQuery && mediaQuery.matches))
+            if (!requestFrame
+                || frameHandle !== null
+                || (mediaQuery && mediaQuery.matches)
+                || isPageHidden())
             {
                 return;
             }
             frameHandle = requestFrame((timestamp) =>
             {
                 frameHandle = null;
+                if (isPageHidden())
+                {
+                    return;
+                }
                 animate(timestamp);
             });
+        }
+
+        function handleVisibilityChange()
+        {
+            if (isPageHidden())
+            {
+                if (frameHandle !== null && cancelFrame)
+                {
+                    cancelFrame(frameHandle);
+                }
+                frameHandle = null;
+                return;
+            }
+            schedule();
         }
 
         function handleMotionChange(event)
@@ -83,6 +110,11 @@
             }
         }
 
+        if (document && typeof document.addEventListener === 'function')
+        {
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+        }
+
         return {schedule};
     }
 
@@ -108,9 +140,11 @@
         camera.position.z = initialZoom;
 
         const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
-        renderer.setSize(displaySize.width, displaySize.height);
         // 4K/5K 屏按完整 devicePixelRatio 渲染点云代价过高，钳制到 2
         renderer.setPixelRatio(Math.min(global.devicePixelRatio || 1, 2));
+        // 先设置像素比再设置尺寸，避免启动时先分配一份 1x framebuffer，
+        // 随后因 DPR 变化立即重复分配。
+        renderer.setSize(displaySize.width, displaySize.height);
         canvasContainer.appendChild(renderer.domElement);
 
         function resizeScene()
@@ -118,6 +152,12 @@
             const nextDisplaySize = DisplayArea.getSize(canvasContainer);
             camera.aspect         = nextDisplaySize.width / nextDisplaySize.height;
             camera.updateProjectionMatrix();
+            const nextPixelRatio = Math.min(global.devicePixelRatio || 1, 2);
+            if (typeof renderer.getPixelRatio !== 'function'
+                || renderer.getPixelRatio() !== nextPixelRatio)
+            {
+                renderer.setPixelRatio(nextPixelRatio);
+            }
             renderer.setSize(nextDisplaySize.width, nextDisplaySize.height);
         }
 

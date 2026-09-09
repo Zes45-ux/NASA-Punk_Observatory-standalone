@@ -44,6 +44,28 @@ test('precision mouse drag updates once and preserves focus and release cleanup'
     assert.equal(context.document.body.style.cursor, '');
 });
 
+test('zoom readout avoids repeated layout-forcing DOM writes', () => {
+    const {api} = loadInteraction();
+    let writes = 0;
+    const textDisplay = {value: ''};
+    Object.defineProperty(textDisplay, 'textContent', {
+        get() { return this.value; },
+        set(value) { writes += 1; this.value = value; }
+    });
+
+    api.InteractionState.textDisplay = textDisplay;
+    api.InteractionState.lastZoomText = '';
+    api.InteractionState.initialZ = 25;
+    api.InteractionState.currentSliderVal = 50;
+    api.InteractionState.targetSliderVal = 50;
+
+    api.updateInteraction(null, null);
+    api.updateInteraction(null, null);
+
+    assert.equal(textDisplay.value, '100%');
+    assert.equal(writes, 1, 'stable zoom values do not rewrite the DOM every frame');
+});
+
 function loadInteraction(extra = {}) {
     const fakeCanvas = {
         style               : {},
