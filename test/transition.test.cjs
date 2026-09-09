@@ -55,7 +55,7 @@ function loadTransition({reducedMotion = false} = {}) {
         console
     };
     vm.runInNewContext(fs.readFileSync('scripts/core/transition.js', 'utf8'), sandbox);
-    return {api: window.TransitionManager, curtain, bodyClasses, windowListeners, timers, location, navigations};
+    return {api: window.TransitionManager, curtain, bodyClasses, windowListeners, timers, location, navigations, window, document};
 }
 
 test('ready reveals the interface without starting the legacy curtain', () => {
@@ -124,6 +124,70 @@ test('particle scene hold is capped so a faulty effect cannot trap navigation', 
     env.windowListeners.set('observatory:navigate-start', (event) => event.detail.holdFor(9999));
     env.api.navigate('venus.html');
     assert.equal(env.timers.at(-1).delay, 1200);
+});
+
+test('registered Three.js point layers create a bounded cross-page particle bridge', () => {
+    const env = loadTransition();
+    const stored = new Map();
+    const appended = [];
+    env.window.innerWidth = 1000;
+    env.window.innerHeight = 600;
+    env.window.devicePixelRatio = 1;
+    env.window.requestAnimationFrame = () => 41;
+    env.window.cancelAnimationFrame = () => {};
+    env.window.sessionStorage = {
+        getItem: (key) => stored.get(key) || null,
+        setItem: (key, value) => stored.set(key, value),
+        removeItem: (key) => stored.delete(key)
+    };
+    env.window.THREE = {
+        Vector3: class {
+            fromBufferAttribute(attribute, index) {
+                this.x = attribute.getX(index);
+                this.y = attribute.getY(index);
+                this.z = attribute.getZ(index);
+                return this;
+            }
+            applyMatrix4() { return this; }
+            project() { return this; }
+        }
+    };
+    env.document.createElement = () => ({
+        className: '', id: '', style: {},
+        setAttribute: () => {},
+        remove: () => {},
+        getContext: () => ({setTransform: () => {}, clearRect: () => {}})
+    });
+    env.document.body.appendChild = (node) => appended.push(node);
+
+    const position = {
+        count: 30,
+        getX: (index) => Math.cos(index / 30 * Math.PI * 2) * 0.5,
+        getY: (index) => Math.sin(index / 30 * Math.PI * 2) * 0.5,
+        getZ: () => 0
+    };
+    const points = {
+        visible: true,
+        isPoints: true,
+        matrixWorld: {},
+        geometry: {attributes: {position}, drawRange: {count: Infinity}},
+        material: {color: {r: 0.3, g: 0.7, b: 1}, opacity: 0.9}
+    };
+    env.api.registerParticleScene({
+        updateMatrixWorld: () => {},
+        traverse: (callback) => callback(points)
+    }, {updateMatrixWorld: () => {}}, {
+        domElement: {getBoundingClientRect: () => ({left: 0, top: 0, width: 1000, height: 600})}
+    });
+
+    env.api.navigate('mars.html');
+
+    const serialized = Array.from(stored.values())[0];
+    const bridge = JSON.parse(serialized);
+    assert.equal(env.timers.at(-1).delay, 720);
+    assert.equal(bridge.target, 'mars.html');
+    assert.equal(bridge.particles.length, 30);
+    assert.ok(appended.some((node) => node.id === 'particle-transition-overlay'));
 });
 
 test('reduced motion navigates without waiting for the curtain animation', () => {

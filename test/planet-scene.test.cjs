@@ -109,7 +109,7 @@ test('surface convergence waits for readiness then eases every particle in', () 
     assert.ok(shader.vertexShader.includes('transformed = mix('));
     assert.ok(shader.vertexShader.includes('vConvReveal = convReveal;'), 'vertex exposes the stagger');
     assert.ok(shader.fragmentShader.includes('varying float vConvReveal;'));
-    assert.ok(shader.fragmentShader.includes('diffuseColor.a *= 0.04 + 0.96 * vConvReveal;'), 'particles fade in while converging');
+    assert.ok(shader.fragmentShader.includes('diffuseColor.a *= vConvReveal;'), 'particles fully fade while converging or scattering');
     assert.equal(shader.uniforms.uReveal, convergence.uniforms.uReveal, 'reveal uniform object is shared');
     assert.equal(shader.uniforms.uTime, convergence.uniforms.uTime, 'time uniform object is shared');
 

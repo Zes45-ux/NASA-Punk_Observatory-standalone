@@ -11,10 +11,16 @@
   `window.location.href` after the longest registered `holdFor(duration)` delay.
   Delays are clamped to 480–1,200 ms, and repeated calls during one exit are ignored.
 
-The transition module dispatches `observatory:navigate-start` with `{url, holdFor}`.
-The active planet surface reverses its GPU convergence shader and requests a
-900 ms hold while its particles spiral outward. The particle builder also uses
-the event to pause active generation jobs before the page changes.
+The transition module projects a bounded sample from every `THREE.Points` layer
+in the complete scene and converts it into at most 1,800 Canvas2D bridge
+particles. This includes auxiliary atmospheres, rings, moons, and satellites
+without relying on WebGL framebuffer preservation. Those particles continue
+across the document navigation through compact session state, covering the gap
+until the next planet's GPU reconstruction is established.
+It also dispatches `observatory:navigate-start` with `{url, holdFor}`. The active
+planet surface reverses its GPU convergence shader and requests a 720 ms hold
+while its particles spiral outward. The particle builder uses the same event to
+pause active generation jobs before the page changes.
 
 ## Configuration and effects
 
