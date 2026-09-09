@@ -74,9 +74,9 @@
             const axisWidth      = planetsTotalWidthPx + gapsCount * finalGap;
             const availableWidth = Math.max(1, DisplayArea.getSize(root).width - 16);
             const axisScale       = Math.min(1, availableWidth / Math.max(1, axisWidth));
-            axisGroup.style.gap   = `${finalGap}px`;
+            axisGroup.style.gap = `${finalGap}px`;
             axisGroup.style.setProperty('--axis-scale', axisScale.toFixed(4));
-            scaleVal.innerText    = `${Math.round(factor * 100)}%`;
+            scaleVal.innerText = `${Math.round(factor * 100)}%`;
         }
 
         function calculateBaseGap()
@@ -124,10 +124,6 @@
                 {
                     event.preventDefault();
                     TransitionManager.navigate(link);
-                }
-                else
-                {
-                    window.location.href = link;
                 }
             });
         });

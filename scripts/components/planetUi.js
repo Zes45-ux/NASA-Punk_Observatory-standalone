@@ -1,21 +1,9 @@
 (function initPlanetUI(global)
 {
-    const MONITOR_ORDER        = ['neptune', 'uranus', 'saturn', 'jupiter', 'mars', 'earth', 'venus', 'mercury'];
     const PLANET_ZOOM_FOOTER   = '&gt; CAM_ZOOM: <span id="zoom-text-display">100%</span>' +
         '<br>&gt; SURFACE_GEN: <span id="particle-build-progress">0%</span>';
     const MONITOR_LABEL_TOP    = '<div class="monitor-label label-top">SYSTEM OVERVIEW // CLICK MAP TO EXPAND</div>';
     const MONITOR_LABEL_BOTTOM = '<div class="monitor-label label-bottom">TGT: RA 00h 00m | DEC +00° <span style="margin-left:10px; color:var(--const-orange)">EPOCH: J2000.0</span></div>';
-
-    function buildReticle(isLarge)
-    {
-        const sizeClass = isLarge ? ' large' : '';
-        return `<div class="target-reticle${sizeClass}">
-            <div class="reticle-corner rc-tl"></div>
-            <div class="reticle-corner rc-tr"></div>
-            <div class="reticle-corner rc-bl"></div>
-            <div class="reticle-corner rc-br"></div>
-        </div>`;
-    }
 
     function navigateTo(url)
     {
@@ -29,45 +17,11 @@
         }
     }
 
-    function buildSunMarker(config)
-    {
-        if (config.active === 'sun')
-        {
-            return `<div class="sun-marker">${buildReticle(Boolean(config.reticleLarge))}</div>`;
-        }
-
-        return '<div class="sun-marker"></div>';
-    }
-
-    function buildMonitorOrbit(name, config)
-    {
-        const orbitActive = config.active === name ? ' orbit-active' : '';
-        return `<div class="orbit-path o-${name}${orbitActive}"></div>`;
-    }
-
-    function buildMonitorPlanet(name, config)
-    {
-        const markerExtra = config.active === name && config.activeMarkerExtraClass ? ` ${config.activeMarkerExtraClass}` : '';
-        const reticle     = config.active === name ? buildReticle(Boolean(config.reticleLarge)) : '';
-
-        return `<div class="planet-container c-${name}">
-                <div class="planet-marker p-${name}${markerExtra}">${reticle}</div>
-            </div>`;
-    }
-
-    function buildMonitorBody(config)
-    {
-        return MONITOR_ORDER.map((name) => `${buildMonitorOrbit(name, config)}${buildMonitorPlanet(name, config)}`).join('');
-    }
-
     function buildSystemMonitor(config)
     {
         return `<div class="system-monitor-container">
             <div class="system-monitor-body" aria-hidden="true">
-                ${buildSunMarker(config)}
-                ${buildMonitorBody(config)}
-                <div class="scanner-trail"></div>
-                <div class="scanner-line-sys"></div>
+                <canvas id="system-monitor-particle-canvas" class="system-monitor-particle-canvas" aria-hidden="true"></canvas>
             </div>
             <button type="button" class="system-monitor-trigger" aria-expanded="false" aria-controls="system-planet-strip" aria-label="OPEN SYSTEM NAVIGATION"></button>
             <a class="system-monitor-caption" title="GO TO SYSTEM SELECT" href="index.html" aria-label="GO TO SYSTEM SELECT">
@@ -235,6 +189,28 @@
 
         monitor.style.cursor = 'pointer';
         let stripOpen = false;
+        const particleMap = typeof createParticleMiniMap === 'function'
+            ? createParticleMiniMap({
+                canvasId: 'system-monitor-particle-canvas',
+                active  : planetName,
+                count   : 128,
+                seed    : 20260909
+            })
+            : null;
+
+        if (particleMap)
+        {
+            particleMap.start();
+            window.addEventListener('resize', () => particleMap.resize());
+            window.addEventListener('pagehide', () => particleMap.stop());
+            window.addEventListener('pageshow', (event) =>
+            {
+                if (event && event.persisted === true)
+                {
+                    particleMap.start();
+                }
+            });
+        }
 
         const setStripOpen = (next) =>
         {

@@ -290,20 +290,17 @@ Sun corona motion is driven by the same clamped 60 Hz delta factor as the
 other demo animations instead of raw frame count, keeping radial outflow speed
 consistent across 60 Hz, 120 Hz, and frame drops.
 
-The Sun page carries a static asteroid belt between the implied Mars and
-Jupiter orbits (30k particles generated once at 2.2-3.3 AU scale, normal
-blending, no per-particle updates); the whole belt group precesses slowly,
-which is a single O(1) update per frame. The belt uses two static-layer
-helpers from `planetScene.js`: `createPointSizeJitter` rewrites
-`gl_PointSize = size` at compile time into a per-particle hash spread
-(0.5-1.6x) so the band does not read as a single point size, and
-`createQualityDrawRange` scales its draw range with the quality profile
-(high 100%, balanced 75%, low 50%, recovery 25%), seeding from
-`ParticleBuilder` at init and following `observatory:quality` events live.
+The Sun scene intentionally has no independent asteroid-belt layer. Orbital
+dust is reserved for the lightweight UI map below, where it remains visually
+separate from the main solar particle scene.
 
-The system monitor is the entry to a two-state navigation flow. Clicking the
-mini star map animates it into a horizontal system strip - a borderless,
-transparent fixed overlay reusing the system-select planet-node visuals (axis
+The system monitor is the entry to a two-state navigation flow. Its compact
+map is a dedicated canvas particle layer: evenly distributed orbital dust,
+moving planet markers, a selected-body reticle, and a slow scan line. It is
+UI-only and does not add another celestial-body layer to the main Three.js
+scene. Clicking the particle map animates it into a horizontal system strip - a
+borderless, transparent fixed overlay reusing the system-select planet-node
+visuals (axis
 line drawing in, bodies staggering into place, always-visible English labels,
 and a gentle floating bob on each body so they hover over the page). Clicking
 a body in the strip jumps straight to that planet's page; the active body is

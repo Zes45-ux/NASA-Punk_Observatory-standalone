@@ -6,14 +6,84 @@
  *  - createSurfaceConvergence: 表面点云螺旋汇聚入场（着色器内完成）
  *  - createQualityDrawRange  : 静态粒子层按画质档位缩放 drawRange
  *  - createPointSizeJitter   : 静态点云逐粒子尺寸差异（编译期补丁）
+ *  - createMotionAwareAnimation: reduced-motion 感知的共享动画调度器
  *  - PLANET_GLSL.snoise3D: 顶点着色器用的 3D simplex 噪声（Ashima, MIT）
  */
 (function initPlanetSceneKit(global)
 {
+    let reducedMotionMediaQuery;
+    let reducedMotionMediaQueryReady = false;
+
+    function getReducedMotionMediaQuery()
+    {
+        if (!reducedMotionMediaQueryReady)
+        {
+            reducedMotionMediaQuery = typeof global.matchMedia === 'function'
+                ? global.matchMedia('(prefers-reduced-motion: reduce)')
+                : null;
+            reducedMotionMediaQueryReady = true;
+        }
+        return reducedMotionMediaQuery;
+    }
+
     function isReducedMotionRequested()
     {
-        return typeof global.matchMedia === 'function'
-            && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const mediaQuery = getReducedMotionMediaQuery();
+        return Boolean(mediaQuery && mediaQuery.matches);
+    }
+
+    function createMotionAwareAnimation(animate)
+    {
+        const mediaQuery   = getReducedMotionMediaQuery();
+        const requestFrame = typeof global.requestAnimationFrame === 'function'
+            ? global.requestAnimationFrame.bind(global)
+            : null;
+        const cancelFrame  = typeof global.cancelAnimationFrame === 'function'
+            ? global.cancelAnimationFrame.bind(global)
+            : null;
+        let frameHandle = null;
+
+        function schedule()
+        {
+            if (!requestFrame || frameHandle !== null || (mediaQuery && mediaQuery.matches))
+            {
+                return;
+            }
+            frameHandle = requestFrame((timestamp) =>
+            {
+                frameHandle = null;
+                animate(timestamp);
+            });
+        }
+
+        function handleMotionChange(event)
+        {
+            const matches = event ? event.matches : mediaQuery && mediaQuery.matches;
+            if (matches)
+            {
+                if (frameHandle !== null && cancelFrame)
+                {
+                    cancelFrame(frameHandle);
+                    frameHandle = null;
+                }
+                return;
+            }
+            schedule();
+        }
+
+        if (mediaQuery)
+        {
+            if (typeof mediaQuery.addEventListener === 'function')
+            {
+                mediaQuery.addEventListener('change', handleMotionChange);
+            }
+            else if (typeof mediaQuery.addListener === 'function')
+            {
+                mediaQuery.addListener(handleMotionChange);
+            }
+        }
+
+        return {schedule};
     }
 
     global.isReducedMotionRequested = isReducedMotionRequested;
@@ -417,6 +487,7 @@
 
     global.createPlanetScene = createPlanetScene;
     global.createFrameDelta  = createFrameDelta;
+    global.createMotionAwareAnimation = createMotionAwareAnimation;
     global.createSurfaceConvergence = createSurfaceConvergence;
     global.createParticleAppearance = createParticleAppearance;
     global.createQualityDrawRange   = createQualityDrawRange;
