@@ -4,7 +4,8 @@
 (function initTransitionSystem(global)
 {
     const READY_TIMEOUT_MS = 1500;
-    const NAV_TIMEOUT_MS = 900;
+    const DEFAULT_EXIT_MS = 480;
+    const MAX_EXIT_MS = 1200;
     let revealed = false;
     let navigating = false;
     let cancelNavigation = null;
@@ -46,18 +47,25 @@
         revealed = true;
         const curtain = ensureCurtain();
         curtain.classList.remove('start-covered');
-        curtain.classList.add('curtain-intro');
+        document.body.classList.add('transition-ready');
     }
 
     function navigate(url)
     {
         if (navigating) return;
         navigating = true;
-        global.dispatchEvent(new CustomEvent('observatory:navigate-start'));
+        let requestedExitMs = 0;
+        const holdFor = (duration) =>
+        {
+            if (!Number.isFinite(duration)) return;
+            requestedExitMs = Math.max(requestedExitMs, duration);
+        };
+        global.dispatchEvent(new CustomEvent('observatory:navigate-start', {
+            detail: {url, holdFor}
+        }));
         const curtain = ensureCurtain();
-        curtain.classList.remove('curtain-intro', 'start-covered');
-        void curtain.offsetWidth;
-        curtain.classList.add('curtain-exit');
+        curtain.classList.remove('start-covered');
+        document.body.classList.add('particle-transition-exit');
 
         if (isReducedMotionRequested())
         {
@@ -72,7 +80,6 @@
         {
             finished = true;
             clearTimeout(navigationTimer);
-            curtain.removeEventListener('animationend', finish);
         };
         const finish = () =>
         {
@@ -81,8 +88,8 @@
             global.location.href = url;
         };
         cancelNavigation = cleanup;
-        curtain.addEventListener('animationend', finish, {once: true});
-        navigationTimer = setTimeout(finish, NAV_TIMEOUT_MS);
+        const exitMs = Math.min(MAX_EXIT_MS, Math.max(DEFAULT_EXIT_MS, requestedExitMs));
+        navigationTimer = setTimeout(finish, exitMs);
     }
 
     const TransitionManager = {
@@ -104,6 +111,8 @@
         clearTimeout(readyTimer);
         navigating = false;
         revealed = true;
+        document.body.classList.remove('particle-transition-exit');
+        document.body.classList.add('transition-ready');
         ensureCurtain().classList.remove('curtain-exit', 'curtain-intro', 'start-covered');
     });
 
