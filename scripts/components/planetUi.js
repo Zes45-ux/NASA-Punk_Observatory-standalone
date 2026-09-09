@@ -20,9 +20,10 @@
     function buildSystemMonitor(config)
     {
         return `<div class="system-monitor-container">
-            <button type="button" class="system-monitor-body" aria-expanded="false" aria-controls="system-planet-strip" aria-label="OPEN SYSTEM NAVIGATION">
+            <div class="system-monitor-body" aria-hidden="true">
                 <canvas id="system-monitor-particle-canvas" class="system-monitor-particle-canvas" aria-hidden="true"></canvas>
-            </button>
+            </div>
+            <button type="button" class="system-monitor-trigger" aria-expanded="false" aria-controls="system-planet-strip" aria-label="OPEN SYSTEM NAVIGATION"></button>
             <a class="system-monitor-caption" title="GO TO SYSTEM SELECT" href="index.html" aria-label="GO TO SYSTEM SELECT">
                 ${MONITOR_LABEL_TOP}
                 ${MONITOR_LABEL_BOTTOM}
@@ -180,7 +181,7 @@
         root.innerHTML = buildPlanetLayout(cfg);
         const monitor = root.querySelector('.system-monitor-container');
         const strip   = root.querySelector('.system-strip');
-        const monitorTrigger = root.querySelector('.system-monitor-body');
+        const monitorTrigger = root.querySelector('.system-monitor-trigger');
         if (!monitor || !strip || !monitorTrigger)
         {
             return;
@@ -233,7 +234,10 @@
                 navigateTo('index.html');
                 return;
             }
-            setStripOpen(true);
+            if (event.target.closest('.system-monitor-trigger'))
+            {
+                setStripOpen(true);
+            }
         });
 
         strip.addEventListener('click', (event) =>

@@ -72,7 +72,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .transition-curtain {
+    .transition-curtain,
+    .curtain-exit,
+    .curtain-intro {
         animation: none !important;
         transition: none !important;
     }
