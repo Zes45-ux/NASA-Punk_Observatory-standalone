@@ -140,6 +140,12 @@
         const group = new THREE.Group();
         scene.add(group);
 
+        if (global.TransitionManager
+            && typeof global.TransitionManager.registerParticleScene === 'function')
+        {
+            global.TransitionManager.registerParticleScene(scene, camera, renderer);
+        }
+
         return {
             scene,
             camera,
@@ -281,8 +287,11 @@
     // 需要 observatory:ready 事件触发；事件缺失时 6 秒后兜底开始
     function createSurfaceConvergence(points, options = {})
     {
-        const duration     = options.duration || 1400;
-        const exitDuration = options.exitDuration || 900;
+        const continuing = global.TransitionManager
+            && typeof global.TransitionManager.isContinuingParticleTransition === 'function'
+            && global.TransitionManager.isContinuingParticleTransition();
+        const duration     = options.duration || (continuing ? 1000 : 1400);
+        const exitDuration = options.exitDuration || 720;
         const fallbackDelay = Number.isFinite(options.fallbackDelay)
             ? Math.max(0, options.fallbackDelay)
             : 6000;
@@ -356,7 +365,7 @@
             {
                 shader.fragmentShader = 'varying float vConvReveal;\n' + shader.fragmentShader.replace(
                     fadeAnchor,
-                    fadeAnchor + '\n\tdiffuseColor.a *= 0.04 + 0.96 * vConvReveal;'
+                    fadeAnchor + '\n\tdiffuseColor.a *= vConvReveal;'
                 );
             }
         });
