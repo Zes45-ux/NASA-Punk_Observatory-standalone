@@ -202,7 +202,14 @@
         {
             particleMap.start();
             window.addEventListener('resize', () => particleMap.resize());
-            window.addEventListener('pagehide', () => particleMap.stop(), {once: true});
+            window.addEventListener('pagehide', () => particleMap.stop());
+            window.addEventListener('pageshow', (event) =>
+            {
+                if (event && event.persisted === true)
+                {
+                    particleMap.start();
+                }
+            });
         }
 
         const setStripOpen = (next) =>

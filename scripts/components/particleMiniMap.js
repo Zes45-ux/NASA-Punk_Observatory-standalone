@@ -66,9 +66,11 @@
         ));
         const random = createRandom(options.seed || 20260909);
         const active = options.active || 'sun';
-        const reducedMotion = options.reducedMotion === true
-            || (typeof global.matchMedia === 'function'
-                && global.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        const motionQuery = options.reducedMotion === true || typeof global.matchMedia !== 'function'
+            ? null
+            : global.matchMedia('(prefers-reduced-motion: reduce)');
+        let reducedMotion = options.reducedMotion === true
+            || Boolean(motionQuery && motionQuery.matches);
         const requestFrame = typeof global.requestAnimationFrame === 'function'
             ? global.requestAnimationFrame.bind(global)
             : null;
@@ -338,6 +340,7 @@
             {
                 return;
             }
+            frameHandle = null;
             draw(timestamp);
             if (running && !reducedMotion && requestFrame)
             {
@@ -373,6 +376,42 @@
             }
             frameHandle = null;
             lastTimestamp = null;
+        }
+
+        function handleMotionChange(event)
+        {
+            reducedMotion = Boolean(event ? event.matches : motionQuery && motionQuery.matches);
+            if (reducedMotion)
+            {
+                if (frameHandle !== null && cancelFrame)
+                {
+                    cancelFrame(frameHandle);
+                }
+                frameHandle = null;
+                lastTimestamp = null;
+                if (running)
+                {
+                    draw(now());
+                }
+                return;
+            }
+
+            if (running && frameHandle === null && requestFrame)
+            {
+                frameHandle = requestFrame(tick);
+            }
+        }
+
+        if (motionQuery)
+        {
+            if (typeof motionQuery.addEventListener === 'function')
+            {
+                motionQuery.addEventListener('change', handleMotionChange);
+            }
+            else if (typeof motionQuery.addListener === 'function')
+            {
+                motionQuery.addListener(handleMotionChange);
+            }
         }
 
         return {
