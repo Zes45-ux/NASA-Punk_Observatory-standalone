@@ -109,7 +109,7 @@ test('surface convergence waits for readiness then eases every particle in', () 
     assert.ok(shader.vertexShader.includes('transformed = mix('));
     assert.ok(shader.vertexShader.includes('vConvReveal = convReveal;'), 'vertex exposes the stagger');
     assert.ok(shader.fragmentShader.includes('varying float vConvReveal;'));
-    assert.ok(shader.fragmentShader.includes('diffuseColor.a *= 0.2 + 0.8 * vConvReveal;'), 'particles fade in while converging');
+    assert.ok(shader.fragmentShader.includes('diffuseColor.a *= 0.04 + 0.96 * vConvReveal;'), 'particles fade in while converging');
     assert.equal(shader.uniforms.uReveal, convergence.uniforms.uReveal, 'reveal uniform object is shared');
     assert.equal(shader.uniforms.uTime, convergence.uniforms.uTime, 'time uniform object is shared');
 
@@ -128,6 +128,32 @@ test('surface convergence waits for readiness then eases every particle in', () 
 
     convergence.update(1500);
     assert.equal(convergence.uniforms.uReveal.value, 1, 'fully revealed after the duration');
+});
+
+test('surface particles reverse into an eased scatter before planet navigation', () => {
+    const {api, fireReady, fire} = loadPlanetScene();
+    const convergence = api.createSurfaceConvergence({material: {}}, {
+        duration: 1000,
+        exitDuration: 900
+    });
+    fireReady();
+    convergence.update(0);
+    convergence.update(1000);
+    assert.equal(convergence.uniforms.uReveal.value, 1);
+
+    let heldFor = 0;
+    fire({
+        type: 'observatory:navigate-start',
+        detail: {holdFor: (duration) => { heldFor = duration; }}
+    });
+    convergence.update(1100);
+    convergence.update(1550);
+    assert.ok(convergence.uniforms.uReveal.value > 0);
+    assert.ok(convergence.uniforms.uReveal.value < 1);
+    convergence.update(2000);
+
+    assert.equal(heldFor, 900, 'navigation waits for the GPU scatter');
+    assert.equal(convergence.uniforms.uReveal.value, 0, 'all particles reach the scattered state');
 });
 
 test('surface convergence stays vertex-only when the fragment anchor is missing', () => {

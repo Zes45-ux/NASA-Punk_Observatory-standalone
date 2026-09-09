@@ -275,13 +275,14 @@
         material.needsUpdate = true;
     }
 
-    // 表面点云汇聚动画：构建期间粒子以低透明度散布在外围壳层上缓慢漂移，
-    // observatory:ready 后按粒子哈希错峰螺旋汇聚到最终位置，同时淡入到原
-    // 透明度（顶点+片段着色器内完成，CPU 每帧只写两个 uniform）。
+    // 表面点云双向转场：入场时从外围壳层螺旋汇聚，切换星球时沿同一轨迹
+    // 反向逸散。位移、错峰和透明度都在 GPU 中完成，CPU 每帧只写两个
+    // uniform；导航管理器会等待离场阶段结束后再换页。
     // 需要 observatory:ready 事件触发；事件缺失时 6 秒后兜底开始
     function createSurfaceConvergence(points, options = {})
     {
         const duration     = options.duration || 1400;
+        const exitDuration = options.exitDuration || 900;
         const fallbackDelay = Number.isFinite(options.fallbackDelay)
             ? Math.max(0, options.fallbackDelay)
             : 6000;
@@ -292,11 +293,31 @@
         let finished = reducedMotion;
         let readyFired = false;
         let waitingAt = null;
+        let exiting = false;
+        let exitFrom = 1;
+
+        function smootherStep(value)
+        {
+            return value * value * value * (value * (value * 6 - 15) + 10);
+        }
 
         global.addEventListener('observatory:ready', () =>
         {
             readyFired = true;
         }, {once: true});
+
+        global.addEventListener('observatory:navigate-start', (event) =>
+        {
+            if (reducedMotion) return;
+            exiting = true;
+            finished = false;
+            startedAt = null;
+            exitFrom = uniforms.uReveal.value;
+            if (event && event.detail && typeof event.detail.holdFor === 'function')
+            {
+                event.detail.holdFor(exitDuration);
+            }
+        });
 
         registerShaderPatch(points.material, ['convergence-v1', scatter], (shader) =>
         {
@@ -326,6 +347,7 @@
                         'float convSin = sin(convSpin);',
                         'float convCos = cos(convSpin);',
                         'convScattered.xz = mat2(convCos, convSin, -convSin, convCos) * convScattered.xz;',
+                        'convScattered += convJitter * sin(uTime * 0.8 + convHash * 6.2832) * (1.0 - convReveal);',
                         'transformed = mix(convScattered, position, convReveal);'
                     ].concat(fadeSupported ? ['vConvReveal = convReveal;'] : []).join('\n')
                 );
@@ -334,7 +356,7 @@
             {
                 shader.fragmentShader = 'varying float vConvReveal;\n' + shader.fragmentShader.replace(
                     fadeAnchor,
-                    fadeAnchor + '\n\tdiffuseColor.a *= 0.2 + 0.8 * vConvReveal;'
+                    fadeAnchor + '\n\tdiffuseColor.a *= 0.04 + 0.96 * vConvReveal;'
                 );
             }
         });
@@ -347,6 +369,21 @@
             }
             const now = Number.isFinite(timestamp) ? timestamp : performance.now();
             uniforms.uTime.value = now / 1000;
+            if (exiting)
+            {
+                if (startedAt === null)
+                {
+                    startedAt = now;
+                }
+                const progress = Math.min((now - startedAt) / exitDuration, 1);
+                uniforms.uReveal.value = exitFrom * (1 - smootherStep(progress));
+                if (progress >= 1)
+                {
+                    uniforms.uReveal.value = 0;
+                    finished = true;
+                }
+                return;
+            }
             if (waitingAt === null)
             {
                 waitingAt = now;
@@ -360,7 +397,7 @@
                 startedAt = now;
             }
             const progress = Math.min((now - startedAt) / duration, 1);
-            uniforms.uReveal.value = progress;
+            uniforms.uReveal.value = smootherStep(progress);
             if (progress >= 1)
             {
                 finished = true;

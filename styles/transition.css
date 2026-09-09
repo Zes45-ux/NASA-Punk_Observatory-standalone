@@ -1,89 +1,40 @@
-/* =========================================
-   NASA-Punk Transition System (Module)
-   Version: 1.0
-   ========================================= */
+/* GPU 粒子转场由 planetScene.js 驱动。保留 curtain 节点作为旧页面 DOM
+   契约，但不再绘制四色幕布，避免遮断粒子逸散与重组的连续视觉。 */
 
 .transition-curtain {
-    position: fixed;
-    top: 0;
-    left: -50%;
-    width: 200%;
-    height: 100%;
-    z-index: 9999;
-    pointer-events: none;
-    display: flex;
-    background: var(--bg-navy);
+    display: none;
+}
+
+body #ui-layer,
+body #system-select-root,
+body .serif-region {
+    opacity: 0;
+    filter: blur(3px);
+    transition: opacity 420ms ease-out, filter 520ms ease-out;
+}
+
+body.transition-ready #ui-layer,
+body.transition-ready #system-select-root,
+body.transition-ready .serif-region {
     opacity: 1;
-    transform: skewX(-15deg) translateX(-100%);
+    filter: blur(0);
 }
 
-.curtain-col {
-    flex: 1;
-    height: 100%;
-    transform: scaleX(1.1);
-}
-
-.start-covered {
-    transform: skewX(-15deg) translateX(0%);
-}
-
-.c1 {
-    background: var(--bg-navy);
-}
-
-.c2 {
-    background: var(--const-blue);
-}
-
-.c3 {
-    background: var(--const-yellow);
-}
-
-.c4 {
-    background: var(--const-orange);
-}
-
-.curtain-exit {
-    animation: wipe-in 0.8s cubic-bezier(0.7, 0, 0.3, 1) forwards;
-}
-
-.curtain-intro {
-    animation: wipe-out 0.8s cubic-bezier(0.7, 0, 0.3, 1) forwards;
-}
-
-@keyframes wipe-in {
-    from {
-        transform: skewX(-15deg) translateX(-100%);
-    }
-
-    to {
-        transform: skewX(-15deg) translateX(0%);
-    }
-}
-
-@keyframes wipe-out {
-    from {
-        transform: skewX(-15deg) translateX(0%);
-    }
-
-    to {
-        transform: skewX(-15deg) translateX(100%);
-    }
+body.particle-transition-exit #ui-layer,
+body.particle-transition-exit #system-select-root,
+body.particle-transition-exit .serif-region {
+    opacity: 0;
+    filter: blur(4px);
+    pointer-events: none;
+    transition-duration: 280ms;
+    transition-timing-function: ease-in;
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .transition-curtain,
-    .curtain-exit,
-    .curtain-intro {
-        animation: none !important;
+    body #ui-layer,
+    body #system-select-root,
+    body .serif-region {
         transition: none !important;
-    }
-
-    .curtain-exit {
-        transform: skewX(-15deg) translateX(0%);
-    }
-
-    .curtain-intro {
-        transform: skewX(-15deg) translateX(100%);
+        filter: none !important;
     }
 }
