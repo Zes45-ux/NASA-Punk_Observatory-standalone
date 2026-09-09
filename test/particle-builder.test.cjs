@@ -500,9 +500,10 @@ test('system monitor expands into a strip exposing direct per-planet links', () 
     vm.runInNewContext(fs.readFileSync('scripts/components/planetUi.js', 'utf8'), sandbox);
     const html = sandbox.buildPlanetLayout({active: 'earth', rows: []});
 
-    // 小地图本体：纯触发器，不再携带跳转链接
-    assert.match(html, /class="sun-marker"/);
-    assert.match(html, /class="planet-marker p-mars"/);
+    // 小地图本体由独立 canvas 粒子层绘制，避免静态 DOM 轨道与主场景重复。
+    assert.match(html, /id="system-monitor-particle-canvas"/);
+    assert.match(html, /class="system-monitor-particle-canvas"/);
+    assert.doesNotMatch(html, /class="planet-marker/);
     assert.match(html, /SYSTEM OVERVIEW \/\/ CLICK MAP TO EXPAND/);
     assert.match(html, /system-monitor-caption" title="GO TO SYSTEM SELECT"/);
 

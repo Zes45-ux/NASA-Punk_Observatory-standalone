@@ -208,7 +208,10 @@ group.rotation.y = 0.0;
 
 function animate(timestamp)
 {
-    requestAnimationFrame(animate);
+    if (!window.isReducedMotionRequested || !window.isReducedMotionRequested())
+    {
+        requestAnimationFrame(animate);
+    }
     const dt = nextDeltaTime(timestamp);
     frameSampler.sample(timestamp);
     surfaceConvergence.update(timestamp);

@@ -450,61 +450,6 @@ function createSunGrid()
 const sunGrids = createSunGrid();
 
 
-// --- D-2. 小行星带 (Asteroid Belt, 2.2-3.3 AU 示意比例) ---
-// 火星与木星轨道之间的主带：3 万粒子一次性生成、位置完全静态，
-// 仅整组做极慢公转（animate 内单次 O(1) 更新）
-const asteroidBeltGroup = new THREE.Group();
-sunTiltGroup.add(asteroidBeltGroup);
-
-function createAsteroidBelt()
-{
-    const beltParticles = 30000;
-    const positions     = [];
-    const colors        = [];
-    const beltColor     = new THREE.Color();
-    const colRock       = new THREE.Color('#6b5d4f');
-    const colIce        = new THREE.Color('#a89a86');
-
-    for (let i = 0; i < beltParticles; i++)
-    {
-        // 内密外疏 + 轻微密度起伏，带内厚度向边缘收敛
-        const r     = 11.5 + Math.pow(Math.random(), 0.8) * 4.0;
-        const theta = Math.random() * Math.PI * 2;
-        const falloff = 1.0 - (r - 11.5) / 4.0 * 0.6;
-        const y     = (Math.random() - 0.5) * 0.8 * falloff;
-
-        positions.push(r * Math.cos(theta), y, r * Math.sin(theta));
-
-        beltColor.copy(colRock).lerp(colIce, Math.random() * 0.6);
-        const shade = 0.45 + Math.random() * 0.55;
-        colors.push(beltColor.r * shade, beltColor.g * shade, beltColor.b * shade);
-    }
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-    const mat = new THREE.PointsMaterial({
-        size           : 0.07,
-        vertexColors   : true,
-        transparent    : true,
-        opacity        : 0.45,
-        sizeAttenuation: true,
-        depthWrite     : false
-    });
-
-    const beltPoints = new THREE.Points(geo, mat);
-    asteroidBeltGroup.add(beltPoints);
-    return beltPoints;
-}
-
-const asteroidBelt = createAsteroidBelt();
-// 带内颗粒尺寸打散（消除均一点径的塑料感）+ 按画质档位缩放可见数量
-// （balanced 2.25 万 / low 1.5 万 / recovery 7.5 千），均为一次性配置
-createPointSizeJitter(asteroidBelt, {min: 0.5, max: 1.6});
-createQualityDrawRange(asteroidBelt);
-
-
 // --- E. 日面喷发 (Solar Eruptions) ---
 const eruptionGroup = new THREE.Group();
 sunGroup.add(eruptionGroup);
@@ -600,7 +545,10 @@ let coronaTime = 0;
 
 function animate(timestamp)
 {
-    requestAnimationFrame(animate);
+    if (!window.isReducedMotionRequested || !window.isReducedMotionRequested())
+    {
+        requestAnimationFrame(animate);
+    }
     const dt = nextDeltaTime(timestamp);
     pendingDynamicDelta += dt;
     frameCount++;
@@ -612,9 +560,6 @@ function animate(timestamp)
     // 自转周期 ~25.4 天（赤道）。真实速率下几乎不可见，
     // 演示节奏压缩至 ~4 分钟/圈，慢于地球、快于水星（保持真实次序）
     sunGroup.rotation.y += 0.00045 * dt;
-
-    // 小行星带整体极慢公转（单次 O(1) 更新，粒子位置保持静态）
-    asteroidBeltGroup.rotation.y += 0.0002 * dt;
 
     if (coreParticles)
     {

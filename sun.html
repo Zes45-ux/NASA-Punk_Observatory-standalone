@@ -8,20 +8,6 @@
     <link rel="stylesheet" href="./styles/main.css">
     <link rel="stylesheet" href="./styles/transition.css">
     <link rel="icon" href="data:,">
-    <style>
-        /* [SUN SPECIAL] 太阳专用微调 */
-        /* 太阳位于中心，锁定框需要稍微调整以完美套住中心点 */
-        .sun-marker {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        /* 隐藏太阳自己的轨道线(因为它在中心) */
-        .o-sun {
-            display: none;
-        }
-    </style>
 </head>
 
 <body data-planet="sun">
@@ -52,6 +38,7 @@
 <script src="./scripts/core/display.js"></script>
 <script src="./scripts/core/planetScene.js"></script>
 <script src="./scripts/planets/config.js"></script>
+<script src="./scripts/components/particleMiniMap.js"></script>
 <script src="./scripts/components/planetUi.js"></script>
 <script src="./scripts/pages/planet.page.js"></script>
 <script src="./scripts/planets/sun.js"></script>

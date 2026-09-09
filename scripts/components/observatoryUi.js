@@ -44,8 +44,8 @@
         const value     = config && config.value ? config.value : '100%';
 
         return `<div class="zoom-controls">
-            <div class="zoom-label">${label} // <span id="${displayId}" class="zoom-value-display">${value}</span></div>
-            <input type="range" id="${sliderId}" min="0" max="100" value="50" step="10">
+            <label class="zoom-label" for="${sliderId}">${label} // <span id="${displayId}" class="zoom-value-display">${value}</span></label>
+            <input type="range" id="${sliderId}" min="0" max="100" value="50" step="10" aria-label="${label}">
             <div class="zoom-ticks">${buildTickMarkup()}</div>
         </div>`;
     }
@@ -58,9 +58,9 @@
         return `<div class="vertical-controls">
             <div class="v-slider-track">
                 <div class="v-ticks">${buildTickMarkup()}</div>
-                <input type="range" class="vertical" id="${sliderId}" min="0" max="100" value="50" step="10">
+                <input type="range" class="vertical" id="${sliderId}" min="0" max="100" value="50" step="10" aria-label="${label}" aria-orientation="vertical">
             </div>
-            <div class="v-label">${label}</div>
+            <label class="v-label" for="${sliderId}">${label}</label>
         </div>`;
     }
 

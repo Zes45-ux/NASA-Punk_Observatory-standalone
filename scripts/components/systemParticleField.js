@@ -144,10 +144,10 @@
                     particle.angle += particle.speed * delta;
                 }
 
-                const breathe = Math.sin(elapsed * 0.00035 + particle.phase) * 0.006;
+                const breathe = reducedMotion ? 0 : Math.sin(elapsed * 0.00035 + particle.phase) * 0.006;
                 const x = centerX + Math.cos(particle.angle) * viewportWidth * (particle.radiusX + breathe);
                 const y = centerY + Math.sin(particle.angle) * viewportHeight * particle.radiusY;
-                const twinkle = 0.72 + Math.sin(elapsed * 0.0018 + particle.phase) * 0.28;
+                const twinkle = reducedMotion ? 1 : 0.72 + Math.sin(elapsed * 0.0018 + particle.phase) * 0.28;
 
                 context.globalAlpha = particle.opacity * twinkle;
                 context.fillStyle = particle.band % 3 === 0 ? '#d7ab61' : '#8da9c5';

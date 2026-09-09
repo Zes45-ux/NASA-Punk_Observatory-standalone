@@ -10,6 +10,14 @@
  */
 (function initPlanetSceneKit(global)
 {
+    function isReducedMotionRequested()
+    {
+        return typeof global.matchMedia === 'function'
+            && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+
+    global.isReducedMotionRequested = isReducedMotionRequested;
+
     function createPlanetScene(options)
     {
         const name        = options.name;
@@ -208,9 +216,10 @@
             ? Math.max(0, options.fallbackDelay)
             : 6000;
         const scatter       = Number(options.scatter || 12).toFixed(2);
-        const uniforms      = {uReveal: {value: 0}, uTime: {value: 0}};
+        const reducedMotion = isReducedMotionRequested();
+        const uniforms      = {uReveal: {value: reducedMotion ? 1 : 0}, uTime: {value: 0}};
         let startedAt = null;
-        let finished = false;
+        let finished = reducedMotion;
         let readyFired = false;
         let waitingAt = null;
 
@@ -262,7 +271,7 @@
 
         function update(timestamp)
         {
-            if (finished)
+            if (finished || reducedMotion)
             {
                 return;
             }

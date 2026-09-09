@@ -292,6 +292,23 @@ h1 {
     display: flex;
     justify-content: center;
     align-items: center;
+    overflow: visible;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.system-monitor-particle-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0.94;
+    mix-blend-mode: screen;
 }
 
 .system-monitor-caption {
@@ -300,6 +317,10 @@ h1 {
     bottom: 0;
     left: 0;
     height: calc(var(--system-monitor-caption-line-height) * 2);
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
 }
 
 .sun-marker {
@@ -361,6 +382,9 @@ h1 {
     background: rgba(16, 24, 33, 0.6);
     transition: color 0.15s, border-color 0.15s;
     user-select: none;
+    appearance: none;
+    -webkit-appearance: none;
+    text-align: center;
 }
 
 .quality-control:hover {
@@ -385,7 +409,12 @@ h1 {
     bottom: 96px;
     transform: translateX(-50%) translateY(40px);
     width: max-content;
-    max-width: 96vw;
+    max-width: calc(100vw - 16px);
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
     padding: 14px 28px 6px;
     opacity: 0;
     visibility: hidden;
@@ -411,6 +440,7 @@ h1 {
     color: var(--text-dim);
     padding: 0 4px 4px;
     white-space: nowrap;
+    min-width: max-content;
     text-shadow: 0 0 6px rgba(5, 10, 16, 0.95), 0 1px 2px rgba(5, 10, 16, 0.95);
 }
 
@@ -430,6 +460,8 @@ h1 {
     gap: 30px;
     height: 300px;
     padding: 0 18px;
+    width: max-content;
+    min-width: max-content;
 }
 
 .strip-axis-group .axis-line {
@@ -869,6 +901,16 @@ input[type=range]:focus {
     outline: none;
 }
 
+input[type=range]:focus-visible,
+.planet-node:focus-visible,
+.system-monitor-body:focus-visible,
+.system-monitor-caption:focus-visible,
+.strip-overview:focus-visible,
+.quality-control:focus-visible {
+    outline: 1px solid var(--const-yellow);
+    outline-offset: 4px;
+}
+
 input[type=range]::-webkit-slider-runnable-track {
     width: 100%;
     height: 1px;
@@ -894,7 +936,7 @@ input[type=range]::-webkit-slider-thumb:hover {
     transform: scale(1.2);
 }
 
-.active input[type=range]::-webkit-slider-thumb {
+input[type=range].active::-webkit-slider-thumb {
     background: var(--const-orange);
 }
 
@@ -994,6 +1036,8 @@ input[type=range].vertical::-webkit-slider-thumb {
     align-items: center;
     gap: 0px;
     pointer-events: auto;
+    transform: scale(var(--axis-scale, 1));
+    transform-origin: center center;
 }
 
 .axis-line {
@@ -1016,6 +1060,12 @@ input[type=range].vertical::-webkit-slider-thumb {
     align-items: center;
     transition: opacity 0.3s;
     flex-shrink: 0;
+    color: inherit;
+    text-decoration: none;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    font: inherit;
 }
 
 .planet-node[data-link=""] {
@@ -1082,8 +1132,59 @@ input[type=range].vertical::-webkit-slider-thumb {
 #system-select-root .axis-group .planet-node:nth-child(10) { animation-delay: -0.6s; }
 
 @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+
     #system-select-root .planet-node {
-        animation: none;
+        animation: none !important;
+        will-change: auto;
+    }
+}
+
+@media (max-width: 720px) {
+    h1 {
+        font-size: clamp(26px, 8vw, 42px);
+        letter-spacing: clamp(2px, 1.1vw, 6px);
+    }
+
+    .right-dock {
+        right: 8px;
+        max-width: calc(100% - 16px);
+    }
+
+    .header-block {
+        padding-right: 12px;
+        margin-bottom: 24px;
+        border-right-width: 2px;
+    }
+
+    .sub-text {
+        max-width: calc(100vw - 80px);
+        white-space: normal;
+        font-size: 9px;
+        letter-spacing: 0.5px;
+    }
+
+    .data-block {
+        padding-right: 12px;
+        font-size: 9px;
+        line-height: 1.9;
+    }
+
+    .zoom-controls {
+        width: min(240px, calc(100% - 24px));
+    }
+}
+
+@media (max-width: 640px) {
+    :root {
+        --segmented-colorbar-outer-gap: 20px;
     }
 }
 
