@@ -520,7 +520,10 @@ let frameCount = 0;
 
 function animate(timestamp)
 {
-    requestAnimationFrame(animate);
+    if (!window.isReducedMotionRequested || !window.isReducedMotionRequested())
+    {
+        requestAnimationFrame(animate);
+    }
     const dt = nextDeltaTime(timestamp);
     frameCount++;
     frameSampler.sample(timestamp);

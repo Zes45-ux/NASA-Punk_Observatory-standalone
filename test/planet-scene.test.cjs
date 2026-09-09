@@ -49,6 +49,7 @@ function loadPlanetScene(windowExtras = {}) {
     vm.runInNewContext(fs.readFileSync('scripts/core/planetScene.js', 'utf8'), sandbox);
     return {
         api: {
+            isReducedMotionRequested: window.isReducedMotionRequested,
             createFrameDelta: window.createFrameDelta,
             createSurfaceConvergence: window.createSurfaceConvergence,
             createParticleAppearance: window.createParticleAppearance,
@@ -72,6 +73,18 @@ test('createFrameDelta scales steps by elapsed time with clamps', () => {
     assert.equal(nextDelta(1048), 0.25, 'zero gap clamps to the minimum');
     assert.equal(nextDelta(NaN), 1, 'non-finite timestamps do not move the clock');
     assert.equal(nextDelta(1500), 2.5, 'large gap clamps to the maximum');
+});
+
+test('surface convergence is immediately settled when reduced motion is requested', () => {
+    const {api} = loadPlanetScene({
+        matchMedia: () => ({matches: true})
+    });
+    const convergence = api.createSurfaceConvergence({material: {}}, {duration: 1000});
+
+    assert.equal(api.isReducedMotionRequested(), true);
+    assert.equal(convergence.uniforms.uReveal.value, 1);
+    convergence.update(500);
+    assert.equal(convergence.uniforms.uReveal.value, 1);
 });
 
 test('surface convergence waits for readiness then eases every particle in', () => {

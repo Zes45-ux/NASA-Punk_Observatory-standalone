@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-function loadTransition() {
+function loadTransition({reducedMotion = false} = {}) {
     const classes = new Set(['transition-curtain', 'start-covered']);
     const curtainListeners = new Map();
     const windowListeners = new Map();
@@ -28,6 +28,7 @@ function loadTransition() {
     });
     const window = {
         location,
+        matchMedia: () => ({matches: reducedMotion}),
         addEventListener: (type, callback) => windowListeners.set(type, callback),
         dispatchEvent: (event) => windowListeners.get(event.type)?.(event)
     };
@@ -106,6 +107,15 @@ test('navigation is single-flight and completes on animationend', () => {
     assert.equal(env.location.href, 'earth.html');
     env.timers.forEach((timer) => timer.callback());
     assert.deepEqual(env.navigations, ['earth.html']);
+});
+
+test('reduced motion navigates without waiting for the curtain animation', () => {
+    const env = loadTransition({reducedMotion: true});
+
+    env.api.navigate('earth.html');
+
+    assert.deepEqual(env.navigations, ['earth.html']);
+    assert.equal(env.timers.some((timer) => timer.delay === 900), false);
 });
 
 test('ready during exit does not restart the intro animation', () => {

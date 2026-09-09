@@ -2,6 +2,8 @@
 {
     const SYSTEM_SELECT_CONFIG      = window.SYSTEM_SELECT_CONFIG || {};
     const SYSTEM_SELECT_INTERACTION = SYSTEM_SELECT_CONFIG.interaction || {};
+    const reducedMotion = typeof window.matchMedia === 'function'
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     function typeText(target, text)
     {
@@ -12,14 +14,22 @@
         if (target._typeTimer)
         {
             clearInterval(target._typeTimer);
+            target._typeTimer = null;
         }
 
-        target.textContent = '';
         const cleanText    = text
             .split('\n')
             .map((line) => line.trim())
             .filter((line) => line.length > 0)
             .join('\n');
+
+        target.textContent = '';
+        if (reducedMotion)
+        {
+            target.textContent = cleanText;
+            target.innerHTML += '<span class="blink-cursor">_</span>';
+            return;
+        }
 
         let index         = 0;
         target._typeTimer = setInterval(() =>
@@ -43,9 +53,10 @@
         const slider          = document.getElementById('zoom-slider');
         const scaleVal        = document.getElementById('scale-val');
         const terminalContent = document.getElementById('terminal-content');
+        const root            = document.getElementById('system-select-root');
         const nodes           = document.querySelectorAll('.planet-node');
 
-        if (!axisGroup || !slider || !scaleVal || !terminalContent || nodes.length === 0)
+        if (!axisGroup || !slider || !scaleVal || !terminalContent || !root || nodes.length === 0)
         {
             return;
         }
@@ -58,10 +69,14 @@
 
         function applyZoom(sliderValue)
         {
-            const factor        = 0.5 * Math.pow(4, sliderValue / 100);
-            const finalGap      = currentBaseGapPx * factor;
-            axisGroup.style.gap = `${finalGap}px`;
-            scaleVal.innerText  = `${Math.round(factor * 100)}%`;
+            const factor         = 0.5 * Math.pow(4, sliderValue / 100);
+            const finalGap       = currentBaseGapPx * factor;
+            const axisWidth      = planetsTotalWidthPx + gapsCount * finalGap;
+            const availableWidth = Math.max(1, DisplayArea.getSize(root).width - 16);
+            const axisScale       = Math.min(1, availableWidth / Math.max(1, axisWidth));
+            axisGroup.style.gap   = `${finalGap}px`;
+            axisGroup.style.setProperty('--axis-scale', axisScale.toFixed(4));
+            scaleVal.innerText    = `${Math.round(factor * 100)}%`;
         }
 
         function calculateBaseGap()
@@ -85,16 +100,19 @@
 
         nodes.forEach((node) =>
         {
-            node.addEventListener('mouseenter', () =>
+            const showNodeData = () =>
             {
                 const dataDiv = node.querySelector('.node-data');
                 if (dataDiv)
                 {
                     typeText(terminalContent, dataDiv.textContent);
                 }
-            });
+            };
 
-            node.addEventListener('click', () =>
+            node.addEventListener('mouseenter', showNodeData);
+            node.addEventListener('focus', showNodeData);
+
+            node.addEventListener('click', (event) =>
             {
                 const link = node.dataset.link;
                 if (!link)
@@ -104,6 +122,7 @@
 
                 if (typeof TransitionManager !== 'undefined')
                 {
+                    event.preventDefault();
                     TransitionManager.navigate(link);
                 }
                 else

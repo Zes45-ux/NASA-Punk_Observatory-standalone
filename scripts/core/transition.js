@@ -10,6 +10,12 @@
     let cancelNavigation = null;
     let readyTimer = null;
 
+    function isReducedMotionRequested()
+    {
+        return typeof global.matchMedia === 'function'
+            && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+
     function createCurtainMarkup()
     {
         return `
@@ -52,6 +58,14 @@
         curtain.classList.remove('curtain-intro', 'start-covered');
         void curtain.offsetWidth;
         curtain.classList.add('curtain-exit');
+
+        if (isReducedMotionRequested())
+        {
+            global.location.href = url;
+            navigating = false;
+            return;
+        }
+
         let finished = false;
         let navigationTimer = null;
         const cleanup = () =>
