@@ -504,7 +504,8 @@ test('system monitor expands into a strip exposing direct per-planet links', () 
     assert.match(html, /class="sun-marker"/);
     assert.match(html, /class="planet-marker p-mars"/);
     assert.match(html, /SYSTEM OVERVIEW \/\/ CLICK MAP TO EXPAND/);
-    assert.match(html, /system-monitor-caption" title="GO TO SYSTEM SELECT"/);
+    assert.match(html, /system-monitor-trigger" aria-expanded="false" aria-controls="system-planet-strip"/);
+    assert.match(html, /system-monitor-caption" title="GO TO SYSTEM SELECT" href="index\.html"/);
 
     // 展开导航条：九个天体节点带直达链接与常显英文名
     for (const node of [
@@ -515,10 +516,11 @@ test('system monitor expands into a strip exposing direct per-planet links', () 
         const [name, label] = node;
         assert.match(html, new RegExp(`planet-node node-${name}[ "]`), `${name} strip node rendered`);
         assert.match(html, new RegExp(`data-planet-link="${name}\\.html"`), `${name} node links to its page`);
+        assert.match(html, new RegExp(`href="${name}\\.html"`), `${name} strip node is keyboard navigable`);
         assert.match(html, new RegExp(`class="node-label">${label}</div>`), `${name} strip label rendered`);
     }
     assert.match(html, /strip-active" data-planet-link="earth\.html"/, 'active planet highlighted in strip');
-    assert.match(html, /strip-overview" title="GO TO SYSTEM SELECT"/, 'strip overview entry present');
+    assert.match(html, /strip-overview" title="GO TO SYSTEM SELECT" href="index\.html"/, 'strip overview entry present');
     assert.match(html, /CLICK BODY TO JUMP \/\/ ESC TO CLOSE/, 'strip close hint present');
 });
 

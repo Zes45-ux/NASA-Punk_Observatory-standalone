@@ -63,16 +63,17 @@
     function buildSystemMonitor(config)
     {
         return `<div class="system-monitor-container">
-            <div class="system-monitor-body">
+            <div class="system-monitor-body" aria-hidden="true">
                 ${buildSunMarker(config)}
                 ${buildMonitorBody(config)}
                 <div class="scanner-trail"></div>
                 <div class="scanner-line-sys"></div>
             </div>
-            <div class="system-monitor-caption" title="GO TO SYSTEM SELECT">
+            <button type="button" class="system-monitor-trigger" aria-expanded="false" aria-controls="system-planet-strip" aria-label="OPEN SYSTEM NAVIGATION"></button>
+            <a class="system-monitor-caption" title="GO TO SYSTEM SELECT" href="index.html" aria-label="GO TO SYSTEM SELECT">
                 ${MONITOR_LABEL_TOP}
                 ${MONITOR_LABEL_BOTTOM}
-            </div>
+            </a>
         </div>`;
     }
 
@@ -146,30 +147,30 @@
         const nodes = STRIP_NODES.map((node) =>
         {
             const activeClass = node.name === activeName ? ' strip-active' : '';
-            return `<div class="planet-node node-${node.name}${activeClass}" data-planet-link="${node.link}" title="GO TO ${node.label}">
+            return `<a class="planet-node node-${node.name}${activeClass}" data-planet-link="${node.link}" href="${node.link}" title="GO TO ${node.label}" aria-label="GO TO ${node.label}">
                     <div class="node-label">${node.label}</div>
                     <div class="planet-system">${node.inner}</div>
-                </div>`;
+                </a>`;
         }).join('');
 
-        return `<div class="system-strip">
+        return `<nav class="system-strip" id="system-planet-strip" aria-label="PLANET NAVIGATION" aria-hidden="true">
             <div class="strip-hints">
-                <span class="strip-overview" title="GO TO SYSTEM SELECT">SYSTEM OVERVIEW // SOL</span>
+                <a class="strip-overview" title="GO TO SYSTEM SELECT" href="index.html">SYSTEM OVERVIEW // SOL</a>
                 <span class="strip-hint">CLICK BODY TO JUMP // ESC TO CLOSE</span>
             </div>
             <div class="strip-axis-group">
                 <div class="axis-line"></div>
                 ${nodes}
             </div>
-        </div>`;
+        </nav>`;
     }
 
     function buildQualityControl()
     {
-        return `<div class="quality-control" id="quality-control" title="CYCLE QUALITY PROFILE (AUTO / HIGH / BALANCED / LOW)">
-            <div class="quality-label">QUALITY</div>
-            <div class="quality-value" id="quality-value">AUTO</div>
-        </div>`;
+        return `<button type="button" class="quality-control" id="quality-control" title="CYCLE QUALITY PROFILE (AUTO / HIGH / BALANCED / LOW)" aria-label="CYCLE QUALITY PROFILE" aria-live="polite">
+            <span class="quality-label">QUALITY</span>
+            <span class="quality-value" id="quality-value">AUTO</span>
+        </button>`;
     }
 
     function buildPlanetLayout(config)
@@ -226,7 +227,8 @@
         root.innerHTML = buildPlanetLayout(cfg);
         const monitor = root.querySelector('.system-monitor-container');
         const strip   = root.querySelector('.system-strip');
-        if (!monitor || !strip)
+        const monitorTrigger = root.querySelector('.system-monitor-trigger');
+        if (!monitor || !strip || !monitorTrigger)
         {
             return;
         }
@@ -239,7 +241,19 @@
             stripOpen = next;
             strip.classList.toggle('open', stripOpen);
             monitor.classList.toggle('strip-open', stripOpen);
+            monitorTrigger.setAttribute('aria-expanded', String(stripOpen));
+            strip.setAttribute('aria-hidden', String(!stripOpen));
+            strip.toggleAttribute('inert', !stripOpen);
+            strip.inert = !stripOpen;
+
+            if (!stripOpen && strip.contains(document.activeElement))
+            {
+                monitorTrigger.focus();
+            }
         };
+
+        // 隐藏状态下同时阻断 Tab 进入导航条，避免 aria-hidden 内容仍可获得焦点。
+        setStripOpen(false);
 
         monitor.addEventListener('click', (event) =>
         {
@@ -247,10 +261,14 @@
             event.stopPropagation();
             if (event.target.closest('.system-monitor-caption'))
             {
+                event.preventDefault();
                 navigateTo('index.html');
                 return;
             }
-            setStripOpen(true);
+            if (event.target.closest('.system-monitor-trigger'))
+            {
+                setStripOpen(true);
+            }
         });
 
         strip.addEventListener('click', (event) =>
@@ -258,6 +276,7 @@
             event.stopPropagation();
             if (event.target.closest('.strip-overview'))
             {
+                event.preventDefault();
                 navigateTo('index.html');
                 return;
             }
@@ -267,7 +286,12 @@
                 const target = node.dataset.planetLink;
                 if (target !== `${planetName}.html`)
                 {
+                    event.preventDefault();
                     navigateTo(target);
+                }
+                else
+                {
+                    event.preventDefault();
                 }
                 return;
             }
@@ -300,6 +324,7 @@
             {
                 ParticleBuilder.setQualityProfile(profile);
                 qualityValue.textContent = profile.toUpperCase();
+                qualityControl.setAttribute('aria-label', `QUALITY PROFILE: ${profile.toUpperCase()}. ACTIVATE TO CYCLE`);
                 if (persist)
                 {
                     storeQuality(profile);

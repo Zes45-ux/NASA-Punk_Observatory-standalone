@@ -5,13 +5,13 @@
 
     function buildNode(node)
     {
-        return `<div class="planet-node node-${node.name}" data-link="${node.link}">
+        return `<a class="planet-node node-${node.name}" data-link="${node.link}" href="${node.link}" aria-label="OPEN ${node.label} OBSERVATORY">
             <div class="node-label">${node.label}</div>
             <div class="planet-system">
                 ${node.inner}
             </div>
             <div class="node-data" style="display:none;">${node.data}</div>
-        </div>`;
+        </a>`;
     }
 
     function buildSystemSelectStage()
