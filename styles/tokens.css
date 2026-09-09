@@ -44,10 +44,10 @@
     --display-width: calc(100vw - var(--display-left-inset) - var(--display-right-inset));
     --display-height: calc(100vh - var(--display-top-inset) - var(--display-bottom-inset));
     --display-ui-padding: 0px;
-    --system-monitor-body-size: 260px;
-    --system-monitor-label-overflow: 34px;
+    --system-monitor-body-size: 240px;
+    --system-monitor-label-overflow: 24px;
     --system-monitor-shell-width: calc(var(--system-monitor-body-size) + var(--system-monitor-label-overflow) * 2);
-    --system-monitor-caption-line-height: 25px;
+    --system-monitor-caption-line-height: 22px;
     --vertical-control-body-height: 200px;
     --vertical-control-label-offset: 25px;
     --segmented-colorbar-stripe-width: 12px;
