@@ -136,23 +136,34 @@
         const displaySize     = DisplayArea.getSize(canvasContainer);
         const scene           = new THREE.Scene();
         const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
+        const transitionManager = global.TransitionManager;
+        const isTransitionContinuation = Boolean(transitionManager
+            && typeof transitionManager.isContinuingParticleTransition === 'function'
+            && transitionManager.isContinuingParticleTransition());
+        const fullPixelRatio = Math.min(global.devicePixelRatio || 1, 2);
+        let useTransitionPixelRatio = isTransitionContinuation;
 
         camera.position.z = initialZoom;
 
         const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
         // 4K/5K 屏按完整 devicePixelRatio 渲染点云代价过高，钳制到 2
-        renderer.setPixelRatio(Math.min(global.devicePixelRatio || 1, 2));
+        // 跨页粒子交接期间先用 1x 建立 framebuffer，避免高 DPR 分配阻塞动画；
+        // 交接完成后再恢复清晰度。
+        renderer.setPixelRatio(useTransitionPixelRatio ? 1 : fullPixelRatio);
         // 先设置像素比再设置尺寸，避免启动时先分配一份 1x framebuffer，
         // 随后因 DPR 变化立即重复分配。
         renderer.setSize(displaySize.width, displaySize.height);
         canvasContainer.appendChild(renderer.domElement);
 
-        function resizeScene()
+        function resizeScene(forceFullQuality)
         {
+            if (forceFullQuality) useTransitionPixelRatio = false;
             const nextDisplaySize = DisplayArea.getSize(canvasContainer);
             camera.aspect         = nextDisplaySize.width / nextDisplaySize.height;
             camera.updateProjectionMatrix();
-            const nextPixelRatio = Math.min(global.devicePixelRatio || 1, 2);
+            const nextPixelRatio = useTransitionPixelRatio
+                ? 1
+                : Math.min(global.devicePixelRatio || 1, 2);
             if (typeof renderer.getPixelRatio !== 'function'
                 || renderer.getPixelRatio() !== nextPixelRatio)
             {
@@ -174,6 +185,14 @@
         {
             sharedTopoBackground.resize();
         });
+
+        if (isTransitionContinuation)
+        {
+            global.addEventListener('observatory:transition-complete', () =>
+            {
+                resizeScene(true);
+            }, {once: true});
+        }
 
         const tgtLabel = document.querySelector('.monitor-label.label-bottom');
 

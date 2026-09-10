@@ -35,6 +35,23 @@ const ringUniforms = {
 };
 let frameSampler;
 let surfaceConvergence;
+const pendingSceneParts = new Set(['surface', 'haze', 'rings']);
+let sceneReady = false;
+
+function markScenePartReady(part)
+{
+    pendingSceneParts.delete(part);
+    if (sceneReady || pendingSceneParts.size > 0) return;
+    sceneReady = true;
+    renderer.render(scene, camera);
+    ParticleBuilder.markReady({page: 'saturn'});
+}
+
+function reportLayerBuildError(layer, error)
+{
+    console.error(`[saturn] ${layer} generation stopped`, error);
+    markScenePartReady(layer);
+}
 
 
 // --- A. 程序化气态巨行星 (SATURN) ---
@@ -110,44 +127,24 @@ function createGasGiant()
         group: planetSpinGroup,
         onReady()
         {
-            renderer.render(scene, camera);
-            ParticleBuilder.markReady({page: planetName});
+            markScenePartReady('surface');
         }
     });
     frameSampler = surface.frameSampler;
     surfaceConvergence = createSurfaceConvergence(surface.points);
+    // 环与主星共用同一个 GPU 汇聚进度，避免桥接粒子消失后整圈突然出现。
+    ringUniforms.uReveal = surfaceConvergence.uniforms.uReveal;
 
     // 平流层/雾霾
     const hazeCount = 15000;
-    const hazePos   = [];
-    const hazeCols  = [];
+    const hazePos   = new Float32Array(hazeCount * 3);
+    const hazeCols  = new Float32Array(hazeCount * 3);
     const colHaze   = new THREE.Color('#f4f0d5');
 
-    for (let i = 0; i < hazeCount; i++)
-    {
-        const r     = 5.6 + Math.random() * 0.1;
-        const theta = Math.random() * Math.PI * 2;
-        const phi   = Math.acos(2 * Math.random() - 1);
-        const x     = r * Math.sin(phi) * Math.cos(theta);
-        const y     = r * Math.sin(phi) * Math.sin(theta);
-        const z     = r * Math.cos(phi);
-
-        hazePos.push(x, y, z);
-
-        let c = new THREE.Color().copy(colHaze);
-        c.multiplyScalar(0.8 + Math.random() * 0.4);
-
-        if (y > 3.5)
-        {
-            c.lerp(saturnBlue, 0.3);
-        }
-
-        hazeCols.push(c.r, c.g, c.b);
-    }
-
     const hazeGeo = new THREE.BufferGeometry();
-    hazeGeo.setAttribute('position', new THREE.Float32BufferAttribute(hazePos, 3));
-    hazeGeo.setAttribute('color', new THREE.Float32BufferAttribute(hazeCols, 3));
+    hazeGeo.setAttribute('position', new THREE.BufferAttribute(hazePos, 3));
+    hazeGeo.setAttribute('color', new THREE.BufferAttribute(hazeCols, 3));
+    hazeGeo.setDrawRange(0, 0);
 
     const hazeMat    = new THREE.PointsMaterial({
         size        : 0.05,
@@ -157,6 +154,56 @@ function createGasGiant()
     });
     const planetHaze = new THREE.Points(hazeGeo, hazeMat);
     planetAtmoGroup.add(planetHaze);
+    ParticleBuilder.build({
+        total: hazeCount,
+        readyCount: 4500,
+        initialBatchSize: 3000,
+        writeBatch(start, end)
+        {
+            for (let i = start; i < end; i++)
+            {
+                const r     = 5.6 + Math.random() * 0.1;
+                const theta = Math.random() * Math.PI * 2;
+                const phi   = Math.acos(2 * Math.random() - 1);
+                const x     = r * Math.sin(phi) * Math.cos(theta);
+                const y     = r * Math.sin(phi) * Math.sin(theta);
+                const z     = r * Math.cos(phi);
+                const offset = i * 3;
+                const brightness = 0.8 + Math.random() * 0.4;
+                let red = colHaze.r * brightness;
+                let green = colHaze.g * brightness;
+                let blue = colHaze.b * brightness;
+
+                if (y > 3.5)
+                {
+                    red += (saturnBlue.r - red) * 0.3;
+                    green += (saturnBlue.g - green) * 0.3;
+                    blue += (saturnBlue.b - blue) * 0.3;
+                }
+
+                hazePos[offset] = x;
+                hazePos[offset + 1] = y;
+                hazePos[offset + 2] = z;
+                hazeCols[offset] = red;
+                hazeCols[offset + 1] = green;
+                hazeCols[offset + 2] = blue;
+            }
+            ParticleBuilder.markAttributeRange(hazeGeo.attributes.position, start * 3, (end - start) * 3);
+            ParticleBuilder.markAttributeRange(hazeGeo.attributes.color, start * 3, (end - start) * 3);
+        },
+        setDrawCount(count)
+        {
+            hazeGeo.setDrawRange(0, count);
+        },
+        onReady()
+        {
+            markScenePartReady('haze');
+        },
+        onError(error)
+        {
+            reportLayerBuildError('haze', error);
+        }
+    });
 
     const wireGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(5.6, 24, 16));
     const wireMat = new THREE.LineBasicMaterial({
@@ -193,8 +240,8 @@ createGasGiant();
 function createProceduralRings()
 {
     const ringParticles = 30000;
-    const positions     = [];
-    const colors        = [];
+    const positions     = new Float32Array(ringParticles * 3);
+    const colors        = new Float32Array(ringParticles * 3);
 
     const innerRadius = 6.3;
     const outerRadius = 12.0;
@@ -203,54 +250,23 @@ function createProceduralRings()
     const ringMainBright = new THREE.Color('#f0e4c0');
     const ringOuterIce   = new THREE.Color('#a0b0c0');
 
-    for (let i = 0; i < ringParticles; i++)
-    {
-        let t = Math.random();
-        t     = Math.pow(t, 0.8);
-        let r = innerRadius + t * (outerRadius - innerRadius);
-
-        if (r > 9.9 && r < 10.4)
-        {
-            continue;
-        }
-
-        const angle = Math.random() * Math.PI * 2;
-        const x     = r * Math.cos(angle);
-        const z     = r * Math.sin(angle);
-        const y     = (Math.random() - 0.5) * 0.06;
-
-        positions.push(x, y, z);
-
-        let c             = new THREE.Color();
-        let opacityFactor = 1.0;
-
-        if (r < 7.8)
-        {
-            let mix = (r - innerRadius) / (1.5);
-            c.copy(ringInnerDark).lerp(ringMainBright, mix * 0.3);
-            opacityFactor = 0.2 + mix * 0.4;
-        }
-        else
-        {
-            let mix = (r - 7.8) / (outerRadius - 7.8);
-            c.copy(ringMainBright).lerp(ringOuterIce, mix * 0.6);
-            opacityFactor = 0.8 + Math.random() * 0.4;
-        }
-
-        c.multiplyScalar(opacityFactor);
-        colors.push(c.r, c.g, c.b);
-    }
-
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.setDrawRange(0, 0);
 
     const shaderMat = new THREE.ShaderMaterial({
         uniforms      : ringUniforms,
         vertexShader  : `
             uniform float uTime;
+            uniform float uReveal;
             attribute vec3 color;
             varying vec3 vColor;
+            varying float vReveal;
+
+            float smoother(float value) {
+                return value * value * (3.0 - 2.0 * value);
+            }
             
             void main() {
                 vColor = color;
@@ -259,20 +275,36 @@ function createProceduralRings()
                 float angle = -uTime * speed;
                 float c = cos(angle);
                 float s = sin(angle);
-                vec3 newPos = vec3(
+                vec3 assembledPos = vec3(
                     position.x * c - position.z * s,
                     position.y,
                     position.x * s + position.z * c
                 );
+                float particleHash = fract(sin(dot(position.xz, vec2(12.9898, 78.233))) * 43758.5453);
+                float particleReveal = clamp((uReveal - particleHash * 0.5) / 0.5, 0.0, 1.0);
+                particleReveal = smoother(particleReveal);
+                float scatterAngle = particleHash * 6.2831853 + uTime * (0.2 + particleHash * 0.25);
+                float scatterRadius = 3.0 + particleHash * 10.0;
+                vec3 scatteredPos = assembledPos + vec3(
+                    cos(scatterAngle) * scatterRadius,
+                    (particleHash - 0.5) * 10.0,
+                    sin(scatterAngle) * scatterRadius
+                );
+                vec3 newPos = mix(scatteredPos, assembledPos, particleReveal);
                 vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
-                gl_PointSize = 2.0 * (30.0 / -mvPosition.z);
+                gl_PointSize = 2.0 * (30.0 / -mvPosition.z) * (0.7 + particleReveal * 0.3);
                 gl_Position = projectionMatrix * mvPosition;
+                vReveal = particleReveal;
             }
         `,
         fragmentShader: `
             varying vec3 vColor;
+            varying float vReveal;
             void main() {
-                gl_FragColor = vec4(vColor, 0.7); 
+                vec2 point = gl_PointCoord - vec2(0.5);
+                if (length(point) > 0.5) discard;
+                float edge = 1.0 - smoothstep(0.24, 0.5, length(point));
+                gl_FragColor = vec4(vColor, 0.7 * vReveal * edge);
             }
         `,
         transparent   : true,
@@ -281,6 +313,70 @@ function createProceduralRings()
 
     const rings = new THREE.Points(geo, shaderMat);
     saturnTiltGroup.add(rings);
+    ParticleBuilder.build({
+        total: ringParticles,
+        readyCount: 9000,
+        initialBatchSize: 5000,
+        writeBatch(start, end)
+        {
+            for (let i = start; i < end; i++)
+            {
+                let r;
+                do
+                {
+                    const t = Math.pow(Math.random(), 0.8);
+                    r = innerRadius + t * (outerRadius - innerRadius);
+                }
+                while (r > 9.9 && r < 10.4);
+
+                const angle = Math.random() * Math.PI * 2;
+                const offset = i * 3;
+                positions[offset] = r * Math.cos(angle);
+                positions[offset + 1] = (Math.random() - 0.5) * 0.06;
+                positions[offset + 2] = r * Math.sin(angle);
+
+                let red;
+                let green;
+                let blue;
+                let opacityFactor;
+                if (r < 7.8)
+                {
+                    const mix = (r - innerRadius) / 1.5;
+                    const blend = mix * 0.3;
+                    red = ringInnerDark.r + (ringMainBright.r - ringInnerDark.r) * blend;
+                    green = ringInnerDark.g + (ringMainBright.g - ringInnerDark.g) * blend;
+                    blue = ringInnerDark.b + (ringMainBright.b - ringInnerDark.b) * blend;
+                    opacityFactor = 0.2 + mix * 0.4;
+                }
+                else
+                {
+                    const mix = (r - 7.8) / (outerRadius - 7.8);
+                    const blend = mix * 0.6;
+                    red = ringMainBright.r + (ringOuterIce.r - ringMainBright.r) * blend;
+                    green = ringMainBright.g + (ringOuterIce.g - ringMainBright.g) * blend;
+                    blue = ringMainBright.b + (ringOuterIce.b - ringMainBright.b) * blend;
+                    opacityFactor = 0.8 + Math.random() * 0.4;
+                }
+                colors[offset] = red * opacityFactor;
+                colors[offset + 1] = green * opacityFactor;
+                colors[offset + 2] = blue * opacityFactor;
+            }
+            ParticleBuilder.markAttributeRange(geo.attributes.position, start * 3, (end - start) * 3);
+            ParticleBuilder.markAttributeRange(geo.attributes.color, start * 3, (end - start) * 3);
+        },
+        setDrawCount(count)
+        {
+            geo.setDrawRange(0, count);
+        },
+        onReady()
+        {
+            markScenePartReady('rings');
+        },
+        onError(error)
+        {
+            reportLayerBuildError('rings', error);
+        }
+    });
 }
 
 createProceduralRings();
@@ -317,12 +413,13 @@ function createTitan()
 
     // Titan Core
     const coreParticles = 1200;
-    const corePos       = [];
-    const coreColors    = [];
+    const corePos       = new Float32Array(coreParticles * 3);
+    const coreColors    = new Float32Array(coreParticles * 3);
     const coreGen       = new SimplexNoise('titan-core');
 
     const colCoreDark = new THREE.Color('#4a2e20');
     const colCoreLite = new THREE.Color('#8c4b28');
+    const coreColor = new THREE.Color();
 
     for (let i = 0; i < coreParticles; i++)
     {
@@ -333,11 +430,16 @@ function createTitan()
         const y     = r * Math.sin(phi) * Math.sin(theta);
         const z     = r * Math.cos(phi);
 
-        corePos.push(x, y, z);
+        const offset = i * 3;
+        corePos[offset] = x;
+        corePos[offset + 1] = y;
+        corePos[offset + 2] = z;
 
-        let n = coreGen.noise3D(x * 3, y * 3, z * 3);
-        let c = new THREE.Color().copy(colCoreDark).lerp(colCoreLite, (n + 1) / 2);
-        coreColors.push(c.r, c.g, c.b);
+        const n = coreGen.noise3D(x * 3, y * 3, z * 3);
+        coreColor.copy(colCoreDark).lerp(colCoreLite, (n + 1) / 2);
+        coreColors[offset] = coreColor.r;
+        coreColors[offset + 1] = coreColor.g;
+        coreColors[offset + 2] = coreColor.b;
     }
     const coreGeo = new THREE.BufferGeometry();
     coreGeo.setAttribute('position', new THREE.Float32BufferAttribute(corePos, 3));
@@ -363,12 +465,13 @@ function createTitan()
 
     // Titan Haze
     const hazeParticles = 2000;
-    const hazePos       = [];
-    const hazeColors    = [];
+    const hazePos       = new Float32Array(hazeParticles * 3);
+    const hazeColors    = new Float32Array(hazeParticles * 3);
     const hazeGen       = new SimplexNoise('titan-haze');
 
     const colHazeBase = new THREE.Color('#d68528');
     const colHazeTop  = new THREE.Color('#ffaa44');
+    const hazeColor = new THREE.Color();
 
     for (let i = 0; i < hazeParticles; i++)
     {
@@ -379,11 +482,16 @@ function createTitan()
         const y     = r * Math.sin(phi) * Math.sin(theta);
         const z     = r * Math.cos(phi);
 
-        hazePos.push(x, y, z);
+        const offset = i * 3;
+        hazePos[offset] = x;
+        hazePos[offset + 1] = y;
+        hazePos[offset + 2] = z;
 
-        let n = hazeGen.noise3D(x * 1.5, y * 1.5, z * 1.5);
-        let c = new THREE.Color().copy(colHazeBase).lerp(colHazeTop, (n + 1) / 2);
-        hazeColors.push(c.r, c.g, c.b);
+        const n = hazeGen.noise3D(x * 1.5, y * 1.5, z * 1.5);
+        hazeColor.copy(colHazeBase).lerp(colHazeTop, (n + 1) / 2);
+        hazeColors[offset] = hazeColor.r;
+        hazeColors[offset + 1] = hazeColor.g;
+        hazeColors[offset + 2] = hazeColor.b;
     }
     const hazeGeo = new THREE.BufferGeometry();
     hazeGeo.setAttribute('position', new THREE.Float32BufferAttribute(hazePos, 3));
@@ -578,4 +686,11 @@ function animate(timestamp)
 }
 
 const animationLoop = window.createMotionAwareAnimation(animate);
-animate();
+if (window.isReducedMotionRequested && window.isReducedMotionRequested())
+{
+    renderer.render(scene, camera);
+}
+else
+{
+    animationLoop.schedule();
+}

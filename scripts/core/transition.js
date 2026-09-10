@@ -9,6 +9,7 @@
     const PARTICLE_EXIT_MS = 720;
     const PARTICLE_BRIDGE_MS = 1800;
     const PARTICLE_INCOMING_MS = 1050;
+    const PARTICLE_HANDOFF_MS = 120;
     const PARTICLE_LIMIT = 1800;
     const BRIDGE_STORAGE_KEY = 'observatory-particle-bridge-v3';
     let revealed = false;
@@ -292,6 +293,21 @@
         }
     }
 
+    function scheduleBridgePreparation(callback, preferIdle = false)
+    {
+        if (preferIdle && typeof global.requestIdleCallback === 'function')
+        {
+            global.requestIdleCallback(callback, {timeout: 500});
+            return;
+        }
+        if (typeof global.requestAnimationFrame === 'function')
+        {
+            global.requestAnimationFrame(callback);
+            return;
+        }
+        setTimeout(callback, 0);
+    }
+
     function disposeBridgeMesh(mesh)
     {
         bridgeScene.remove(mesh);
@@ -309,6 +325,13 @@
         }
         bridgeFrame = null;
         if (bridgeRenderer) bridgeRenderer.domElement.style.display = 'none';
+    }
+
+    function finishIncomingParticleBridge()
+    {
+        continuingParticleBridge = false;
+        document.body.classList.remove('particle-transition-continuation', 'particle-transition-waiting');
+        global.dispatchEvent(new CustomEvent('observatory:transition-complete'));
     }
 
     function renderBridgeFrame()
@@ -333,6 +356,17 @@
             const elapsedMs = Math.max(0, now - mesh.userData.startedAt);
             const progress = Math.min(elapsedMs / mesh.userData.duration, 1);
             mesh.material.uniforms.uElapsed.value = elapsedMs / 1000;
+            if (mesh.userData.fadeOutStartedAt !== null)
+            {
+                const fadeProgress = Math.min((now - mesh.userData.fadeOutStartedAt) / PARTICLE_HANDOFF_MS, 1);
+                mesh.material.uniforms.uLayerAlpha.value = 1 - fadeProgress * fadeProgress * (3 - 2 * fadeProgress);
+                if (fadeProgress >= 1)
+                {
+                    if (mesh.userData.mode === 'outgoing') clearBridgeState();
+                    disposeBridgeMesh(mesh);
+                    return;
+                }
+            }
             if (mesh.userData.mode === 'incoming' && progress >= 0.7 && !mesh.userData.sceneRevealed)
             {
                 mesh.userData.sceneRevealed = true;
@@ -343,8 +377,7 @@
                 if (mesh.userData.mode === 'outgoing') clearBridgeState();
                 if (mesh.userData.mode === 'incoming')
                 {
-                    continuingParticleBridge = false;
-                    document.body.classList.remove('particle-transition-continuation', 'particle-transition-waiting');
+                    finishIncomingParticleBridge();
                 }
                 disposeBridgeMesh(mesh);
             }
@@ -409,7 +442,8 @@
                 uElapsed: {value: Math.max(0, Date.now() - state.startedAt) / 1000},
                 uDuration: {value: state.duration / 1000},
                 uMode: {value: state.mode === 'incoming' ? 1 : 0},
-                uPixelRatio: {value: Math.min(global.devicePixelRatio || 1, 1.15)}
+                uPixelRatio: {value: Math.min(global.devicePixelRatio || 1, 1.15)},
+                uLayerAlpha: {value: 1}
             },
             vertexShader: `
                 attribute vec2 aVelocity;
@@ -447,11 +481,12 @@
             fragmentShader: `
                 varying vec3 vColor;
                 varying float vAlpha;
+                uniform float uLayerAlpha;
                 void main() {
                     float distanceToCenter = length(gl_PointCoord - vec2(0.5));
                     if (distanceToCenter > 0.5) discard;
                     float edge = 1.0 - smoothstep(0.2, 0.5, distanceToCenter);
-                    gl_FragColor = vec4(vColor, vAlpha * edge * 0.92);
+                    gl_FragColor = vec4(vColor, vAlpha * edge * uLayerAlpha * 0.92);
                 }
             `,
             transparent: true,
@@ -467,11 +502,12 @@
         mesh.userData.duration = state.duration;
         mesh.userData.mode = state.mode;
         mesh.userData.sceneRevealed = false;
+        mesh.userData.fadeOutStartedAt = null;
         bridgeScene.add(mesh);
         bridgeMeshes.add(mesh);
         bridgeRenderer.domElement.style.display = 'block';
         ensureBridgeLoop();
-        return true;
+        return mesh;
     }
 
     function startIncomingParticleBridge()
@@ -485,11 +521,20 @@
             mode: 'incoming',
             duration: PARTICLE_INCOMING_MS
         });
-        if (!incomingState || !attachParticleBridge(incomingState))
+        const incomingMesh = incomingState ? attachParticleBridge(incomingState) : null;
+        if (!incomingMesh)
         {
-            continuingParticleBridge = false;
-            document.body.classList.remove('particle-transition-continuation', 'particle-transition-waiting');
+            finishIncomingParticleBridge();
+            return;
         }
+        const handoffStartedAt = Date.now();
+        bridgeMeshes.forEach((mesh) =>
+        {
+            if (mesh !== incomingMesh && mesh.userData.mode === 'outgoing')
+            {
+                mesh.userData.fadeOutStartedAt = handoffStartedAt;
+            }
+        });
     }
 
     function resumeParticleBridge()
@@ -589,17 +634,25 @@
         registerParticleScene: (scene, camera, renderer) =>
         {
             registeredParticleScene = {scene, camera, renderer};
-            if (!isReducedMotionRequested()) ensureBridgeRenderer();
             if (pendingBridgeState)
             {
                 const state = pendingBridgeState;
                 pendingBridgeState = null;
-                if (!attachParticleBridge(state))
+                scheduleBridgePreparation(() =>
                 {
-                    continuingParticleBridge = false;
-                    document.body.classList.remove('particle-transition-continuation', 'particle-transition-waiting');
-                }
+                    if (incomingBridgeStarted)
+                    {
+                        clearBridgeState();
+                        return;
+                    }
+                    if (!attachParticleBridge(state))
+                    {
+                        finishIncomingParticleBridge();
+                    }
+                });
+                return;
             }
+            if (!isReducedMotionRequested()) scheduleBridgePreparation(ensureBridgeRenderer, true);
         }
     };
 

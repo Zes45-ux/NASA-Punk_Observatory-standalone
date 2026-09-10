@@ -541,6 +541,7 @@ function expectedReadyCount(count) {
 function loadPlanetRuntime(planetName, {allocationCount = 300000, includeProgress = true} = {}) {
     const allocations = [];
     const builds = [];
+    const auxiliaryBuilds = [];
     const readiness = [];
     const readinessDrawCounts = [];
     const drawRanges = [];
@@ -593,6 +594,7 @@ function loadPlanetRuntime(planetName, {allocationCount = 300000, includeProgres
     class BufferGeometry {
         constructor() {
             this.attributes = {};
+            this.drawRanges = [];
         }
 
         setAttribute(name, attribute) {
@@ -602,6 +604,7 @@ function loadPlanetRuntime(planetName, {allocationCount = 300000, includeProgres
 
         setDrawRange(start, count) {
             this.drawRange = {start, count};
+            this.drawRanges.push([start, count]);
             drawRanges.push([start, count]);
         }
 
@@ -949,6 +952,15 @@ function loadPlanetRuntime(planetName, {allocationCount = 300000, includeProgres
     sandbox.createPointSizeJitter = window.createPointSizeJitter;
     sandbox.PLANET_GLSL = window.PLANET_GLSL;
     const ParticleBuilder = sandbox.ParticleBuilder = window.ParticleBuilder;
+    const buildProgressively = ParticleBuilder.build;
+    ParticleBuilder.build = (options) => {
+        auxiliaryBuilds.push({
+            total: options.total,
+            readyCount: options.readyCount,
+            initialBatchSize: options.initialBatchSize
+        });
+        return buildProgressively({...options, schedule: requestBuilderAnimationFrame});
+    };
     function captureSurfaceFactory(factory) {
         return (options) => {
             allocations.push(allocationTiers(options.budget));
@@ -981,6 +993,7 @@ function loadPlanetRuntime(planetName, {allocationCount = 300000, includeProgres
     return {
         allocations,
         builds,
+        auxiliaryBuilds,
         readiness,
         readinessDrawCounts,
         drawRanges,
@@ -1028,10 +1041,11 @@ test('rocky runtimes complete progressive surface builds within bounds', () => {
         assert.equal(env.progressValues.at(-1), 'READY', `${planetName} completion status`);
         assert.equal(env.errors.length, 0, `${planetName} error count`);
 
-        assert.deepEqual(env.drawRanges[0], [0, 0], `${planetName} initial draw range`);
-        assert.equal(env.drawRanges.at(-1)[1], env.allocationCount, `${planetName} final draw range`);
-        assert.ok(env.drawRanges.every(([, count]) => count >= 0 && count <= env.allocationCount), `${planetName} draw bounds`);
-        assert.ok(env.drawRanges.every((range, index) => index === 0 || range[1] >= env.drawRanges[index - 1][1]), `${planetName} draw progression`);
+        const surfaceDrawRanges = env.surface.geometry.drawRanges;
+        assert.deepEqual(surfaceDrawRanges[0], [0, 0], `${planetName} initial draw range`);
+        assert.equal(surfaceDrawRanges.at(-1)[1], env.allocationCount, `${planetName} final draw range`);
+        assert.ok(surfaceDrawRanges.every(([, count]) => count >= 0 && count <= env.allocationCount), `${planetName} draw bounds`);
+        assert.ok(surfaceDrawRanges.every((range, index) => index === 0 || range[1] >= surfaceDrawRanges[index - 1][1]), `${planetName} draw progression`);
 
         const position = env.surface.geometry.attributes.position;
         const color = env.surface.geometry.attributes.color;
@@ -1081,10 +1095,11 @@ test('giant runtimes complete progressive surfaces without consuming auxiliary g
         assert.equal(env.progressValues.at(-1), 'READY', `${planetName} completion status`);
         assert.equal(env.errors.length, 0, `${planetName} error count`);
 
-        assert.deepEqual(env.drawRanges[0], [0, 0], `${planetName} initial draw range`);
-        assert.equal(env.drawRanges.at(-1)[1], env.allocationCount, `${planetName} final draw range`);
-        assert.ok(env.drawRanges.every(([, count]) => count >= 0 && count <= env.allocationCount), `${planetName} draw bounds`);
-        assert.ok(env.drawRanges.every((range, index) => index === 0 || range[1] >= env.drawRanges[index - 1][1]), `${planetName} draw progression`);
+        const surfaceDrawRanges = env.surface.geometry.drawRanges;
+        assert.deepEqual(surfaceDrawRanges[0], [0, 0], `${planetName} initial draw range`);
+        assert.equal(surfaceDrawRanges.at(-1)[1], env.allocationCount, `${planetName} final draw range`);
+        assert.ok(surfaceDrawRanges.every(([, count]) => count >= 0 && count <= env.allocationCount), `${planetName} draw bounds`);
+        assert.ok(surfaceDrawRanges.every((range, index) => index === 0 || range[1] >= surfaceDrawRanges[index - 1][1]), `${planetName} draw progression`);
 
         const position = env.surface.geometry.attributes.position;
         const color = env.surface.geometry.attributes.color;
@@ -1105,6 +1120,44 @@ test('giant runtimes complete progressive surfaces without consuming auxiliary g
         assert.ok(auxiliaryCounts.every((count) => count <= env.dynamicCeiling), `${planetName} auxiliary particle ceiling`);
         assert.ok(env.points.slice(1).some((point) => point.parent !== env.surface.parent), `${planetName} auxiliary geometry is independent`);
     }
+});
+
+test('saturn streams haze and rings before announcing scene readiness', () => {
+    const source = fs.readFileSync('scripts/planets/saturn.js', 'utf8');
+    assert.ok(source.includes('ringUniforms.uReveal = surfaceConvergence.uniforms.uReveal'));
+    assert.ok(source.includes('float particleReveal = clamp'));
+    assert.ok(source.includes('0.7 * vReveal * edge'));
+
+    const env = loadPlanetRuntime('saturn');
+    assert.deepEqual(env.auxiliaryBuilds, [
+        {total: 15000, readyCount: 4500, initialBatchSize: 3000},
+        {total: 30000, readyCount: 9000, initialBatchSize: 5000}
+    ]);
+
+    const haze = env.points[1];
+    const rings = env.points[2];
+    assert.deepEqual(haze.geometry.drawRanges[0], [0, 0]);
+    assert.deepEqual(rings.geometry.drawRanges[0], [0, 0]);
+    assert.equal(env.readiness.length, 0, 'scene remains hidden before streamed layers reach threshold');
+
+    env.driveBuild();
+
+    assert.equal(env.readiness.length, 1);
+    assert.equal(haze.geometry.drawRange.count, 15000);
+    assert.equal(rings.geometry.drawRange.count, 30000);
+    assert.ok(haze.geometry.attributes.position.updateRanges.length > 0);
+    assert.ok(rings.geometry.attributes.position.updateRanges.length > 0);
+    assert.equal(env.colorClones, 0, 'particle loops reuse color storage instead of allocating per particle');
+});
+
+test('transition boot defers topo work and restores full pixel ratio after handoff', () => {
+    const topoSource = fs.readFileSync('scripts/components/topoRenderer.js', 'utf8');
+    const sceneSource = fs.readFileSync('scripts/core/planetScene.js', 'utf8');
+
+    assert.ok(topoSource.includes('requestResize();\n        return {resize: requestResize}'));
+    assert.ok(sceneSource.includes('renderer.setPixelRatio(useTransitionPixelRatio ? 1 : fullPixelRatio)'));
+    assert.ok(sceneSource.includes("global.addEventListener('observatory:transition-complete'"));
+    assert.ok(sceneSource.includes('resizeScene(true)'));
 });
 
 test('Sun streams its million-particle photosphere without animate allocations', () => {

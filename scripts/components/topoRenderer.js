@@ -265,7 +265,9 @@
             });
         }
 
-        resize();
+        // 首次等高线生成包含大量噪声采样。让 HTML 与 WebGL 场景先完成首帧，
+        // 再在下一帧绘制背景，避免它与目标星球初始化挤在同一个长任务里。
+        requestResize();
         return {resize: requestResize};
     }
 

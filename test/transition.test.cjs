@@ -232,6 +232,9 @@ test('particle bridge rendering stays on one GPU draw path instead of Canvas2D l
     const source = fs.readFileSync('scripts/core/transition.js', 'utf8');
     assert.ok(source.includes('new THREE.ShaderMaterial'));
     assert.ok(source.includes('bridgeRenderer.render(bridgeScene, bridgeCamera)'));
+    assert.ok(source.includes('PARTICLE_HANDOFF_MS = 120'));
+    assert.ok(source.includes('mesh.userData.fadeOutStartedAt = handoffStartedAt'));
+    assert.ok(source.includes("new CustomEvent('observatory:transition-complete')"));
     assert.equal(source.includes("getContext('2d')"), false);
     assert.equal(source.includes('context.arc('), false);
 });
