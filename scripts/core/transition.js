@@ -33,12 +33,6 @@
             && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
     }
 
-    function isReducedMotionRequested()
-    {
-        return typeof global.matchMedia === 'function'
-            && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    }
-
     function createCurtainMarkup()
     {
         return `
