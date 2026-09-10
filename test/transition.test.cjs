@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-function loadTransition({reducedMotion = false} = {}) {
+function loadTransition({reducedMotion = false, readyState} = {}) {
     const classes = new Set(['transition-curtain', 'start-covered']);
     const bodyClasses = new Set();
     const windowListeners = new Map();
@@ -29,6 +29,7 @@ function loadTransition({reducedMotion = false} = {}) {
         dispatchEvent: (event) => windowListeners.get(event.type)?.(event)
     };
     const document = {
+        readyState,
         body: {
             appendChild: () => {},
             classList: {
@@ -93,6 +94,18 @@ test('readiness timeout reveals the curtain', () => {
     env.timers[0].callback();
     assert.equal(env.curtain.classList.contains('start-covered'), false);
     assert.equal(env.bodyClasses.has('transition-ready'), true);
+});
+
+test('transition initializes immediately when its body-end script runs before DOMContentLoaded', () => {
+    const env = loadTransition({readyState: 'loading'});
+    assert.equal(typeof env.windowListeners.get('observatory:ready'), 'function');
+    assert.equal(env.timers[0].delay, 1500);
+});
+
+test('readiness fallback uses the same bridge-completion path as the ready event', () => {
+    const source = fs.readFileSync('scripts/core/transition.js', 'utf8');
+    assert.ok(source.includes('function handleReady()'));
+    assert.ok(source.includes('readyTimer = setTimeout(handleReady, READY_TIMEOUT_MS)'));
 });
 
 test('navigation is single-flight and uses the default particle-exit hold', () => {
@@ -228,6 +241,30 @@ test('registered Three.js point layers create bounded GPU bridge state', () => {
     assert.ok(Array.isArray(bridge.palette[0]), 'GPU colors are stored as numeric RGB tuples');
 });
 
+test('registered scenes do not eagerly allocate a second WebGL context', () => {
+    const env = loadTransition();
+    let rendererCount = 0;
+    let idleCallback = null;
+    env.window.requestIdleCallback = (callback) => { idleCallback = callback; };
+    env.window.THREE = {
+        WebGLRenderer: class { constructor() { rendererCount += 1; } },
+        Scene: class {},
+        Camera: class {}
+    };
+
+    env.api.registerParticleScene({}, {}, {});
+
+    assert.equal(rendererCount, 0);
+    assert.equal(idleCallback, null);
+});
+
+test('source page stores the bridge without rendering a duplicate overlay', () => {
+    const source = fs.readFileSync('scripts/core/transition.js', 'utf8');
+    const navigateSource = source.slice(source.indexOf('function navigate(url)'), source.indexOf('const TransitionManager'));
+    assert.ok(navigateSource.includes('storeBridgeState(bridgeState)'));
+    assert.equal(navigateSource.includes('attachParticleBridge(bridgeState)'), false);
+});
+
 test('particle bridge rendering stays on one GPU draw path instead of Canvas2D loops', () => {
     const source = fs.readFileSync('scripts/core/transition.js', 'utf8');
     assert.ok(source.includes('new THREE.ShaderMaterial'));
@@ -237,6 +274,16 @@ test('particle bridge rendering stays on one GPU draw path instead of Canvas2D l
     assert.ok(source.includes("new CustomEvent('observatory:transition-complete')"));
     assert.equal(source.includes("getContext('2d')"), false);
     assert.equal(source.includes('context.arc('), false);
+    assert.equal(source.includes('Array.from(bridgeMeshes)'), false);
+    assert.ok(source.includes('disposeBridgeMesh(mesh);\n                    continue;'));
+});
+
+test('completed bridge releases its temporary renderer and WebGL context', () => {
+    const source = fs.readFileSync('scripts/core/transition.js', 'utf8');
+    assert.ok(source.includes('function disposeBridgeRenderer()'));
+    assert.ok(source.includes('bridgeRenderer.dispose()'));
+    assert.ok(source.includes('bridgeRenderer.forceContextLoss()'));
+    assert.ok(source.includes("global.addEventListener('pagehide'"));
 });
 
 test('reduced motion navigates without waiting for the curtain animation', () => {

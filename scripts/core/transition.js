@@ -311,10 +311,30 @@
 
     function disposeBridgeMesh(mesh)
     {
-        bridgeScene.remove(mesh);
+        if (bridgeScene) bridgeScene.remove(mesh);
         bridgeMeshes.delete(mesh);
         mesh.geometry.dispose();
         mesh.material.dispose();
+    }
+
+    function disposeBridgeRenderer()
+    {
+        if (!bridgeRenderer) return;
+        bridgeRenderer.dispose();
+        if (typeof bridgeRenderer.forceContextLoss === 'function')
+        {
+            bridgeRenderer.forceContextLoss();
+        }
+        const canvas = bridgeRenderer.domElement;
+        if (canvas)
+        {
+            if (typeof canvas.remove === 'function') canvas.remove();
+            else if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
+        }
+        bridgeRenderer = null;
+        bridgeScene = null;
+        bridgeCamera = null;
+        bridgeSizeTarget = null;
     }
 
     function stopBridgeLoopIfIdle()
@@ -325,7 +345,7 @@
             global.cancelAnimationFrame(bridgeFrame);
         }
         bridgeFrame = null;
-        if (bridgeRenderer) bridgeRenderer.domElement.style.display = 'none';
+        disposeBridgeRenderer();
     }
 
     function finishIncomingParticleBridge()
@@ -359,7 +379,7 @@
         }
 
         const now = Date.now();
-        Array.from(bridgeMeshes).forEach((mesh) =>
+        for (const mesh of bridgeMeshes)
         {
             const elapsedMs = Math.max(0, now - mesh.userData.startedAt);
             const progress = Math.min(elapsedMs / mesh.userData.duration, 1);
@@ -372,7 +392,7 @@
                 {
                     if (mesh.userData.mode === 'outgoing') clearBridgeState();
                     disposeBridgeMesh(mesh);
-                    return;
+                    continue;
                 }
             }
             if (mesh.userData.mode === 'incoming' && progress >= 0.7 && !mesh.userData.sceneRevealed)
@@ -389,7 +409,7 @@
                 }
                 disposeBridgeMesh(mesh);
             }
-        });
+        }
         if (bridgeMeshes.size === 0)
         {
             stopBridgeLoopIfIdle();
@@ -577,6 +597,12 @@
         document.body.classList.add('transition-ready');
     }
 
+    function handleReady()
+    {
+        reveal();
+        startIncomingParticleBridge();
+    }
+
     function navigate(url)
     {
         if (navigating) return;
@@ -590,8 +616,10 @@
         if (!isReducedMotionRequested())
         {
             const bridgeState = captureRegisteredParticleScene(url, {mode: 'outgoing'});
-            if (bridgeState && attachParticleBridge(bridgeState))
+            if (bridgeState)
             {
+                // 当前主场景自身负责离场逸散。桥接层只需在目标页重建；避免在
+                // 点击瞬间创建第二个 WebGL 上下文、编译 shader 并重复绘制粒子。
                 storeBridgeState(bridgeState);
                 requestedExitMs = PARTICLE_EXIT_MS;
             }
@@ -635,12 +663,10 @@
     const TransitionManager = {
         init    : function ()
         {
-            global.addEventListener('observatory:ready', () =>
-            {
-                reveal();
-                startIncomingParticleBridge();
-            }, {once: true});
-            readyTimer = setTimeout(reveal, READY_TIMEOUT_MS);
+            global.addEventListener('observatory:ready', handleReady, {once: true});
+            // ready 事件若因极快的首批粒子构建而先于监听器触发，兜底也必须
+            // 完成桥接，而不能只揭开 UI 后把主画布永久留在 waiting 状态。
+            readyTimer = setTimeout(handleReady, READY_TIMEOUT_MS);
         },
         navigate: navigate,
         isContinuingParticleTransition: () => continuingParticleBridge,
@@ -665,7 +691,6 @@
                 });
                 return;
             }
-            if (!isReducedMotionRequested()) scheduleBridgePreparation(ensureBridgeRenderer, true);
         }
     };
 
@@ -685,7 +710,22 @@
         ensureCurtain().classList.remove('curtain-exit', 'curtain-intro', 'start-covered');
     });
 
-    if (document.readyState === 'loading')
+    global.addEventListener('pagehide', (event) =>
+    {
+        if (event.persisted) return;
+        if (bridgeFrame !== null && typeof global.cancelAnimationFrame === 'function')
+        {
+            global.cancelAnimationFrame(bridgeFrame);
+        }
+        bridgeFrame = null;
+        for (const mesh of bridgeMeshes) disposeBridgeMesh(mesh);
+        disposeBridgeRenderer();
+        registeredParticleScene = null;
+    });
+
+    // 脚本位于 body 尾部时 DOM 已可用；立即挂 ready 监听，避免等待
+    // DOMContentLoaded 与 requestIdleCallback 粒子首批构建之间的竞态。
+    if (document.readyState === 'loading' && !document.body)
     {
         document.addEventListener('DOMContentLoaded', () =>
         {
