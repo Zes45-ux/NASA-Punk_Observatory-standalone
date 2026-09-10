@@ -12,11 +12,17 @@
   Delays are clamped to 480–1,200 ms, and repeated calls during one exit are ignored.
 
 The transition module projects a bounded sample from every `THREE.Points` layer
-in the complete scene and converts it into at most 1,800 Canvas2D bridge
-particles. This includes auxiliary atmospheres, rings, moons, and satellites
-without relying on WebGL framebuffer preservation. Those particles continue
-across the document navigation through compact session state, covering the gap
-until the next planet's GPU reconstruction is established.
+in the complete scene and converts it into at most 1,800 GPU bridge particles.
+The bridge renderer is prepared with the scene instead of during a click, and
+each animation frame updates uniforms plus one draw call instead of drawing each
+particle through Canvas2D. This includes auxiliary atmospheres, rings, moons,
+and satellites without relying on WebGL framebuffer preservation.
+
+The outgoing particles continue across document navigation through compact
+session state. After the destination reaches `observatory:ready`, a second
+full-scene sample reconstructs the incoming planet and every auxiliary point
+layer. The real WebGL scene stays hidden until that reconstruction is mostly
+formed, then crossfades underneath it so rings and moons never pop in directly.
 It also dispatches `observatory:navigate-start` with `{url, holdFor}`. The active
 planet surface reverses its GPU convergence shader and requests a 720 ms hold
 while its particles spiral outward. The particle builder uses the same event to

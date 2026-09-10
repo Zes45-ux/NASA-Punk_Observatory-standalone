@@ -7,16 +7,23 @@
     const DEFAULT_EXIT_MS = 480;
     const MAX_EXIT_MS = 1200;
     const PARTICLE_EXIT_MS = 720;
-    const PARTICLE_BRIDGE_MS = 1850;
+    const PARTICLE_BRIDGE_MS = 1800;
+    const PARTICLE_INCOMING_MS = 1050;
     const PARTICLE_LIMIT = 1800;
-    const BRIDGE_STORAGE_KEY = 'observatory-particle-bridge-v2';
+    const BRIDGE_STORAGE_KEY = 'observatory-particle-bridge-v3';
     let revealed = false;
     let navigating = false;
     let cancelNavigation = null;
     let readyTimer = null;
-    let bridgeFrame = null;
     let continuingParticleBridge = false;
     let registeredParticleScene = null;
+    let pendingBridgeState = null;
+    let bridgeRenderer = null;
+    let bridgeScene = null;
+    let bridgeCamera = null;
+    let bridgeFrame = null;
+    let incomingBridgeStarted = false;
+    const bridgeMeshes = new Set();
 
     function isReducedMotionRequested()
     {
@@ -54,7 +61,7 @@
         {
             if (!global.sessionStorage) return null;
             const state = JSON.parse(global.sessionStorage.getItem(BRIDGE_STORAGE_KEY));
-            return state && Array.isArray(state.particles) ? state : null;
+            return state && state.version === 3 && Array.isArray(state.particles) ? state : null;
         }
         catch (error)
         {
@@ -95,20 +102,18 @@
         return x - Math.floor(x);
     }
 
-    function createBridgeState(url, candidates, paletteCounts, center, viewport)
+    function createBridgeState(url, candidates, paletteCounts, center, viewport, options = {})
     {
         if (candidates.length < 24) return null;
         const paletteKeys = Array.from(paletteCounts.entries())
             .sort((a, b) => b[1] - a[1])
             .slice(0, 10)
             .map(entry => entry[0]);
-        const palette = paletteKeys.map((key) =>
-        {
-            const r = ((key >> 6) & 7) * 32 + 16;
-            const g = ((key >> 3) & 7) * 32 + 16;
-            const b = (key & 7) * 32 + 16;
-            return `rgb(${r},${g},${b})`;
-        });
+        const palette = paletteKeys.map((key) => [
+            ((key >> 6) & 7) * 32 + 16,
+            ((key >> 3) & 7) * 32 + 16,
+            (key & 7) * 32 + 16
+        ]);
         const nearestPalette = (colorKey) =>
         {
             const r = (colorKey >> 6) & 7;
@@ -159,9 +164,10 @@
         }
 
         return {
-            version: 2,
+            version: 3,
             startedAt: Date.now(),
-            duration: PARTICLE_BRIDGE_MS,
+            duration: options.duration || PARTICLE_BRIDGE_MS,
+            mode: options.mode || 'outgoing',
             width: viewport.width,
             height: viewport.height,
             target: String(url).split('/').pop().split(/[?#]/)[0],
@@ -170,7 +176,7 @@
         };
     }
 
-    function captureRegisteredParticleScene(url)
+    function captureRegisteredParticleScene(url, options = {})
     {
         const registration = registeredParticleScene;
         const THREE = global.THREE;
@@ -189,7 +195,8 @@
             const position = object && object.geometry && object.geometry.attributes
                 ? object.geometry.attributes.position
                 : null;
-            if (!object.visible || !object.isPoints || !position || position.count < 1) return;
+            if (!object.visible || !object.isPoints || !position || position.count < 1
+                || (object.userData && object.userData.observatoryTransitionBridge)) return;
             const drawCount = object.geometry.drawRange && Number.isFinite(object.geometry.drawRange.count)
                 ? object.geometry.drawRange.count
                 : position.count;
@@ -247,157 +254,242 @@
         }, {
             width: global.innerWidth || rect.width,
             height: global.innerHeight || rect.height
-        });
+        }, options);
     }
 
-    function captureCanvasParticleBridge(url)
+    function ensureBridgeRenderer()
     {
-        if (!document.querySelector || !document.createElement) return null;
-        const source = document.querySelector('#canvas-container canvas');
-        if (!source || typeof source.getBoundingClientRect !== 'function') return null;
-        const rect = source.getBoundingClientRect();
-        if (rect.width < 2 || rect.height < 2) return null;
-
-        const sample = document.createElement('canvas');
-        const sampleWidth = Math.min(420, Math.max(180, Math.round(rect.width * 0.36)));
-        const sampleHeight = Math.max(100, Math.round(sampleWidth * rect.height / rect.width));
-        sample.width = sampleWidth;
-        sample.height = sampleHeight;
-        const context = sample.getContext && sample.getContext('2d', {willReadFrequently: true});
-        if (!context) return null;
-
-        let pixels;
+        const THREE = global.THREE;
+        if (bridgeRenderer) return true;
+        if (!THREE || typeof THREE.WebGLRenderer !== 'function'
+            || typeof THREE.Scene !== 'function' || typeof THREE.Camera !== 'function') return false;
         try
         {
-            context.drawImage(source, 0, 0, sampleWidth, sampleHeight);
-            pixels = context.getImageData(0, 0, sampleWidth, sampleHeight).data;
+            bridgeRenderer = new THREE.WebGLRenderer({
+                alpha: true,
+                antialias: false,
+                premultipliedAlpha: false,
+                powerPreference: 'high-performance'
+            });
+            bridgeRenderer.setPixelRatio(Math.min(global.devicePixelRatio || 1, 1.15));
+            bridgeRenderer.setSize(global.innerWidth || 1, global.innerHeight || 1, false);
+            bridgeRenderer.setClearColor(0x000000, 0);
+            bridgeRenderer.domElement.id = 'particle-transition-overlay';
+            bridgeRenderer.domElement.className = 'particle-transition-overlay';
+            bridgeRenderer.domElement.setAttribute('aria-hidden', 'true');
+            bridgeRenderer.domElement.style.display = 'none';
+            document.body.appendChild(bridgeRenderer.domElement);
+            bridgeScene = new THREE.Scene();
+            bridgeCamera = new THREE.Camera();
+            return true;
         }
         catch (error)
         {
-            return null;
+            bridgeRenderer = null;
+            bridgeScene = null;
+            bridgeCamera = null;
+            return false;
         }
-
-        const candidates = [];
-        const paletteCounts = new Map();
-        for (let y = 0; y < sampleHeight; y += 1)
-        {
-            for (let x = 0; x < sampleWidth; x += 1)
-            {
-                const offset = (y * sampleWidth + x) * 4;
-                const alpha = pixels[offset + 3];
-                if (alpha < 12) continue;
-                const r = pixels[offset];
-                const g = pixels[offset + 1];
-                const b = pixels[offset + 2];
-                if (r + g + b < 32) continue;
-                const colorKey = ((r >> 5) << 6) | ((g >> 5) << 3) | (b >> 5);
-                paletteCounts.set(colorKey, (paletteCounts.get(colorKey) || 0) + 1);
-                candidates.push([
-                    rect.left + (x + 0.5) / sampleWidth * rect.width,
-                    rect.top + (y + 0.5) / sampleHeight * rect.height,
-                    alpha,
-                    colorKey
-                ]);
-            }
-        }
-        return createBridgeState(url, candidates, paletteCounts, {
-            x: rect.left + rect.width * 0.5,
-            y: rect.top + rect.height * 0.5
-        }, {
-            width: global.innerWidth || rect.width,
-            height: global.innerHeight || rect.height
-        });
     }
 
-    function captureParticleBridge(url)
+    function disposeBridgeMesh(mesh)
     {
-        return captureRegisteredParticleScene(url) || captureCanvasParticleBridge(url);
+        bridgeScene.remove(mesh);
+        bridgeMeshes.delete(mesh);
+        mesh.geometry.dispose();
+        mesh.material.dispose();
     }
 
-    function runParticleBridge(state)
+    function stopBridgeLoopIfIdle()
     {
-        if (!state || !document.createElement || typeof global.requestAnimationFrame !== 'function') return false;
+        if (bridgeMeshes.size > 0) return;
         if (bridgeFrame !== null && typeof global.cancelAnimationFrame === 'function')
         {
             global.cancelAnimationFrame(bridgeFrame);
         }
-        const existing = document.getElementById('particle-transition-overlay');
-        if (existing && typeof existing.remove === 'function') existing.remove();
+        bridgeFrame = null;
+        if (bridgeRenderer) bridgeRenderer.domElement.style.display = 'none';
+    }
 
-        const canvas = document.createElement('canvas');
-        canvas.id = 'particle-transition-overlay';
-        canvas.className = 'particle-transition-overlay';
-        canvas.setAttribute('aria-hidden', 'true');
-        const pixelRatio = Math.min(global.devicePixelRatio || 1, 1.35);
-        const width = global.innerWidth || state.width;
-        const height = global.innerHeight || state.height;
-        canvas.width = Math.round(width * pixelRatio);
-        canvas.height = Math.round(height * pixelRatio);
-        canvas.style.width = `${width}px`;
-        canvas.style.height = `${height}px`;
-        const context = canvas.getContext('2d');
-        if (!context) return false;
-        context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-        document.body.appendChild(canvas);
-
-        const scaleX = width / Math.max(1, state.width);
-        const scaleY = height / Math.max(1, state.height);
-        const velocityScale = Math.min(scaleX, scaleY);
-        const buckets = state.palette.map(() => []);
-        state.particles.forEach((particle) =>
+    function renderBridgeFrame()
+    {
+        bridgeFrame = null;
+        if (!bridgeRenderer || bridgeMeshes.size === 0)
         {
-            const bucket = buckets[particle[5]] || buckets[0];
-            bucket.push(particle);
+            stopBridgeLoopIfIdle();
+            return;
+        }
+        const width = global.innerWidth || 1;
+        const height = global.innerHeight || 1;
+        const size = bridgeRenderer.getSize(new global.THREE.Vector2());
+        if (size.x !== width || size.y !== height)
+        {
+            bridgeRenderer.setSize(width, height, false);
+        }
+
+        const now = Date.now();
+        Array.from(bridgeMeshes).forEach((mesh) =>
+        {
+            const elapsedMs = Math.max(0, now - mesh.userData.startedAt);
+            const progress = Math.min(elapsedMs / mesh.userData.duration, 1);
+            mesh.material.uniforms.uElapsed.value = elapsedMs / 1000;
+            if (mesh.userData.mode === 'incoming' && progress >= 0.7 && !mesh.userData.sceneRevealed)
+            {
+                mesh.userData.sceneRevealed = true;
+                document.body.classList.remove('particle-transition-waiting');
+            }
+            if (progress >= 1)
+            {
+                if (mesh.userData.mode === 'outgoing') clearBridgeState();
+                if (mesh.userData.mode === 'incoming')
+                {
+                    continuingParticleBridge = false;
+                    document.body.classList.remove('particle-transition-continuation', 'particle-transition-waiting');
+                }
+                disposeBridgeMesh(mesh);
+            }
+        });
+        if (bridgeMeshes.size === 0)
+        {
+            stopBridgeLoopIfIdle();
+            return;
+        }
+        bridgeRenderer.render(bridgeScene, bridgeCamera);
+        bridgeFrame = global.requestAnimationFrame(renderBridgeFrame);
+    }
+
+    function ensureBridgeLoop()
+    {
+        if (bridgeFrame === null && typeof global.requestAnimationFrame === 'function')
+        {
+            bridgeFrame = global.requestAnimationFrame(renderBridgeFrame);
+        }
+    }
+
+    function attachParticleBridge(state)
+    {
+        const THREE = global.THREE;
+        if (!state || !ensureBridgeRenderer()
+            || typeof THREE.BufferGeometry !== 'function'
+            || typeof THREE.BufferAttribute !== 'function'
+            || typeof THREE.ShaderMaterial !== 'function'
+            || typeof THREE.Points !== 'function') return false;
+
+        const count = state.particles.length;
+        const positions = new Float32Array(count * 3);
+        const velocities = new Float32Array(count * 2);
+        const colors = new Float32Array(count * 3);
+        const sizes = new Float32Array(count);
+        const phases = new Float32Array(count);
+        state.particles.forEach((particle, index) =>
+        {
+            const positionOffset = index * 3;
+            const velocityOffset = index * 2;
+            const paletteColor = state.palette[particle[5]] || [255, 255, 255];
+            positions[positionOffset] = particle[0] / state.width * 2 - 1;
+            positions[positionOffset + 1] = 1 - particle[1] / state.height * 2;
+            positions[positionOffset + 2] = 0;
+            velocities[velocityOffset] = particle[2] / state.width * 2;
+            velocities[velocityOffset + 1] = -particle[3] / state.height * 2;
+            colors[positionOffset] = paletteColor[0] / 255;
+            colors[positionOffset + 1] = paletteColor[1] / 255;
+            colors[positionOffset + 2] = paletteColor[2] / 255;
+            sizes[index] = particle[4];
+            phases[index] = particle[6];
         });
 
-        function smootherStep(value)
-        {
-            return value * value * value * (value * (value * 6 - 15) + 10);
-        }
-
-        function draw()
-        {
-            const elapsed = Math.max(0, Date.now() - state.startedAt);
-            const seconds = elapsed / 1000;
-            const travel = smootherStep(Math.min(elapsed / state.duration, 1));
-            const fadeStart = PARTICLE_EXIT_MS * 0.88;
-            const fade = 1 - smootherStep(Math.min(Math.max((elapsed - fadeStart) / (state.duration - fadeStart), 0), 1));
-            context.clearRect(0, 0, width, height);
-            context.globalCompositeOperation = 'lighter';
-            context.globalAlpha = fade * 0.92;
-
-            buckets.forEach((bucket, paletteIndex) =>
-            {
-                if (bucket.length === 0) return;
-                context.fillStyle = state.palette[paletteIndex];
-                context.beginPath();
-                bucket.forEach((particle) =>
-                {
-                    const wave = Math.sin(particle[6] + seconds * 4.2) * 18 * travel;
-                    const x = particle[0] * scaleX + particle[2] * seconds * velocityScale + wave;
-                    const y = particle[1] * scaleY + particle[3] * seconds * velocityScale - wave * 0.35;
-                    const size = particle[4] * (1 + travel * 0.35);
-                    const radius = size * 0.5;
-                    context.moveTo(x + radius, y);
-                    context.arc(x, y, radius, 0, Math.PI * 2);
-                });
-                context.fill();
-            });
-
-            if (elapsed < state.duration)
-            {
-                bridgeFrame = global.requestAnimationFrame(draw);
-                return;
-            }
-            bridgeFrame = null;
-            canvas.remove();
-            clearBridgeState();
-            continuingParticleBridge = false;
-            document.body.classList.remove('particle-transition-continuation');
-        }
-
-        bridgeFrame = global.requestAnimationFrame(draw);
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('aVelocity', new THREE.BufferAttribute(velocities, 2));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+        geometry.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+        const material = new THREE.ShaderMaterial({
+            uniforms: {
+                uElapsed: {value: Math.max(0, Date.now() - state.startedAt) / 1000},
+                uDuration: {value: state.duration / 1000},
+                uMode: {value: state.mode === 'incoming' ? 1 : 0},
+                uPixelRatio: {value: Math.min(global.devicePixelRatio || 1, 1.15)}
+            },
+            vertexShader: `
+                attribute vec2 aVelocity;
+                attribute vec3 color;
+                attribute float aSize;
+                attribute float aPhase;
+                uniform float uElapsed;
+                uniform float uDuration;
+                uniform float uMode;
+                uniform float uPixelRatio;
+                varying vec3 vColor;
+                varying float vAlpha;
+                float smoother(float value) {
+                    return value * value * value * (value * (value * 6.0 - 15.0) + 10.0);
+                }
+                void main() {
+                    float progress = clamp(uElapsed / uDuration, 0.0, 1.0);
+                    float eased = smoother(progress);
+                    float incoming = step(0.5, uMode);
+                    float outgoingTravel = uElapsed * (0.35 + eased * 0.65);
+                    float incomingTravel = (1.0 - eased) * uDuration * 0.88;
+                    float travel = mix(outgoingTravel, incomingTravel, incoming);
+                    float waveAmount = mix(eased, 1.0 - eased, incoming);
+                    vec2 wave = vec2(sin(aPhase + uElapsed * 4.2), cos(aPhase * 1.37 + uElapsed * 3.4));
+                    vec2 transformed = position.xy + aVelocity * travel + wave * 0.022 * waveAmount;
+                    float outgoingAlpha = 1.0 - smoother(clamp((progress - 0.34) / 0.66, 0.0, 1.0));
+                    float incomingAlpha = smoother(clamp(progress / 0.18, 0.0, 1.0))
+                        * (1.0 - smoother(clamp((progress - 0.82) / 0.18, 0.0, 1.0)));
+                    vAlpha = mix(outgoingAlpha, incomingAlpha, incoming);
+                    vColor = color;
+                    gl_Position = vec4(transformed, 0.0, 1.0);
+                    gl_PointSize = aSize * uPixelRatio * (1.0 + waveAmount * 0.35);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vColor;
+                varying float vAlpha;
+                void main() {
+                    float distanceToCenter = length(gl_PointCoord - vec2(0.5));
+                    if (distanceToCenter > 0.5) discard;
+                    float edge = 1.0 - smoothstep(0.2, 0.5, distanceToCenter);
+                    gl_FragColor = vec4(vColor, vAlpha * edge * 0.92);
+                }
+            `,
+            transparent: true,
+            depthTest: false,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const mesh = new THREE.Points(geometry, material);
+        mesh.frustumCulled = false;
+        mesh.renderOrder = 10000;
+        mesh.userData.observatoryTransitionBridge = true;
+        mesh.userData.startedAt = state.startedAt;
+        mesh.userData.duration = state.duration;
+        mesh.userData.mode = state.mode;
+        mesh.userData.sceneRevealed = false;
+        bridgeScene.add(mesh);
+        bridgeMeshes.add(mesh);
+        bridgeRenderer.domElement.style.display = 'block';
+        ensureBridgeLoop();
         return true;
+    }
+
+    function startIncomingParticleBridge()
+    {
+        if (!continuingParticleBridge || incomingBridgeStarted || !registeredParticleScene) return;
+        incomingBridgeStarted = true;
+        const currentTarget = global.location && global.location.pathname
+            ? global.location.pathname.split('/').pop()
+            : '';
+        const incomingState = captureRegisteredParticleScene(currentTarget, {
+            mode: 'incoming',
+            duration: PARTICLE_INCOMING_MS
+        });
+        if (!incomingState || !attachParticleBridge(incomingState))
+        {
+            continuingParticleBridge = false;
+            document.body.classList.remove('particle-transition-continuation', 'particle-transition-waiting');
+        }
     }
 
     function resumeParticleBridge()
@@ -413,8 +505,9 @@
             clearBridgeState();
             return;
         }
-        continuingParticleBridge = runParticleBridge(state);
-        if (continuingParticleBridge) document.body.classList.add('particle-transition-continuation');
+        pendingBridgeState = state;
+        continuingParticleBridge = true;
+        document.body.classList.add('particle-transition-continuation', 'particle-transition-waiting');
     }
 
     function reveal()
@@ -438,12 +531,15 @@
         };
         if (!isReducedMotionRequested())
         {
-            const bridgeState = captureParticleBridge(url);
-            if (bridgeState)
+            const bridgeState = captureRegisteredParticleScene(url, {mode: 'outgoing'});
+            if (bridgeState && attachParticleBridge(bridgeState))
             {
                 storeBridgeState(bridgeState);
-                runParticleBridge(bridgeState);
                 requestedExitMs = PARTICLE_EXIT_MS;
+            }
+            else
+            {
+                clearBridgeState();
             }
         }
         global.dispatchEvent(new CustomEvent('observatory:navigate-start', {
@@ -481,7 +577,11 @@
     const TransitionManager = {
         init    : function ()
         {
-            global.addEventListener('observatory:ready', reveal, {once: true});
+            global.addEventListener('observatory:ready', () =>
+            {
+                reveal();
+                startIncomingParticleBridge();
+            }, {once: true});
             readyTimer = setTimeout(reveal, READY_TIMEOUT_MS);
         },
         navigate: navigate,
@@ -489,6 +589,17 @@
         registerParticleScene: (scene, camera, renderer) =>
         {
             registeredParticleScene = {scene, camera, renderer};
+            if (!isReducedMotionRequested()) ensureBridgeRenderer();
+            if (pendingBridgeState)
+            {
+                const state = pendingBridgeState;
+                pendingBridgeState = null;
+                if (!attachParticleBridge(state))
+                {
+                    continuingParticleBridge = false;
+                    document.body.classList.remove('particle-transition-continuation', 'particle-transition-waiting');
+                }
+            }
         }
     };
 

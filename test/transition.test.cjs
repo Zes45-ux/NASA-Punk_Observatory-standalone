@@ -126,10 +126,9 @@ test('particle scene hold is capped so a faulty effect cannot trap navigation', 
     assert.equal(env.timers.at(-1).delay, 1200);
 });
 
-test('registered Three.js point layers create a bounded cross-page particle bridge', () => {
+test('registered Three.js point layers create bounded GPU bridge state', () => {
     const env = loadTransition();
     const stored = new Map();
-    const appended = [];
     env.window.innerWidth = 1000;
     env.window.innerHeight = 600;
     env.window.devicePixelRatio = 1;
@@ -141,6 +140,25 @@ test('registered Three.js point layers create a bounded cross-page particle brid
         removeItem: (key) => stored.delete(key)
     };
     env.window.THREE = {
+        AdditiveBlending: 2,
+        WebGLRenderer: class {
+            constructor() {
+                this.domElement = {style: {}, setAttribute: () => {}};
+                this.size = {x: 1, y: 1};
+            }
+            setPixelRatio() {}
+            setSize(x, y) { this.size = {x, y}; }
+            setClearColor() {}
+            getSize(target) { target.x = this.size.x; target.y = this.size.y; return target; }
+            render() {}
+        },
+        Scene: class {
+            constructor() { this.children = []; }
+            add(object) { this.children.push(object); }
+            remove(object) { this.children = this.children.filter((child) => child !== object); }
+        },
+        Camera: class {},
+        Vector2: class {},
         Vector3: class {
             fromBufferAttribute(attribute, index) {
                 this.x = attribute.getX(index);
@@ -150,6 +168,25 @@ test('registered Three.js point layers create a bounded cross-page particle brid
             }
             applyMatrix4() { return this; }
             project() { return this; }
+        },
+        BufferGeometry: class {
+            constructor() { this.attributes = {}; }
+            setAttribute(name, attribute) { this.attributes[name] = attribute; }
+            dispose() {}
+        },
+        BufferAttribute: class {
+            constructor(array, itemSize) { this.array = array; this.itemSize = itemSize; }
+        },
+        ShaderMaterial: class {
+            constructor(options) { Object.assign(this, options); }
+            dispose() {}
+        },
+        Points: class {
+            constructor(geometry, material) {
+                this.geometry = geometry;
+                this.material = material;
+                this.userData = {};
+            }
         }
     };
     env.document.createElement = () => ({
@@ -158,7 +195,6 @@ test('registered Three.js point layers create a bounded cross-page particle brid
         remove: () => {},
         getContext: () => ({setTransform: () => {}, clearRect: () => {}})
     });
-    env.document.body.appendChild = (node) => appended.push(node);
 
     const position = {
         count: 30,
@@ -185,9 +221,19 @@ test('registered Three.js point layers create a bounded cross-page particle brid
     const serialized = Array.from(stored.values())[0];
     const bridge = JSON.parse(serialized);
     assert.equal(env.timers.at(-1).delay, 720);
+    assert.equal(bridge.version, 3);
+    assert.equal(bridge.mode, 'outgoing');
     assert.equal(bridge.target, 'mars.html');
     assert.equal(bridge.particles.length, 30);
-    assert.ok(appended.some((node) => node.id === 'particle-transition-overlay'));
+    assert.ok(Array.isArray(bridge.palette[0]), 'GPU colors are stored as numeric RGB tuples');
+});
+
+test('particle bridge rendering stays on one GPU draw path instead of Canvas2D loops', () => {
+    const source = fs.readFileSync('scripts/core/transition.js', 'utf8');
+    assert.ok(source.includes('new THREE.ShaderMaterial'));
+    assert.ok(source.includes('bridgeRenderer.render(bridgeScene, bridgeCamera)'));
+    assert.equal(source.includes("getContext('2d')"), false);
+    assert.equal(source.includes('context.arc('), false);
 });
 
 test('reduced motion navigates without waiting for the curtain animation', () => {
