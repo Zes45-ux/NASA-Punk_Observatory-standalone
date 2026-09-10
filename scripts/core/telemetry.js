@@ -15,6 +15,12 @@ function updatePlanetTelemetry(spinGroup, tgtLabel, decSignFactor = 1)
         return;
     }
 
+    const now = performance.now();
+    if (now - _lastWriteTime < TELEMETRY_WRITE_INTERVAL_MS)
+    {
+        return;
+    }
+
     _viewVector.set(0, 0, 1);
     _tempMatrix.copy(spinGroup.matrixWorld).invert();
     const local = _viewVector.applyMatrix4(_tempMatrix).normalize();
@@ -38,16 +44,11 @@ function updatePlanetTelemetry(spinGroup, tgtLabel, decSignFactor = 1)
 
     const text =
         `TGT: RA ${raLongH.toString().padStart(2, '0')}h ${raLongM.toString().padStart(2, '0')}m | DEC ${decSign}${decVal.toString().padStart(2, '0')}° `;
+    _lastWriteTime = now;
     if (text === _lastText)
     {
         return;
     }
-    const now = performance.now();
-    if (now - _lastWriteTime < TELEMETRY_WRITE_INTERVAL_MS)
-    {
-        return;
-    }
-    _lastWriteTime = now;
     _lastText      = text;
     tgtLabel.firstChild.textContent = text;
 }

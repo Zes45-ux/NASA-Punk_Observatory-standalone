@@ -94,6 +94,21 @@
             });
         }
 
+        const colorBatches = [];
+        const batchMap     = new Map();
+        for (let i = 0; i < particles.length; i++)
+        {
+            const particle = particles[i];
+            let batch = batchMap.get(particle.color);
+            if (!batch)
+            {
+                batch = { color: particle.color, list: [] };
+                batchMap.set(particle.color, batch);
+                colorBatches.push(batch);
+            }
+            batch.list.push(particle);
+        }
+
         let viewportWidth  = 260;
         let viewportHeight = 260;
         let pixelRatio     = 1;
@@ -247,26 +262,32 @@
                 drawOrbit(centerX, centerY, mapSize * orbit.radius, orbitIndex, mapSize);
             });
 
-            particles.forEach((particle) =>
+            for (let b = 0; b < colorBatches.length; b++)
             {
-                const orbit = ORBITS[particle.orbitIndex];
-                if (!reducedMotion)
+                const batch = colorBatches[b];
+                context.fillStyle = batch.color;
+                const list = batch.list;
+                for (let i = 0; i < list.length; i++)
                 {
-                    particle.angle += orbit.speed * particle.drift * delta;
+                    const particle = list[i];
+                    const orbit = ORBITS[particle.orbitIndex];
+                    if (!reducedMotion)
+                    {
+                        particle.angle += orbit.speed * particle.drift * delta;
+                    }
+
+                    const radius = mapSize * orbit.radius;
+                    const wobble = reducedMotion ? 0 : Math.sin(elapsed * 0.0007 + particle.phase) * mapSize * 0.002;
+                    const x = centerX + Math.cos(particle.angle) * (radius + wobble);
+                    const y = centerY + Math.sin(particle.angle) * (radius + wobble) * 0.62;
+                    const twinkle = reducedMotion ? 1 : 0.7 + Math.sin(elapsed * 0.002 + particle.phase) * 0.3;
+
+                    context.globalAlpha = particle.opacity * twinkle;
+                    context.beginPath();
+                    context.arc(x, y, Math.max(0.45, particle.size * mapSize * 0.004), 0, Math.PI * 2);
+                    context.fill();
                 }
-
-                const radius = mapSize * orbit.radius;
-                const wobble = reducedMotion ? 0 : Math.sin(elapsed * 0.0007 + particle.phase) * mapSize * 0.002;
-                const x = centerX + Math.cos(particle.angle) * (radius + wobble);
-                const y = centerY + Math.sin(particle.angle) * (radius + wobble) * 0.62;
-                const twinkle = reducedMotion ? 1 : 0.7 + Math.sin(elapsed * 0.002 + particle.phase) * 0.3;
-
-                context.globalAlpha = particle.opacity * twinkle;
-                context.fillStyle = particle.color;
-                context.beginPath();
-                context.arc(x, y, Math.max(0.45, particle.size * mapSize * 0.004), 0, Math.PI * 2);
-                context.fill();
-            });
+            }
 
             ORBITS.forEach((orbit, orbitIndex) =>
             {
@@ -334,15 +355,36 @@
             context.globalCompositeOperation = 'source-over';
         }
 
+        function handleVisibilityChange()
+        {
+            if (!running) return;
+            if (document && document.hidden)
+            {
+                if (frameHandle !== null && cancelFrame)
+                {
+                    cancelFrame(frameHandle);
+                }
+                frameHandle = null;
+                lastTimestamp = null;
+                return;
+            }
+            if (!reducedMotion && frameHandle === null && requestFrame)
+            {
+                lastTimestamp = null;
+                frameHandle = requestFrame(tick);
+            }
+        }
+
         function tick(timestamp)
         {
-            if (!running)
+            if (!running || (document && document.hidden))
             {
+                frameHandle = null;
                 return;
             }
             frameHandle = null;
             draw(timestamp);
-            if (running && !reducedMotion && requestFrame)
+            if (running && !reducedMotion && requestFrame && !(document && document.hidden))
             {
                 frameHandle = requestFrame(tick);
             }
@@ -357,7 +399,11 @@
             resize();
             running = true;
             lastTimestamp = null;
-            if (!reducedMotion && requestFrame)
+            if (document && typeof document.addEventListener === 'function')
+            {
+                document.addEventListener('visibilitychange', handleVisibilityChange);
+            }
+            if (!reducedMotion && requestFrame && !(document && document.hidden))
             {
                 frameHandle = requestFrame(tick);
             }
@@ -376,6 +422,10 @@
             }
             frameHandle = null;
             lastTimestamp = null;
+            if (document && typeof document.removeEventListener === 'function')
+            {
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+            }
         }
 
         function handleMotionChange(event)

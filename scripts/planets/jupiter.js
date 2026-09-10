@@ -157,11 +157,12 @@ function createJupiter()
     // Layer 2: 平流层薄雾
     // ==========================================
     const atmosCount = 25000;
-    const atmosPos   = [];
-    const atmosCol   = [];
+    const atmosPos   = new Float32Array(atmosCount * 3);
+    const atmosCol   = new Float32Array(atmosCount * 3);
 
     const colHaze = new THREE.Color('#ffffff');
     const colGold = new THREE.Color('#ffcc00');
+    const hazeColor = new THREE.Color().copy(colHaze).lerp(colGold, 0.2);
 
     for (let i = 0; i < atmosCount; i++)
     {
@@ -174,14 +175,14 @@ function createJupiter()
         const y = r * Math.sin(phi) * Math.sin(theta);
         const z = r * Math.cos(phi);
 
-        atmosPos.push(x, y, z);
+        const idx = i * 3;
+        atmosPos[idx]     = x;
+        atmosPos[idx + 1] = y;
+        atmosPos[idx + 2] = z;
 
-        let lat = Math.abs(y / r);
-        let c   = new THREE.Color();
-
-        c.copy(colHaze).lerp(colGold, 0.2);
-
-        atmosCol.push(c.r, c.g, c.b);
+        atmosCol[idx]     = hazeColor.r;
+        atmosCol[idx + 1] = hazeColor.g;
+        atmosCol[idx + 2] = hazeColor.b;
     }
 
     const atmosGeo = new THREE.BufferGeometry();
@@ -227,10 +228,11 @@ function createGreatRedSpot()
     const particlesData = [];
     const noiseGen      = new SimplexNoise('grs-vortex-final');
 
-    const colCore  = new THREE.Color('#8a3f2d');
-    const colEye   = new THREE.Color('#c25e40');
-    const colSwirl = new THREE.Color('#e3dccb');
-    const colMerge = new THREE.Color('#8c4e38');
+    const colCore   = new THREE.Color('#8a3f2d');
+    const colEye    = new THREE.Color('#c25e40');
+    const colSwirl  = new THREE.Color('#e3dccb');
+    const colMerge  = new THREE.Color('#8c4e38');
+    const tempColor = new THREE.Color();
 
     // 参数：位于南纬 22 度
     const spotLat    = -22 * (Math.PI / 180);
@@ -268,7 +270,7 @@ function createGreatRedSpot()
         positions.push(pX, pY, pZ);
 
         // 颜色纹理
-        let c      = new THREE.Color();
+        const c    = tempColor;
         let n      = noiseGen.noise3D(pX * 2.0, pY * 2.0, pZ * 2.0);
         let spiral = Math.sin(dist * 10.0 + angle * 2.0 + n * 2.0);
 
@@ -331,8 +333,8 @@ function createFaintRings()
     jupiterSpinGroup.add(ringGroup);
 
     const particleCount = 7000;
-    const positions     = [];
-    const colors        = [];
+    const positions     = new Float32Array(particleCount * 3);
+    const colors        = new Float32Array(particleCount * 3);
 
     const innerR = 14.2;
     const outerR = 16.8;
@@ -340,6 +342,7 @@ function createFaintRings()
     // 基础配色：深岩石灰 ~ 焦炭褐
     const colRockDark  = new THREE.Color('#333333');
     const colRockBrown = new THREE.Color('#4a3c31');
+    const tempColor    = new THREE.Color();
 
     for (let i = 0; i < particleCount; i++)
     {
@@ -353,19 +356,24 @@ function createFaintRings()
         // 极薄的厚度
         const y = (Math.random() - 0.5) * 0.12;
 
-        positions.push(x, y, z);
+        const idx = i * 3;
+        positions[idx]     = x;
+        positions[idx + 1] = y;
+        positions[idx + 2] = z;
 
         // 随机混合颜色
-        let c = new THREE.Color();
+        const c = tempColor;
         c.copy(colRockDark).lerp(colRockBrown, Math.random());
         c.multiplyScalar(0.8 + Math.random() * 0.4);
 
-        colors.push(c.r, c.g, c.b);
+        colors[idx]     = c.r;
+        colors[idx + 1] = c.g;
+        colors[idx + 2] = c.b;
     }
 
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const mat = new THREE.PointsMaterial({
         size           : 0.06,

@@ -160,14 +160,36 @@
             context.globalCompositeOperation = 'source-over';
         }
 
-        function tick(timestamp)
+        function handleVisibilityChange()
         {
-            if (!running)
+            if (!running) return;
+            if (document && document.hidden)
             {
+                if (frameHandle !== null && cancelFrame)
+                {
+                    cancelFrame(frameHandle);
+                }
+                frameHandle = null;
+                lastTimestamp = null;
                 return;
             }
+            if (!reducedMotion && frameHandle === null && requestFrame)
+            {
+                lastTimestamp = null;
+                frameHandle = requestFrame(tick);
+            }
+        }
+
+        function tick(timestamp)
+        {
+            if (!running || (document && document.hidden))
+            {
+                frameHandle = null;
+                return;
+            }
+            frameHandle = null;
             draw(timestamp);
-            if (running && !reducedMotion && requestFrame)
+            if (running && !reducedMotion && requestFrame && !(document && document.hidden))
             {
                 frameHandle = requestFrame(tick);
             }
@@ -182,7 +204,11 @@
             resize();
             running       = true;
             lastTimestamp = null;
-            if (!reducedMotion && requestFrame)
+            if (document && typeof document.addEventListener === 'function')
+            {
+                document.addEventListener('visibilitychange', handleVisibilityChange);
+            }
+            if (!reducedMotion && requestFrame && !(document && document.hidden))
             {
                 frameHandle = requestFrame(tick);
             }
@@ -201,6 +227,10 @@
             }
             frameHandle   = null;
             lastTimestamp = null;
+            if (document && typeof document.removeEventListener === 'function')
+            {
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+            }
         }
 
         return {

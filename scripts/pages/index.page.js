@@ -23,11 +23,19 @@
             .filter((line) => line.length > 0)
             .join('\n');
 
+        function appendCursor()
+        {
+            const cursor = document.createElement('span');
+            cursor.className = 'blink-cursor';
+            cursor.textContent = '_';
+            target.appendChild(cursor);
+        }
+
         target.textContent = '';
         if (reducedMotion)
         {
             target.textContent = cleanText;
-            target.innerHTML += '<span class="blink-cursor">_</span>';
+            appendCursor();
             return;
         }
 
@@ -43,7 +51,7 @@
 
             clearInterval(target._typeTimer);
             target._typeTimer = null;
-            target.innerHTML += '<span class="blink-cursor">_</span>';
+            appendCursor();
         }, 10);
     }
 
@@ -196,5 +204,11 @@
         recalculateLayout();
     }
 
-    requestAnimationFrame(() => ParticleBuilder.markReady({page: 'index'}));
+    requestAnimationFrame(() =>
+    {
+        if (typeof ParticleBuilder !== 'undefined' && typeof ParticleBuilder.markReady === 'function')
+        {
+            ParticleBuilder.markReady({page: 'index'});
+        }
+    });
 })();

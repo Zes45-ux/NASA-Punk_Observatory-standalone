@@ -85,18 +85,18 @@
 
             ctx.globalAlpha = config.gridAlpha * 2.5;
             const crossSize = 3;
+            ctx.beginPath();
             for (let x = 0; x <= canvas.width; x += gridStep)
             {
                 for (let y = 0; y <= canvas.height; y += gridStep)
                 {
-                    ctx.beginPath();
                     ctx.moveTo(x - crossSize, y);
                     ctx.lineTo(x + crossSize, y);
                     ctx.moveTo(x, y - crossSize);
                     ctx.lineTo(x, y + crossSize);
-                    ctx.stroke();
                 }
             }
+            ctx.stroke();
 
             ctx.fillStyle = '#ffffff';
             stars.forEach(function (star)
@@ -113,125 +113,109 @@
             ctx.lineCap     = 'round';
             ctx.lineJoin    = 'round';
 
-            const cols  = Math.ceil(canvas.width / config.gridSize) + 1;
-            const rows  = Math.ceil(canvas.height / config.gridSize) + 1;
-            const field = [];
+            const cols      = Math.ceil(canvas.width / config.gridSize) + 1;
+            const rows      = Math.ceil(canvas.height / config.gridSize) + 1;
+            const rowStride = rows + 1;
+            const field     = new Float32Array((cols + 1) * rowStride);
+
             for (let i = 0; i <= cols; i++)
             {
-                field[i] = [];
+                const xOffset = i * config.gridSize * config.noiseScale + runtimeNoiseOffset;
+                const colBase = i * rowStride;
                 for (let j = 0; j <= rows; j++)
                 {
-                    field[i][j] = (
+                    field[colBase + j] = (
                         simplex.noise2D(
-                            i * config.gridSize * config.noiseScale + runtimeNoiseOffset,
+                            xOffset,
                             j * config.gridSize * config.noiseScale + runtimeNoiseOffset
                         ) + 1
-                    ) / 2;
+                    ) * 0.5;
                 }
             }
 
             const step = 1 / config.levels;
+            const gz   = config.gridSize;
             for (let level = 0.2; level < 0.8; level += step)
             {
                 ctx.beginPath();
                 for (let i = 0; i < cols - 1; i++)
                 {
+                    const colBase     = i * rowStride;
+                    const nextColBase = (i + 1) * rowStride;
+                    const x           = i * gz;
+
                     for (let j = 0; j < rows - 1; j++)
                     {
-                        const x     = i * config.gridSize;
-                        const y     = j * config.gridSize;
-                        const valTL = field[i][j];
-                        const valTR = field[i + 1][j];
-                        const valBR = field[i + 1][j + 1];
-                        const valBL = field[i][j + 1];
-                        let state   = 0;
-                        if (valTL >= level)
-                        {
-                            state |= 8;
-                        }
-                        if (valTR >= level)
-                        {
-                            state |= 4;
-                        }
-                        if (valBR >= level)
-                        {
-                            state |= 2;
-                        }
-                        if (valBL >= level)
-                        {
-                            state |= 1;
-                        }
-                        if (state === 0 || state === 15)
-                        {
-                            continue;
-                        }
+                        const y     = j * gz;
+                        const valTL = field[colBase + j];
+                        const valTR = field[nextColBase + j];
+                        const valBR = field[nextColBase + j + 1];
+                        const valBL = field[colBase + j + 1];
 
-                        const a = {x: x + config.gridSize * getIsoT(valTL, valTR, level), y: y};
-                        const b = {x: x + config.gridSize, y: y + config.gridSize * getIsoT(valTR, valBR, level)};
-                        const c = {x: x + config.gridSize * getIsoT(valBL, valBR, level), y: y + config.gridSize};
-                        const d = {x: x, y: y + config.gridSize * getIsoT(valTL, valBL, level)};
+                        let state = 0;
+                        if (valTL >= level) state |= 8;
+                        if (valTR >= level) state |= 4;
+                        if (valBR >= level) state |= 2;
+                        if (valBL >= level) state |= 1;
+
+                        if (state === 0 || state === 15) continue;
+
                         switch (state)
                         {
                             case 1:
-                                ctx.moveTo(c.x, c.y);
-                                ctx.lineTo(d.x, d.y);
+                            case 14:
+                                ctx.moveTo(x + gz * getIsoT(valBL, valBR, level), y + gz);
+                                ctx.lineTo(x, y + gz * getIsoT(valTL, valBL, level));
                                 break;
                             case 2:
-                                ctx.moveTo(b.x, b.y);
-                                ctx.lineTo(c.x, c.y);
+                            case 13:
+                                ctx.moveTo(x + gz, y + gz * getIsoT(valTR, valBR, level));
+                                ctx.lineTo(x + gz * getIsoT(valBL, valBR, level), y + gz);
                                 break;
                             case 3:
-                                ctx.moveTo(b.x, b.y);
-                                ctx.lineTo(d.x, d.y);
+                            case 12:
+                                ctx.moveTo(x + gz, y + gz * getIsoT(valTR, valBR, level));
+                                ctx.lineTo(x, y + gz * getIsoT(valTL, valBL, level));
                                 break;
                             case 4:
-                                ctx.moveTo(a.x, a.y);
-                                ctx.lineTo(b.x, b.y);
+                            case 11:
+                                ctx.moveTo(x + gz * getIsoT(valTL, valTR, level), y);
+                                ctx.lineTo(x + gz, y + gz * getIsoT(valTR, valBR, level));
                                 break;
                             case 5:
-                                ctx.moveTo(a.x, a.y);
-                                ctx.lineTo(d.x, d.y);
-                                ctx.moveTo(b.x, b.y);
-                                ctx.lineTo(c.x, c.y);
+                            {
+                                const ax = x + gz * getIsoT(valTL, valTR, level);
+                                const by = y + gz * getIsoT(valTR, valBR, level);
+                                const cx = x + gz * getIsoT(valBL, valBR, level);
+                                const dy = y + gz * getIsoT(valTL, valBL, level);
+                                ctx.moveTo(ax, y);
+                                ctx.lineTo(x, dy);
+                                ctx.moveTo(x + gz, by);
+                                ctx.lineTo(cx, y + gz);
                                 break;
+                            }
                             case 6:
-                                ctx.moveTo(a.x, a.y);
-                                ctx.lineTo(c.x, c.y);
+                            case 9:
+                                ctx.moveTo(x + gz * getIsoT(valTL, valTR, level), y);
+                                ctx.lineTo(x + gz * getIsoT(valBL, valBR, level), y + gz);
                                 break;
                             case 7:
-                                ctx.moveTo(a.x, a.y);
-                                ctx.lineTo(d.x, d.y);
-                                break;
                             case 8:
-                                ctx.moveTo(a.x, a.y);
-                                ctx.lineTo(d.x, d.y);
-                                break;
-                            case 9:
-                                ctx.moveTo(a.x, a.y);
-                                ctx.lineTo(c.x, c.y);
+                                ctx.moveTo(x + gz * getIsoT(valTL, valTR, level), y);
+                                ctx.lineTo(x, y + gz * getIsoT(valTL, valBL, level));
                                 break;
                             case 10:
-                                ctx.moveTo(a.x, a.y);
-                                ctx.lineTo(b.x, b.y);
-                                ctx.moveTo(c.x, c.y);
-                                ctx.lineTo(d.x, d.y);
+                            {
+                                const ax = x + gz * getIsoT(valTL, valTR, level);
+                                const by = y + gz * getIsoT(valTR, valBR, level);
+                                const cx = x + gz * getIsoT(valBL, valBR, level);
+                                const dy = y + gz * getIsoT(valTL, valBL, level);
+                                ctx.moveTo(ax, y);
+                                ctx.lineTo(x + gz, by);
+                                ctx.moveTo(cx, y + gz);
+                                ctx.lineTo(x, dy);
                                 break;
-                            case 11:
-                                ctx.moveTo(a.x, a.y);
-                                ctx.lineTo(b.x, b.y);
-                                break;
-                            case 12:
-                                ctx.moveTo(b.x, b.y);
-                                ctx.lineTo(d.x, d.y);
-                                break;
-                            case 13:
-                                ctx.moveTo(b.x, b.y);
-                                ctx.lineTo(c.x, c.y);
-                                break;
-                            case 14:
-                                ctx.moveTo(c.x, c.y);
-                                ctx.lineTo(d.x, d.y);
-                                break;
+                            }
                         }
                     }
                 }

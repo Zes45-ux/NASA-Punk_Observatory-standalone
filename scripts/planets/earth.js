@@ -145,8 +145,9 @@ earthSystemGroup.add(cloudGroup);
 function createClouds()
 {
     const cloudParticles = 20000;
-    const cloudPos       = [];
+    const rawPos         = new Float32Array(cloudParticles * 3);
     const cloudGen       = new SimplexNoise('cloud-layer-v3');
+    let accepted         = 0;
 
     for (let i = 0; i < cloudParticles; i++)
     {
@@ -162,12 +163,17 @@ function createClouds()
 
         if (n > 0.3)
         {
-            cloudPos.push(x, y, z);
+            const idx = accepted * 3;
+            rawPos[idx]     = x;
+            rawPos[idx + 1] = y;
+            rawPos[idx + 2] = z;
+            accepted += 1;
         }
     }
 
+    const cloudPos = new Float32Array(rawPos.buffer, 0, accepted * 3);
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(cloudPos, 3));
+    geo.setAttribute('position', new THREE.BufferAttribute(cloudPos, 3));
     const mat = new THREE.PointsMaterial({
         color: 0xffffff, size: 0.06, transparent: true, opacity: 0.35
     });
@@ -231,13 +237,14 @@ function createMoon()
 
     // 月球点云
     const moonParticles = 1200;
-    const mPos          = [];
-    const mColors       = [];
+    const mPos          = new Float32Array(moonParticles * 3);
+    const mColors       = new Float32Array(moonParticles * 3);
     const moonGen       = new SimplexNoise('luna-v2-refined');
 
     const colMaria    = new THREE.Color('#1f242b');
     const colHigh     = new THREE.Color('#e6e8eb');
     const colRegolith = new THREE.Color('#7a7e85');
+    const tempColor   = new THREE.Color();
 
     for (let i = 0; i < moonParticles; i++)
     {
@@ -247,12 +254,16 @@ function createMoon()
         const x     = r * Math.sin(phi) * Math.cos(theta);
         const y     = r * Math.sin(phi) * Math.sin(theta);
         const z     = r * Math.cos(phi);
-        mPos.push(x, y, z);
+
+        const idx = i * 3;
+        mPos[idx]     = x;
+        mPos[idx + 1] = y;
+        mPos[idx + 2] = z;
 
         let n       = moonGen.noise3D(x * 2.5, y * 2.5, z * 2.5);
         let nDetail = moonGen.noise3D(x * 6.0, y * 6.0, z * 6.0) * 0.3;
         let val     = (n + nDetail + 1) / 2;
-        let c       = new THREE.Color();
+        const c     = tempColor;
         if (val < 0.45)
         {
             c.copy(colMaria).lerp(colRegolith, val / 0.45);
@@ -261,7 +272,9 @@ function createMoon()
         {
             c.copy(colRegolith).lerp(colHigh, (val - 0.45) / 0.55);
         }
-        mColors.push(c.r, c.g, c.b);
+        mColors[idx]     = c.r;
+        mColors[idx + 1] = c.g;
+        mColors[idx + 2] = c.b;
     }
 
     const moonGeo = new THREE.BufferGeometry();

@@ -1,0 +1,12 @@
+{
+  "name": "nasa-punk-observatory",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Interactive NASA-Punk WebGL solar system observatory",
+  "scripts": {
+    "test": "node --test test/*.test.cjs",
+    "check": "find scripts -name \"*.js\" -not -path \"*/vendor/*\" -exec node --check {} +",
+    "check:diff": "git diff --check",
+    "check:all": "npm run check && npm run test && npm run check:diff"
+  }
+}

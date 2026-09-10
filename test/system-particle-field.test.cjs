@@ -22,23 +22,42 @@ function loadSystemParticleField() {
         getContext: () => context,
         style: {}
     };
+    const docListeners = new Map();
+    const cancelled = [];
+    const documentMock = {
+        hidden: false,
+        getElementById: (id) => id === 'system-particle-canvas' ? canvas : null,
+        addEventListener: (type, cb) => {
+            if (!docListeners.has(type)) docListeners.set(type, []);
+            docListeners.get(type).push(cb);
+        },
+        removeEventListener: (type, cb) => {
+            const list = docListeners.get(type);
+            if (list) {
+                const idx = list.indexOf(cb);
+                if (idx !== -1) list.splice(idx, 1);
+            }
+        }
+    };
     const window = {
         innerWidth: 800,
         innerHeight: 600,
         devicePixelRatio: 2,
-        document: {getElementById: (id) => id === 'system-particle-canvas' ? canvas : null},
+        document: documentMock,
         requestAnimationFrame: (callback) => {
             callbacks.push(callback);
             return callbacks.length;
         },
-        cancelAnimationFrame: () => {},
+        cancelAnimationFrame: (id) => {
+            cancelled.push(id);
+        },
         performance: {now: () => 0}
     };
     window.window = window;
 
     const sandbox = {
         window,
-        document: window.document,
+        document: documentMock,
         requestAnimationFrame: window.requestAnimationFrame,
         cancelAnimationFrame: window.cancelAnimationFrame,
         performance: window.performance,
@@ -50,7 +69,19 @@ function loadSystemParticleField() {
         {filename: 'scripts/components/systemParticleField.js'}
     );
 
-    return {api: window.createSystemParticleField, canvas, callbacks, drawCalls};
+    return {
+        api: window.createSystemParticleField,
+        canvas,
+        callbacks,
+        drawCalls,
+        cancelled,
+        document: documentMock,
+        fireVisibility: (hidden) => {
+            documentMock.hidden = hidden;
+            const list = docListeners.get('visibilitychange') || [];
+            list.forEach(cb => cb());
+        }
+    };
 }
 
 test('system particle field renders bounded orbital dust and advances one frame at a time', () => {
@@ -107,4 +138,21 @@ test('system select mounts the orbital field before its page bootstrap', () => {
     assert.ok(canvasIndex >= 0, 'system overview exposes a dedicated particle canvas');
     assert.ok(scriptIndex > canvasIndex, 'particle field script follows its canvas');
     assert.ok(scriptIndex < pageIndex, 'page bootstrap runs after the particle field module');
+});
+
+test('system particle field pauses loop when document is hidden and resumes when visible', () => {
+    const env = loadSystemParticleField();
+    const field = env.api({count: 24});
+    field.start();
+    assert.equal(env.callbacks.length, 1);
+
+    // Document becomes hidden
+    env.fireVisibility(true);
+    assert.ok(env.cancelled.length > 0, 'frame was cancelled when hidden');
+
+    // Becoming visible resumes the loop
+    env.fireVisibility(false);
+    assert.equal(env.callbacks.length, 2, 'rescheduled frame on becoming visible');
+
+    field.stop();
 });

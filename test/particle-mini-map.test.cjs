@@ -32,28 +32,57 @@ function loadParticleMiniMap()
         getBoundingClientRect: () => ({width: 260, height: 260}),
         getContext: () => context
     };
+    const docListeners = new Map();
+    const cancelled = [];
+    const documentMock = {
+        hidden: false,
+        getElementById: (id) => id === 'system-monitor-particle-canvas' ? canvas : null,
+        addEventListener: (type, cb) => {
+            if (!docListeners.has(type)) docListeners.set(type, []);
+            docListeners.get(type).push(cb);
+        },
+        removeEventListener: (type, cb) => {
+            const list = docListeners.get(type);
+            if (list) {
+                const idx = list.indexOf(cb);
+                if (idx !== -1) list.splice(idx, 1);
+            }
+        }
+    };
     const window = {
         devicePixelRatio: 2,
-        document: {
-            getElementById: (id) => id === 'system-monitor-particle-canvas' ? canvas : null
-        },
+        document: documentMock,
         requestAnimationFrame: (callback) => {
             callbacks.push(callback);
             return callbacks.length;
         },
-        cancelAnimationFrame: () => {},
+        cancelAnimationFrame: (id) => {
+            cancelled.push(id);
+        },
         performance: {now: () => 0}
     };
     window.window = window;
 
-    const sandbox = {window, document: window.document, console};
+    const sandbox = {window, document: documentMock, console};
     vm.runInNewContext(
         fs.readFileSync('scripts/components/particleMiniMap.js', 'utf8'),
         sandbox,
         {filename: 'scripts/components/particleMiniMap.js'}
     );
 
-    return {api: window.createParticleMiniMap, canvas, callbacks, drawCalls};
+    return {
+        api: window.createParticleMiniMap,
+        canvas,
+        callbacks,
+        drawCalls,
+        cancelled,
+        document: documentMock,
+        fireVisibility: (hidden) => {
+            documentMock.hidden = hidden;
+            const list = docListeners.get('visibilitychange') || [];
+            list.forEach(cb => cb());
+        }
+    };
 }
 
 test('particle mini map renders a bounded animated system field', () =>
@@ -107,4 +136,22 @@ test('sun runtime contains no asteroid belt layer', () =>
     const source = fs.readFileSync('scripts/planets/sun.js', 'utf8');
     assert.doesNotMatch(source, /asteroid/i);
     assert.doesNotMatch(source, /belt/i);
+});
+
+test('particle mini map pauses loop when document is hidden and resumes when visible', () =>
+{
+    const env = loadParticleMiniMap();
+    const map = env.api({count: 24});
+    map.start();
+    assert.equal(env.callbacks.length, 1);
+
+    // Document becomes hidden
+    env.fireVisibility(true);
+    assert.ok(env.cancelled.length > 0, 'frame was cancelled when hidden');
+
+    // Becoming visible resumes the loop
+    env.fireVisibility(false);
+    assert.equal(env.callbacks.length, 2, 'rescheduled frame on becoming visible');
+
+    map.stop();
 });

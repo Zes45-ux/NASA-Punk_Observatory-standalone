@@ -35,6 +35,72 @@ function isClickGesture(startPosition, endPosition, threshold = 6)
     return dx * dx + dy * dy <= threshold * threshold;
 }
 
+const canvasBoundsCaches = new WeakMap();
+
+function getCanvasBoundsManager(canvas)
+{
+    if (!canvas || typeof canvas.getBoundingClientRect !== 'function')
+    {
+        return {
+            get: () => ({left: 0, top: 0, width: 0, height: 0}),
+            invalidate: () => {}
+        };
+    }
+
+    let manager = canvasBoundsCaches.get(canvas);
+    if (!manager)
+    {
+        let cachedRect = null;
+
+        function invalidate()
+        {
+            cachedRect = null;
+        }
+
+        function get()
+        {
+            if (!cachedRect)
+            {
+                const r = canvas.getBoundingClientRect() || {};
+                cachedRect = {
+                    left: r.left || 0,
+                    top: r.top || 0,
+                    width: r.width || 1,
+                    height: r.height || 1
+                };
+            }
+            return cachedRect;
+        }
+
+        if (typeof canvas.addEventListener === 'function')
+        {
+            canvas.addEventListener('pointerenter', invalidate, {passive: true});
+            canvas.addEventListener('pointerdown', invalidate, {passive: true});
+        }
+
+        if (typeof window !== 'undefined' && typeof window.addEventListener === 'function')
+        {
+            window.addEventListener('resize', invalidate, {passive: true});
+            window.addEventListener('scroll', invalidate, {passive: true});
+            window.addEventListener('orientationchange', invalidate, {passive: true});
+        }
+
+        if (typeof ResizeObserver !== 'undefined')
+        {
+            try
+            {
+                const ro = new ResizeObserver(invalidate);
+                ro.observe(canvas);
+            }
+            catch (_) {}
+        }
+
+        manager = {get, invalidate};
+        canvasBoundsCaches.set(canvas, manager);
+    }
+    return manager;
+}
+
 function initPlanetFocus(targetGroup, camera, focusRadius, options = {})
 {
     if (typeof THREE === 'undefined' || typeof document === 'undefined')
@@ -47,6 +113,8 @@ function initPlanetFocus(targetGroup, camera, focusRadius, options = {})
     {
         return null;
     }
+
+    const boundsManager = getCanvasBoundsManager(canvas);
 
     const detailFactor = options.detailFactor || 0.45;
     // detailFactor 是"聚焦距离 = initialZ 的比例"，需换算为缩放因子（距离的倒数）
@@ -62,7 +130,7 @@ function initPlanetFocus(targetGroup, camera, focusRadius, options = {})
 
     function pickPlanet(clientX, clientY)
     {
-        const rect = canvas.getBoundingClientRect();
+        const rect = boundsManager.get();
         ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
         ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
         raycaster.setFromCamera(ndc, camera);
@@ -149,12 +217,19 @@ function initPlanetFocus(targetGroup, camera, focusRadius, options = {})
         {
             return;
         }
-        canvas.style.cursor = pickPlanet(e.clientX, e.clientY) ? 'pointer' : '';
+        const nextCursor = pickPlanet(e.clientX, e.clientY) ? 'pointer' : '';
+        if (canvas.style.cursor !== nextCursor)
+        {
+            canvas.style.cursor = nextCursor;
+        }
     });
 
     canvas.addEventListener('pointerleave', () =>
     {
-        canvas.style.cursor = '';
+        if (canvas.style.cursor !== '')
+        {
+            canvas.style.cursor = '';
+        }
     });
 
     document.addEventListener('keydown', (e) =>
@@ -176,6 +251,7 @@ function initInteraction(targetGroup, initialZoomZ, sliderId = 'cam-zoom-slider'
     InteractionState.lastZoomText = '';
 
     const canvas = document.querySelector('#canvas-container canvas') || document.querySelector('canvas');
+    const boundsManager = getCanvasBoundsManager(canvas);
     const activePointers = new Map();
     let pinchGesture = null;
     let trackpadGesture = null;
@@ -276,7 +352,7 @@ function initInteraction(targetGroup, initialZoomZ, sliderId = 'cam-zoom-slider'
 
     function canvasPoint(e)
     {
-        const rect = canvas.getBoundingClientRect();
+        const rect = boundsManager.get();
         return {x: e.clientX - rect.left, y: e.clientY - rect.top};
     }
 

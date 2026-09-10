@@ -533,8 +533,8 @@ function createMoon(name, parentGroup, orbitRadius, speed, inclinationDeg, color
     if (isDualColor)
     {
         const iapParticles = 64;
-        const iPos         = [];
-        const iCol         = [];
+        const iPos         = new Float32Array(iapParticles * 3);
+        const iCol         = new Float32Array(iapParticles * 3);
         const cDark        = new THREE.Color('#111111');
         const cLite        = new THREE.Color('#eeeeee');
 
@@ -546,14 +546,19 @@ function createMoon(name, parentGroup, orbitRadius, speed, inclinationDeg, color
             const x     = r * Math.sin(phi) * Math.cos(theta);
             const y     = r * Math.sin(phi) * Math.sin(theta);
             const z     = r * Math.cos(phi);
-            iPos.push(x, y, z);
+            const offset = i * 3;
+            iPos[offset]     = x;
+            iPos[offset + 1] = y;
+            iPos[offset + 2] = z;
 
-            let c = (x > 0) ? cLite : cDark;
-            iCol.push(c.r, c.g, c.b);
+            const c = (x > 0) ? cLite : cDark;
+            iCol[offset]     = c.r;
+            iCol[offset + 1] = c.g;
+            iCol[offset + 2] = c.b;
         }
         const iGeo = new THREE.BufferGeometry();
-        iGeo.setAttribute('position', new THREE.Float32BufferAttribute(iPos, 3));
-        iGeo.setAttribute('color', new THREE.Float32BufferAttribute(iCol, 3));
+        iGeo.setAttribute('position', new THREE.BufferAttribute(iPos, 3));
+        iGeo.setAttribute('color', new THREE.BufferAttribute(iCol, 3));
 
         const satMat = new THREE.PointsMaterial({
             size        : size * 0.8,

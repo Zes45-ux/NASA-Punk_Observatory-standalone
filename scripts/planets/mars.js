@@ -137,8 +137,8 @@ createMarsSurface();
 function createMarsAtmosphere()
 {
     const atmosParticles = 15000;
-    const atmosPos       = [];
-    const atmosColors    = [];
+    const atmosPos       = new Float32Array(atmosParticles * 3);
+    const atmosColors    = new Float32Array(atmosParticles * 3);
 
     const colHaze = new THREE.Color('#ffc840');
     const rBase   = coreRadius + 0.1;
@@ -153,12 +153,15 @@ function createMarsAtmosphere()
         const y = r * Math.sin(phi) * Math.sin(theta);
         const z = r * Math.cos(phi);
 
-        atmosPos.push(x, y, z);
+        const idx = i * 3;
+        atmosPos[idx]     = x;
+        atmosPos[idx + 1] = y;
+        atmosPos[idx + 2] = z;
 
-        let c = colHaze.clone();
-        c.multiplyScalar(0.5 + Math.random() * 0.5);
-
-        atmosColors.push(c.r, c.g, c.b);
+        const factor = 0.5 + Math.random() * 0.5;
+        atmosColors[idx]     = colHaze.r * factor;
+        atmosColors[idx + 1] = colHaze.g * factor;
+        atmosColors[idx + 2] = colHaze.b * factor;
     }
 
     const geo = new THREE.BufferGeometry();
@@ -236,11 +239,12 @@ function createMarsMoons()
 
         // 2. 程序化点云 (主体)
         // 使用 SimplexNoise + 缩放 模拟不规则小行星形态
-        const moonPos  = [];
-        const moonCols = [];
-        const moonGen  = new SimplexNoise('mars-moon-' + config.name);
-        const mColBase = new THREE.Color(config.color);
-        const mColDark = new THREE.Color(config.color).multiplyScalar(0.4);
+        const moonPos   = new Float32Array(config.particleCount * 3);
+        const moonCols  = new Float32Array(config.particleCount * 3);
+        const moonGen   = new SimplexNoise('mars-moon-' + config.name);
+        const mColBase  = new THREE.Color(config.color);
+        const mColDark  = new THREE.Color(config.color).multiplyScalar(0.4);
+        const tempColor = new THREE.Color();
 
         for (let i = 0; i < config.particleCount; i++)
         {
@@ -262,10 +266,13 @@ function createMarsMoons()
             y *= rMod * config.scale.y * config.baseSize;
             z *= rMod * config.scale.z * config.baseSize;
 
-            moonPos.push(x, y, z);
+            const idx = i * 3;
+            moonPos[idx]     = x;
+            moonPos[idx + 1] = y;
+            moonPos[idx + 2] = z;
 
             // 颜色：基于噪波做明暗变化
-            let c = new THREE.Color();
+            const c = tempColor;
             if (n < -0.2)
             {
                 c.copy(mColDark); // 坑底深色
@@ -276,12 +283,14 @@ function createMarsMoons()
             }
             // 随机杂色
             c.multiplyScalar(0.9 + Math.random() * 0.2);
-            moonCols.push(c.r, c.g, c.b);
+            moonCols[idx]     = c.r;
+            moonCols[idx + 1] = c.g;
+            moonCols[idx + 2] = c.b;
         }
 
         const moonPointsGeo = new THREE.BufferGeometry();
-        moonPointsGeo.setAttribute('position', new THREE.Float32BufferAttribute(moonPos, 3));
-        moonPointsGeo.setAttribute('color', new THREE.Float32BufferAttribute(moonCols, 3));
+        moonPointsGeo.setAttribute('position', new THREE.BufferAttribute(moonPos, 3));
+        moonPointsGeo.setAttribute('color', new THREE.BufferAttribute(moonCols, 3));
 
         const moonPointsMat = new THREE.PointsMaterial({
             size           : 0.035, // 点大小适中，类似月球

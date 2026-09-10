@@ -23,6 +23,7 @@
     let bridgeScene = null;
     let bridgeCamera = null;
     let bridgeFrame = null;
+    let bridgeSizeTarget = null;
     let incomingBridgeStarted = false;
     const bridgeMeshes = new Set();
 
@@ -344,10 +345,17 @@
         }
         const width = global.innerWidth || 1;
         const height = global.innerHeight || 1;
-        const size = bridgeRenderer.getSize(new global.THREE.Vector2());
-        if (size.x !== width || size.y !== height)
+        if (!bridgeSizeTarget && global.THREE && typeof global.THREE.Vector2 === 'function')
         {
-            bridgeRenderer.setSize(width, height, false);
+            bridgeSizeTarget = new global.THREE.Vector2();
+        }
+        if (bridgeSizeTarget)
+        {
+            const size = bridgeRenderer.getSize(bridgeSizeTarget);
+            if (size.x !== width || size.y !== height)
+            {
+                bridgeRenderer.setSize(width, height, false);
+            }
         }
 
         const now = Date.now();
@@ -557,6 +565,11 @@
 
     function reveal()
     {
+        if (readyTimer)
+        {
+            clearTimeout(readyTimer);
+            readyTimer = null;
+        }
         if (revealed || navigating) return;
         revealed = true;
         const curtain = ensureCurtain();
@@ -672,8 +685,15 @@
         ensureCurtain().classList.remove('curtain-exit', 'curtain-intro', 'start-covered');
     });
 
-    document.addEventListener('DOMContentLoaded', () =>
+    if (document.readyState === 'loading')
+    {
+        document.addEventListener('DOMContentLoaded', () =>
+        {
+            TransitionManager.init();
+        });
+    }
+    else
     {
         TransitionManager.init();
-    });
+    }
 })(window);

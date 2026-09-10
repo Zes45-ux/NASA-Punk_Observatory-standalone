@@ -169,8 +169,16 @@
         }
     }
 
+    let activePlanetUiCleanup = null;
+
     function renderPlanetUI(planetName)
     {
+        if (activePlanetUiCleanup)
+        {
+            activePlanetUiCleanup();
+            activePlanetUiCleanup = null;
+        }
+
         const cfg  = PLANET_UI_CONFIG[planetName];
         const root = document.getElementById('planet-ui-root');
         if (!cfg || !root)
@@ -188,9 +196,11 @@
         }
 
         monitor.style.cursor = 'pointer';
-        let stripOpen = false;
-        const particleMap = typeof createParticleMiniMap === 'function'
-            ? createParticleMiniMap({
+        const miniMapFactory = typeof global.createParticleMiniMap === 'function'
+            ? global.createParticleMiniMap
+            : (typeof createParticleMiniMap === 'function' ? createParticleMiniMap : null);
+        const particleMap = miniMapFactory
+            ? miniMapFactory({
                 canvasId: 'system-monitor-particle-canvas',
                 active  : planetName,
                 count   : 128,
@@ -198,18 +208,25 @@
             })
             : null;
 
+        let handleResize = null;
+        let handlePageHide = null;
+        let handlePageShow = null;
+
         if (particleMap)
         {
             particleMap.start();
-            window.addEventListener('resize', () => particleMap.resize());
-            window.addEventListener('pagehide', () => particleMap.stop());
-            window.addEventListener('pageshow', (event) =>
+            handleResize = () => particleMap.resize();
+            handlePageHide = () => particleMap.stop();
+            handlePageShow = (event) =>
             {
                 if (event && event.persisted === true)
                 {
                     particleMap.start();
                 }
-            });
+            };
+            global.addEventListener('resize', handleResize);
+            global.addEventListener('pagehide', handlePageHide);
+            global.addEventListener('pageshow', handlePageShow);
         }
 
         const setStripOpen = (next) =>
@@ -274,21 +291,37 @@
             setStripOpen(false);
         });
 
-        document.addEventListener('click', (event) =>
+        const handleDocClick = (event) =>
         {
             if (stripOpen && !strip.contains(event.target))
             {
                 setStripOpen(false);
             }
-        });
+        };
 
-        document.addEventListener('keydown', (event) =>
+        const handleDocKeydown = (event) =>
         {
             if (event.key === 'Escape' && stripOpen)
             {
                 setStripOpen(false);
             }
-        });
+        };
+
+        document.addEventListener('click', handleDocClick);
+        document.addEventListener('keydown', handleDocKeydown);
+
+        activePlanetUiCleanup = () =>
+        {
+            document.removeEventListener('click', handleDocClick);
+            document.removeEventListener('keydown', handleDocKeydown);
+            if (particleMap)
+            {
+                particleMap.stop();
+                if (handleResize) global.removeEventListener('resize', handleResize);
+                if (handlePageHide) global.removeEventListener('pagehide', handlePageHide);
+                if (handlePageShow) global.removeEventListener('pageshow', handlePageShow);
+            }
+        };
 
         // 手动画质档位：渲染时先恢复上次选择（此时尚无 sampler，由
         // ParticleBuilder 记住覆盖值，后续创建的 sampler 会直接锁定）
