@@ -28,19 +28,26 @@ test('shader cache separates patch types, parameters and order while sharing equ
 
 function loadPlanetScene(windowExtras = {}) {
     const windowListeners = new Map();
+    const documentListeners = new Map();
     const events = [];
+    const document = {
+        hidden: false,
+        addEventListener: (type, callback) => documentListeners.set(type, callback)
+    };
     const window = {
         devicePixelRatio: 1,
         addEventListener: (type, callback) => windowListeners.set(type, callback),
         dispatchEvent: (event) => {
             events.push(event);
             windowListeners.get(event.type)?.(event);
-        }
+        },
+        document
     };
     window.window = window;
     Object.assign(window, windowExtras);
     const sandbox = {
         window,
+        document,
         CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail; } },
         performance: {now: () => 0},
         requestAnimationFrame: (callback) => callback(),
@@ -51,16 +58,49 @@ function loadPlanetScene(windowExtras = {}) {
         api: {
             isReducedMotionRequested: window.isReducedMotionRequested,
             createFrameDelta: window.createFrameDelta,
+            createMotionAwareAnimation: window.createMotionAwareAnimation,
             createSurfaceConvergence: window.createSurfaceConvergence,
             createParticleAppearance: window.createParticleAppearance,
             createQualityDrawRange: window.createQualityDrawRange,
             createPointSizeJitter: window.createPointSizeJitter
         },
         events,
+        document,
+        fireVisibility: (hidden) => {
+            document.hidden = hidden;
+            documentListeners.get('visibilitychange')?.({type: 'visibilitychange'});
+        },
         fireReady: () => windowListeners.get('observatory:ready')?.({type: 'observatory:ready'}),
         fire: (event) => window.dispatchEvent(event)
     };
 }
+
+test('motion animation pauses while the document is hidden', () => {
+    const queued = [];
+    const cancelled = [];
+    const {api, fireVisibility} = loadPlanetScene({
+        requestAnimationFrame: (callback) => {
+            queued.push(callback);
+            return queued.length;
+        },
+        cancelAnimationFrame: (id) => cancelled.push(id)
+    });
+    let frames = 0;
+    const animation = api.createMotionAwareAnimation(() => { frames += 1; });
+
+    animation.schedule();
+    assert.equal(queued.length, 1);
+
+    fireVisibility(true);
+    assert.deepEqual(cancelled, [1]);
+    queued[0](100);
+    assert.equal(frames, 0, 'a callback that races with page hiding does not render');
+
+    fireVisibility(false);
+    assert.equal(queued.length, 2, 'becoming visible schedules the next frame');
+    queued[1](200);
+    assert.equal(frames, 1);
+});
 
 test('createFrameDelta scales steps by elapsed time with clamps', () => {
     const {api} = loadPlanetScene();
@@ -109,7 +149,7 @@ test('surface convergence waits for readiness then eases every particle in', () 
     assert.ok(shader.vertexShader.includes('transformed = mix('));
     assert.ok(shader.vertexShader.includes('vConvReveal = convReveal;'), 'vertex exposes the stagger');
     assert.ok(shader.fragmentShader.includes('varying float vConvReveal;'));
-    assert.ok(shader.fragmentShader.includes('diffuseColor.a *= 0.2 + 0.8 * vConvReveal;'), 'particles fade in while converging');
+    assert.ok(shader.fragmentShader.includes('diffuseColor.a *= vConvReveal;'), 'particles fully fade while converging or scattering');
     assert.equal(shader.uniforms.uReveal, convergence.uniforms.uReveal, 'reveal uniform object is shared');
     assert.equal(shader.uniforms.uTime, convergence.uniforms.uTime, 'time uniform object is shared');
 
@@ -128,6 +168,32 @@ test('surface convergence waits for readiness then eases every particle in', () 
 
     convergence.update(1500);
     assert.equal(convergence.uniforms.uReveal.value, 1, 'fully revealed after the duration');
+});
+
+test('surface particles reverse into an eased scatter before planet navigation', () => {
+    const {api, fireReady, fire} = loadPlanetScene();
+    const convergence = api.createSurfaceConvergence({material: {}}, {
+        duration: 1000,
+        exitDuration: 900
+    });
+    fireReady();
+    convergence.update(0);
+    convergence.update(1000);
+    assert.equal(convergence.uniforms.uReveal.value, 1);
+
+    let heldFor = 0;
+    fire({
+        type: 'observatory:navigate-start',
+        detail: {holdFor: (duration) => { heldFor = duration; }}
+    });
+    convergence.update(1100);
+    convergence.update(1550);
+    assert.ok(convergence.uniforms.uReveal.value > 0);
+    assert.ok(convergence.uniforms.uReveal.value < 1);
+    convergence.update(2000);
+
+    assert.equal(heldFor, 900, 'navigation waits for the GPU scatter');
+    assert.equal(convergence.uniforms.uReveal.value, 0, 'all particles reach the scattered state');
 });
 
 test('surface convergence stays vertex-only when the fragment anchor is missing', () => {

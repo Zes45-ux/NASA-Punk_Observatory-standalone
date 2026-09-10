@@ -144,10 +144,10 @@
                     particle.angle += particle.speed * delta;
                 }
 
-                const breathe = Math.sin(elapsed * 0.00035 + particle.phase) * 0.006;
+                const breathe = reducedMotion ? 0 : Math.sin(elapsed * 0.00035 + particle.phase) * 0.006;
                 const x = centerX + Math.cos(particle.angle) * viewportWidth * (particle.radiusX + breathe);
                 const y = centerY + Math.sin(particle.angle) * viewportHeight * particle.radiusY;
-                const twinkle = 0.72 + Math.sin(elapsed * 0.0018 + particle.phase) * 0.28;
+                const twinkle = reducedMotion ? 1 : 0.72 + Math.sin(elapsed * 0.0018 + particle.phase) * 0.28;
 
                 context.globalAlpha = particle.opacity * twinkle;
                 context.fillStyle = particle.band % 3 === 0 ? '#d7ab61' : '#8da9c5';
@@ -160,14 +160,36 @@
             context.globalCompositeOperation = 'source-over';
         }
 
-        function tick(timestamp)
+        function handleVisibilityChange()
         {
-            if (!running)
+            if (!running) return;
+            if (document && document.hidden)
             {
+                if (frameHandle !== null && cancelFrame)
+                {
+                    cancelFrame(frameHandle);
+                }
+                frameHandle = null;
+                lastTimestamp = null;
                 return;
             }
+            if (!reducedMotion && frameHandle === null && requestFrame)
+            {
+                lastTimestamp = null;
+                frameHandle = requestFrame(tick);
+            }
+        }
+
+        function tick(timestamp)
+        {
+            if (!running || (document && document.hidden))
+            {
+                frameHandle = null;
+                return;
+            }
+            frameHandle = null;
             draw(timestamp);
-            if (running && !reducedMotion && requestFrame)
+            if (running && !reducedMotion && requestFrame && !(document && document.hidden))
             {
                 frameHandle = requestFrame(tick);
             }
@@ -182,7 +204,11 @@
             resize();
             running       = true;
             lastTimestamp = null;
-            if (!reducedMotion && requestFrame)
+            if (document && typeof document.addEventListener === 'function')
+            {
+                document.addEventListener('visibilitychange', handleVisibilityChange);
+            }
+            if (!reducedMotion && requestFrame && !(document && document.hidden))
             {
                 frameHandle = requestFrame(tick);
             }
@@ -201,6 +227,10 @@
             }
             frameHandle   = null;
             lastTimestamp = null;
+            if (document && typeof document.removeEventListener === 'function')
+            {
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+            }
         }
 
         return {

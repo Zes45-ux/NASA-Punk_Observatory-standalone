@@ -56,9 +56,10 @@ function createMercury()
         r += nBase * 0.06;
         r -= nCrater * 0.08;
 
-        x = r * Math.sin(phi) * Math.cos(theta);
-        y = r * Math.sin(phi) * Math.sin(theta);
-        z = r * Math.cos(phi);
+        const scale = r / 5.0;
+        x *= scale;
+        y *= scale;
+        z *= scale;
 
         const offset = i * 3;
         positions[offset]     = x;
@@ -279,7 +280,7 @@ function animate(timestamp)
 {
     if (!window.isReducedMotionRequested || !window.isReducedMotionRequested())
     {
-        requestAnimationFrame(animate);
+        animationLoop.schedule();
     }
     const dt = nextDeltaTime(timestamp);
     pendingDynamicDelta += dt;
@@ -304,4 +305,5 @@ function animate(timestamp)
     renderer.render(scene, camera);
 }
 
+const animationLoop = window.createMotionAwareAnimation(animate);
 animate();

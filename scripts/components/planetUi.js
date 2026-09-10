@@ -1,21 +1,9 @@
 (function initPlanetUI(global)
 {
-    const MONITOR_ORDER        = ['neptune', 'uranus', 'saturn', 'jupiter', 'mars', 'earth', 'venus', 'mercury'];
     const PLANET_ZOOM_FOOTER   = '&gt; CAM_ZOOM: <span id="zoom-text-display">100%</span>' +
         '<br>&gt; SURFACE_GEN: <span id="particle-build-progress">0%</span>';
     const MONITOR_LABEL_TOP    = '<div class="monitor-label label-top">SYSTEM OVERVIEW // CLICK MAP TO EXPAND</div>';
     const MONITOR_LABEL_BOTTOM = '<div class="monitor-label label-bottom">TGT: RA 00h 00m | DEC +00° <span style="margin-left:10px; color:var(--const-orange)">EPOCH: J2000.0</span></div>';
-
-    function buildReticle(isLarge)
-    {
-        const sizeClass = isLarge ? ' large' : '';
-        return `<div class="target-reticle${sizeClass}">
-            <div class="reticle-corner rc-tl"></div>
-            <div class="reticle-corner rc-tr"></div>
-            <div class="reticle-corner rc-bl"></div>
-            <div class="reticle-corner rc-br"></div>
-        </div>`;
-    }
 
     function navigateTo(url)
     {
@@ -29,45 +17,11 @@
         }
     }
 
-    function buildSunMarker(config)
-    {
-        if (config.active === 'sun')
-        {
-            return `<div class="sun-marker">${buildReticle(Boolean(config.reticleLarge))}</div>`;
-        }
-
-        return '<div class="sun-marker"></div>';
-    }
-
-    function buildMonitorOrbit(name, config)
-    {
-        const orbitActive = config.active === name ? ' orbit-active' : '';
-        return `<div class="orbit-path o-${name}${orbitActive}"></div>`;
-    }
-
-    function buildMonitorPlanet(name, config)
-    {
-        const markerExtra = config.active === name && config.activeMarkerExtraClass ? ` ${config.activeMarkerExtraClass}` : '';
-        const reticle     = config.active === name ? buildReticle(Boolean(config.reticleLarge)) : '';
-
-        return `<div class="planet-container c-${name}">
-                <div class="planet-marker p-${name}${markerExtra}">${reticle}</div>
-            </div>`;
-    }
-
-    function buildMonitorBody(config)
-    {
-        return MONITOR_ORDER.map((name) => `${buildMonitorOrbit(name, config)}${buildMonitorPlanet(name, config)}`).join('');
-    }
-
     function buildSystemMonitor(config)
     {
         return `<div class="system-monitor-container">
             <div class="system-monitor-body" aria-hidden="true">
-                ${buildSunMarker(config)}
-                ${buildMonitorBody(config)}
-                <div class="scanner-trail"></div>
-                <div class="scanner-line-sys"></div>
+                <canvas id="system-monitor-particle-canvas" class="system-monitor-particle-canvas" aria-hidden="true"></canvas>
             </div>
             <button type="button" class="system-monitor-trigger" aria-expanded="false" aria-controls="system-planet-strip" aria-label="OPEN SYSTEM NAVIGATION"></button>
             <a class="system-monitor-caption" title="GO TO SYSTEM SELECT" href="index.html" aria-label="GO TO SYSTEM SELECT">
@@ -215,8 +169,16 @@
         }
     }
 
+    let activePlanetUiCleanup = null;
+
     function renderPlanetUI(planetName)
     {
+        if (activePlanetUiCleanup)
+        {
+            activePlanetUiCleanup();
+            activePlanetUiCleanup = null;
+        }
+
         const cfg  = PLANET_UI_CONFIG[planetName];
         const root = document.getElementById('planet-ui-root');
         if (!cfg || !root)
@@ -234,7 +196,38 @@
         }
 
         monitor.style.cursor = 'pointer';
-        let stripOpen = false;
+        const miniMapFactory = typeof global.createParticleMiniMap === 'function'
+            ? global.createParticleMiniMap
+            : (typeof createParticleMiniMap === 'function' ? createParticleMiniMap : null);
+        const particleMap = miniMapFactory
+            ? miniMapFactory({
+                canvasId: 'system-monitor-particle-canvas',
+                active  : planetName,
+                count   : 128,
+                seed    : 20260909
+            })
+            : null;
+
+        let handleResize = null;
+        let handlePageHide = null;
+        let handlePageShow = null;
+
+        if (particleMap)
+        {
+            particleMap.start();
+            handleResize = () => particleMap.resize();
+            handlePageHide = () => particleMap.stop();
+            handlePageShow = (event) =>
+            {
+                if (event && event.persisted === true)
+                {
+                    particleMap.start();
+                }
+            };
+            global.addEventListener('resize', handleResize);
+            global.addEventListener('pagehide', handlePageHide);
+            global.addEventListener('pageshow', handlePageShow);
+        }
 
         const setStripOpen = (next) =>
         {
@@ -298,21 +291,37 @@
             setStripOpen(false);
         });
 
-        document.addEventListener('click', (event) =>
+        const handleDocClick = (event) =>
         {
             if (stripOpen && !strip.contains(event.target))
             {
                 setStripOpen(false);
             }
-        });
+        };
 
-        document.addEventListener('keydown', (event) =>
+        const handleDocKeydown = (event) =>
         {
             if (event.key === 'Escape' && stripOpen)
             {
                 setStripOpen(false);
             }
-        });
+        };
+
+        document.addEventListener('click', handleDocClick);
+        document.addEventListener('keydown', handleDocKeydown);
+
+        activePlanetUiCleanup = () =>
+        {
+            document.removeEventListener('click', handleDocClick);
+            document.removeEventListener('keydown', handleDocKeydown);
+            if (particleMap)
+            {
+                particleMap.stop();
+                if (handleResize) global.removeEventListener('resize', handleResize);
+                if (handlePageHide) global.removeEventListener('pagehide', handlePageHide);
+                if (handlePageShow) global.removeEventListener('pageshow', handlePageShow);
+            }
+        };
 
         // 手动画质档位：渲染时先恢复上次选择（此时尚无 sampler，由
         // ParticleBuilder 记住覆盖值，后续创建的 sampler 会直接锁定）

@@ -6,14 +6,116 @@
  *  - createSurfaceConvergence: 表面点云螺旋汇聚入场（着色器内完成）
  *  - createQualityDrawRange  : 静态粒子层按画质档位缩放 drawRange
  *  - createPointSizeJitter   : 静态点云逐粒子尺寸差异（编译期补丁）
+ *  - createMotionAwareAnimation: reduced-motion 感知的共享动画调度器
  *  - PLANET_GLSL.snoise3D: 顶点着色器用的 3D simplex 噪声（Ashima, MIT）
  */
 (function initPlanetSceneKit(global)
 {
+    let reducedMotionMediaQuery;
+    let reducedMotionMediaQueryReady = false;
+
+    function getReducedMotionMediaQuery()
+    {
+        if (!reducedMotionMediaQueryReady)
+        {
+            reducedMotionMediaQuery = typeof global.matchMedia === 'function'
+                ? global.matchMedia('(prefers-reduced-motion: reduce)')
+                : null;
+            reducedMotionMediaQueryReady = true;
+        }
+        return reducedMotionMediaQuery;
+    }
+
     function isReducedMotionRequested()
     {
-        return typeof global.matchMedia === 'function'
-            && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const mediaQuery = getReducedMotionMediaQuery();
+        return Boolean(mediaQuery && mediaQuery.matches);
+    }
+
+    function createMotionAwareAnimation(animate)
+    {
+        const mediaQuery   = getReducedMotionMediaQuery();
+        const document     = global.document;
+        const requestFrame = typeof global.requestAnimationFrame === 'function'
+            ? global.requestAnimationFrame.bind(global)
+            : null;
+        const cancelFrame  = typeof global.cancelAnimationFrame === 'function'
+            ? global.cancelAnimationFrame.bind(global)
+            : null;
+        let frameHandle = null;
+
+        function isPageHidden()
+        {
+            return Boolean(document && document.hidden);
+        }
+
+        function schedule()
+        {
+            if (!requestFrame
+                || frameHandle !== null
+                || (mediaQuery && mediaQuery.matches)
+                || isPageHidden())
+            {
+                return;
+            }
+            frameHandle = requestFrame((timestamp) =>
+            {
+                frameHandle = null;
+                if (isPageHidden())
+                {
+                    return;
+                }
+                animate(timestamp);
+            });
+        }
+
+        function handleVisibilityChange()
+        {
+            if (isPageHidden())
+            {
+                if (frameHandle !== null && cancelFrame)
+                {
+                    cancelFrame(frameHandle);
+                }
+                frameHandle = null;
+                return;
+            }
+            schedule();
+        }
+
+        function handleMotionChange(event)
+        {
+            const matches = event ? event.matches : mediaQuery && mediaQuery.matches;
+            if (matches)
+            {
+                if (frameHandle !== null && cancelFrame)
+                {
+                    cancelFrame(frameHandle);
+                    frameHandle = null;
+                }
+                return;
+            }
+            schedule();
+        }
+
+        if (mediaQuery)
+        {
+            if (typeof mediaQuery.addEventListener === 'function')
+            {
+                mediaQuery.addEventListener('change', handleMotionChange);
+            }
+            else if (typeof mediaQuery.addListener === 'function')
+            {
+                mediaQuery.addListener(handleMotionChange);
+            }
+        }
+
+        if (document && typeof document.addEventListener === 'function')
+        {
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+        }
+
+        return {schedule};
     }
 
     global.isReducedMotionRequested = isReducedMotionRequested;
@@ -34,20 +136,39 @@
         const displaySize     = DisplayArea.getSize(canvasContainer);
         const scene           = new THREE.Scene();
         const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
+        const transitionManager = global.TransitionManager;
+        const isTransitionContinuation = Boolean(transitionManager
+            && typeof transitionManager.isContinuingParticleTransition === 'function'
+            && transitionManager.isContinuingParticleTransition());
+        const fullPixelRatio = Math.min(global.devicePixelRatio || 1, 2);
+        let useTransitionPixelRatio = isTransitionContinuation;
 
         camera.position.z = initialZoom;
 
         const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
-        renderer.setSize(displaySize.width, displaySize.height);
         // 4K/5K 屏按完整 devicePixelRatio 渲染点云代价过高，钳制到 2
-        renderer.setPixelRatio(Math.min(global.devicePixelRatio || 1, 2));
+        // 跨页粒子交接期间先用 1x 建立 framebuffer，避免高 DPR 分配阻塞动画；
+        // 交接完成后再恢复清晰度。
+        renderer.setPixelRatio(useTransitionPixelRatio ? 1 : fullPixelRatio);
+        // 先设置像素比再设置尺寸，避免启动时先分配一份 1x framebuffer，
+        // 随后因 DPR 变化立即重复分配。
+        renderer.setSize(displaySize.width, displaySize.height);
         canvasContainer.appendChild(renderer.domElement);
 
-        function resizeScene()
+        function resizeScene(forceFullQuality)
         {
+            if (forceFullQuality) useTransitionPixelRatio = false;
             const nextDisplaySize = DisplayArea.getSize(canvasContainer);
             camera.aspect         = nextDisplaySize.width / nextDisplaySize.height;
             camera.updateProjectionMatrix();
+            const nextPixelRatio = useTransitionPixelRatio
+                ? 1
+                : Math.min(global.devicePixelRatio || 1, 2);
+            if (typeof renderer.getPixelRatio !== 'function'
+                || renderer.getPixelRatio() !== nextPixelRatio)
+            {
+                renderer.setPixelRatio(nextPixelRatio);
+            }
             renderer.setSize(nextDisplaySize.width, nextDisplaySize.height);
         }
 
@@ -65,10 +186,24 @@
             sharedTopoBackground.resize();
         });
 
+        if (isTransitionContinuation)
+        {
+            global.addEventListener('observatory:transition-complete', () =>
+            {
+                resizeScene(true);
+            }, {once: true});
+        }
+
         const tgtLabel = document.querySelector('.monitor-label.label-bottom');
 
         const group = new THREE.Group();
         scene.add(group);
+
+        if (global.TransitionManager
+            && typeof global.TransitionManager.registerParticleScene === 'function')
+        {
+            global.TransitionManager.registerParticleScene(scene, camera, renderer);
+        }
 
         return {
             scene,
@@ -205,13 +340,17 @@
         material.needsUpdate = true;
     }
 
-    // 表面点云汇聚动画：构建期间粒子以低透明度散布在外围壳层上缓慢漂移，
-    // observatory:ready 后按粒子哈希错峰螺旋汇聚到最终位置，同时淡入到原
-    // 透明度（顶点+片段着色器内完成，CPU 每帧只写两个 uniform）。
+    // 表面点云双向转场：入场时从外围壳层螺旋汇聚，切换星球时沿同一轨迹
+    // 反向逸散。位移、错峰和透明度都在 GPU 中完成，CPU 每帧只写两个
+    // uniform；导航管理器会等待离场阶段结束后再换页。
     // 需要 observatory:ready 事件触发；事件缺失时 6 秒后兜底开始
     function createSurfaceConvergence(points, options = {})
     {
-        const duration     = options.duration || 1400;
+        const continuing = global.TransitionManager
+            && typeof global.TransitionManager.isContinuingParticleTransition === 'function'
+            && global.TransitionManager.isContinuingParticleTransition();
+        const duration     = options.duration || (continuing ? 1000 : 1400);
+        const exitDuration = options.exitDuration || 720;
         const fallbackDelay = Number.isFinite(options.fallbackDelay)
             ? Math.max(0, options.fallbackDelay)
             : 6000;
@@ -222,11 +361,31 @@
         let finished = reducedMotion;
         let readyFired = false;
         let waitingAt = null;
+        let exiting = false;
+        let exitFrom = 1;
+
+        function smootherStep(value)
+        {
+            return value * value * value * (value * (value * 6 - 15) + 10);
+        }
 
         global.addEventListener('observatory:ready', () =>
         {
             readyFired = true;
         }, {once: true});
+
+        global.addEventListener('observatory:navigate-start', (event) =>
+        {
+            if (reducedMotion) return;
+            exiting = true;
+            finished = false;
+            startedAt = null;
+            exitFrom = uniforms.uReveal.value;
+            if (event && event.detail && typeof event.detail.holdFor === 'function')
+            {
+                event.detail.holdFor(exitDuration);
+            }
+        });
 
         registerShaderPatch(points.material, ['convergence-v1', scatter], (shader) =>
         {
@@ -256,6 +415,7 @@
                         'float convSin = sin(convSpin);',
                         'float convCos = cos(convSpin);',
                         'convScattered.xz = mat2(convCos, convSin, -convSin, convCos) * convScattered.xz;',
+                        'convScattered += convJitter * sin(uTime * 0.8 + convHash * 6.2832) * (1.0 - convReveal);',
                         'transformed = mix(convScattered, position, convReveal);'
                     ].concat(fadeSupported ? ['vConvReveal = convReveal;'] : []).join('\n')
                 );
@@ -264,7 +424,7 @@
             {
                 shader.fragmentShader = 'varying float vConvReveal;\n' + shader.fragmentShader.replace(
                     fadeAnchor,
-                    fadeAnchor + '\n\tdiffuseColor.a *= 0.2 + 0.8 * vConvReveal;'
+                    fadeAnchor + '\n\tdiffuseColor.a *= vConvReveal;'
                 );
             }
         });
@@ -277,6 +437,21 @@
             }
             const now = Number.isFinite(timestamp) ? timestamp : performance.now();
             uniforms.uTime.value = now / 1000;
+            if (exiting)
+            {
+                if (startedAt === null)
+                {
+                    startedAt = now;
+                }
+                const progress = Math.min((now - startedAt) / exitDuration, 1);
+                uniforms.uReveal.value = exitFrom * (1 - smootherStep(progress));
+                if (progress >= 1)
+                {
+                    uniforms.uReveal.value = 0;
+                    finished = true;
+                }
+                return;
+            }
             if (waitingAt === null)
             {
                 waitingAt = now;
@@ -290,7 +465,7 @@
                 startedAt = now;
             }
             const progress = Math.min((now - startedAt) / duration, 1);
-            uniforms.uReveal.value = progress;
+            uniforms.uReveal.value = smootherStep(progress);
             if (progress >= 1)
             {
                 finished = true;
@@ -417,6 +592,7 @@
 
     global.createPlanetScene = createPlanetScene;
     global.createFrameDelta  = createFrameDelta;
+    global.createMotionAwareAnimation = createMotionAwareAnimation;
     global.createSurfaceConvergence = createSurfaceConvergence;
     global.createParticleAppearance = createParticleAppearance;
     global.createQualityDrawRange   = createQualityDrawRange;

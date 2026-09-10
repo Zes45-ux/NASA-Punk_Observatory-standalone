@@ -8,6 +8,7 @@ const InteractionState = {
     targetSliderVal      : 50,
     slider               : null,
     textDisplay          : null,
+    lastZoomText         : '',
     focus                : {
         active         : false,
         preFocusSlider : 50,
@@ -34,6 +35,72 @@ function isClickGesture(startPosition, endPosition, threshold = 6)
     return dx * dx + dy * dy <= threshold * threshold;
 }
 
+const canvasBoundsCaches = new WeakMap();
+
+function getCanvasBoundsManager(canvas)
+{
+    if (!canvas || typeof canvas.getBoundingClientRect !== 'function')
+    {
+        return {
+            get: () => ({left: 0, top: 0, width: 0, height: 0}),
+            invalidate: () => {}
+        };
+    }
+
+    let manager = canvasBoundsCaches.get(canvas);
+    if (!manager)
+    {
+        let cachedRect = null;
+
+        function invalidate()
+        {
+            cachedRect = null;
+        }
+
+        function get()
+        {
+            if (!cachedRect)
+            {
+                const r = canvas.getBoundingClientRect() || {};
+                cachedRect = {
+                    left: r.left || 0,
+                    top: r.top || 0,
+                    width: r.width || 1,
+                    height: r.height || 1
+                };
+            }
+            return cachedRect;
+        }
+
+        if (typeof canvas.addEventListener === 'function')
+        {
+            canvas.addEventListener('pointerenter', invalidate, {passive: true});
+            canvas.addEventListener('pointerdown', invalidate, {passive: true});
+        }
+
+        if (typeof window !== 'undefined' && typeof window.addEventListener === 'function')
+        {
+            window.addEventListener('resize', invalidate, {passive: true});
+            window.addEventListener('scroll', invalidate, {passive: true});
+            window.addEventListener('orientationchange', invalidate, {passive: true});
+        }
+
+        if (typeof ResizeObserver !== 'undefined')
+        {
+            try
+            {
+                const ro = new ResizeObserver(invalidate);
+                ro.observe(canvas);
+            }
+            catch (_) {}
+        }
+
+        manager = {get, invalidate};
+        canvasBoundsCaches.set(canvas, manager);
+    }
+    return manager;
+}
+
 function initPlanetFocus(targetGroup, camera, focusRadius, options = {})
 {
     if (typeof THREE === 'undefined' || typeof document === 'undefined')
@@ -46,6 +113,8 @@ function initPlanetFocus(targetGroup, camera, focusRadius, options = {})
     {
         return null;
     }
+
+    const boundsManager = getCanvasBoundsManager(canvas);
 
     const detailFactor = options.detailFactor || 0.45;
     // detailFactor 是"聚焦距离 = initialZ 的比例"，需换算为缩放因子（距离的倒数）
@@ -61,7 +130,7 @@ function initPlanetFocus(targetGroup, camera, focusRadius, options = {})
 
     function pickPlanet(clientX, clientY)
     {
-        const rect = canvas.getBoundingClientRect();
+        const rect = boundsManager.get();
         ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
         ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
         raycaster.setFromCamera(ndc, camera);
@@ -148,12 +217,19 @@ function initPlanetFocus(targetGroup, camera, focusRadius, options = {})
         {
             return;
         }
-        canvas.style.cursor = pickPlanet(e.clientX, e.clientY) ? 'pointer' : '';
+        const nextCursor = pickPlanet(e.clientX, e.clientY) ? 'pointer' : '';
+        if (canvas.style.cursor !== nextCursor)
+        {
+            canvas.style.cursor = nextCursor;
+        }
     });
 
     canvas.addEventListener('pointerleave', () =>
     {
-        canvas.style.cursor = '';
+        if (canvas.style.cursor !== '')
+        {
+            canvas.style.cursor = '';
+        }
     });
 
     document.addEventListener('keydown', (e) =>
@@ -172,14 +248,111 @@ function initInteraction(targetGroup, initialZoomZ, sliderId = 'cam-zoom-slider'
     InteractionState.initialZ    = initialZoomZ;
     InteractionState.slider      = document.getElementById(sliderId);
     InteractionState.textDisplay = document.getElementById(textId);
+    InteractionState.lastZoomText = '';
 
     const canvas = document.querySelector('#canvas-container canvas') || document.querySelector('canvas');
+    const boundsManager = getCanvasBoundsManager(canvas);
     const activePointers = new Map();
     let pinchGesture = null;
+    let trackpadGesture = null;
+
+    function currentZoomFactor()
+    {
+        return 0.5 * Math.pow(4, InteractionState.targetSliderVal / 100);
+    }
+
+    function setTargetZoomFactor(factor)
+    {
+        if (!Number.isFinite(factor) || factor <= 0)
+        {
+            return;
+        }
+        const value = Math.min(100, Math.max(0, computeFocusSliderValue(factor)));
+        InteractionState.targetSliderVal = value;
+        if (InteractionState.slider)
+        {
+            InteractionState.slider.value = value;
+        }
+    }
+
+    function normalizeWheelDelta(e)
+    {
+        const deltaY = Number(e.deltaY);
+        if (!Number.isFinite(deltaY))
+        {
+            return 0;
+        }
+        // Trackpads normally report pixel deltas. Normalize the other modes so
+        // ctrl+wheel remains usable as a fallback for a mouse or test device.
+        if (e.deltaMode === 1)
+        {
+            return deltaY * 16;
+        }
+        if (e.deltaMode === 2)
+        {
+            return deltaY * 800;
+        }
+        return deltaY;
+    }
+
+    function handleTrackpadWheel(e)
+    {
+        // macOS trackpad pinch is exposed as a ctrl+wheel event by Chromium
+        // and Firefox. Intercept it so the browser does not zoom the page.
+        if (!e.ctrlKey)
+        {
+            return;
+        }
+        if (e.preventDefault)
+        {
+            e.preventDefault();
+        }
+        const delta = normalizeWheelDelta(e);
+        if (!delta)
+        {
+            return;
+        }
+        // A negative delta means fingers spreading apart: zoom toward the body.
+        const factor = currentZoomFactor() * Math.exp(-delta * 0.0025);
+        setTargetZoomFactor(factor);
+    }
+
+    function handleGestureStart(e)
+    {
+        if (e.preventDefault)
+        {
+            e.preventDefault();
+        }
+        trackpadGesture = {baseFactor: currentZoomFactor()};
+    }
+
+    function handleGestureChange(e)
+    {
+        if (e.preventDefault)
+        {
+            e.preventDefault();
+        }
+        if (!trackpadGesture || !Number.isFinite(Number(e.scale)) || Number(e.scale) <= 0)
+        {
+            return;
+        }
+        // Safari exposes the pinch as a cumulative gesture scale instead of a
+        // ctrl+wheel stream. Use the same zoom limits and slider synchronization.
+        setTargetZoomFactor(trackpadGesture.baseFactor * Number(e.scale));
+    }
+
+    function handleGestureEnd(e)
+    {
+        if (e.preventDefault)
+        {
+            e.preventDefault();
+        }
+        trackpadGesture = null;
+    }
 
     function canvasPoint(e)
     {
-        const rect = canvas.getBoundingClientRect();
+        const rect = boundsManager.get();
         return {x: e.clientX - rect.left, y: e.clientY - rect.top};
     }
 
@@ -270,6 +443,13 @@ function initInteraction(targetGroup, initialZoomZ, sliderId = 'cam-zoom-slider'
 
         canvas.addEventListener('pointerup', releasePointer);
         canvas.addEventListener('pointercancel', releasePointer);
+
+        // Mac trackpads do not expose a pinch as two Pointer Events. Chromium
+        // and Firefox use ctrl+wheel, while Safari uses gesture* events.
+        canvas.addEventListener('wheel', handleTrackpadWheel, {passive: false});
+        canvas.addEventListener('gesturestart', handleGestureStart, {passive: false});
+        canvas.addEventListener('gesturechange', handleGestureChange, {passive: false});
+        canvas.addEventListener('gestureend', handleGestureEnd, {passive: false});
     }
 
     if (InteractionState.slider)
@@ -298,7 +478,13 @@ function updateInteraction(group, camera)
     }
     if (InteractionState.textDisplay)
     {
-        InteractionState.textDisplay.innerText = Math.round(factor * 100) + '%';
+        const zoomText = Math.round(factor * 100) + '%';
+        if (zoomText !== InteractionState.lastZoomText)
+        {
+            // textContent avoids the synchronous layout work caused by innerText.
+            InteractionState.textDisplay.textContent = zoomText;
+            InteractionState.lastZoomText = zoomText;
+        }
     }
     return newZ;
 }

@@ -123,8 +123,7 @@ function createVenusClouds()
 {
     // [FIX 2] 粒子数量减半
     const cloudParticles = 45000;
-    const cloudPos       = [];
-    const cloudGen       = new SimplexNoise('venus-atmosphere-sulphur');
+    const cloudPos       = new Float32Array(cloudParticles * 3);
 
     for (let i = 0; i < cloudParticles; i++)
     {
@@ -137,11 +136,14 @@ function createVenusClouds()
         const y = r * Math.sin(phi) * Math.sin(theta);
         const z = r * Math.cos(phi);
 
-        cloudPos.push(x, y, z);
+        const idx = i * 3;
+        cloudPos[idx]     = x;
+        cloudPos[idx + 1] = y;
+        cloudPos[idx + 2] = z;
     }
 
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(cloudPos, 3));
+    geo.setAttribute('position', new THREE.BufferAttribute(cloudPos, 3));
 
     // 流动亮度在顶点着色器内计算，CPU 不再逐帧回传 45k 颜色
     venusCloudUniforms = {
@@ -210,7 +212,7 @@ function animate(timestamp)
 {
     if (!window.isReducedMotionRequested || !window.isReducedMotionRequested())
     {
-        requestAnimationFrame(animate);
+        animationLoop.schedule();
     }
     const dt = nextDeltaTime(timestamp);
     frameSampler.sample(timestamp);
@@ -236,4 +238,5 @@ function animate(timestamp)
     renderer.render(scene, camera);
 }
 
+const animationLoop = window.createMotionAwareAnimation(animate);
 animate();

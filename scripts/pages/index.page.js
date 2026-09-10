@@ -23,11 +23,19 @@
             .filter((line) => line.length > 0)
             .join('\n');
 
+        function appendCursor()
+        {
+            const cursor = document.createElement('span');
+            cursor.className = 'blink-cursor';
+            cursor.textContent = '_';
+            target.appendChild(cursor);
+        }
+
         target.textContent = '';
         if (reducedMotion)
         {
             target.textContent = cleanText;
-            target.innerHTML += '<span class="blink-cursor">_</span>';
+            appendCursor();
             return;
         }
 
@@ -43,7 +51,7 @@
 
             clearInterval(target._typeTimer);
             target._typeTimer = null;
-            target.innerHTML += '<span class="blink-cursor">_</span>';
+            appendCursor();
         }, 10);
     }
 
@@ -74,9 +82,9 @@
             const axisWidth      = planetsTotalWidthPx + gapsCount * finalGap;
             const availableWidth = Math.max(1, DisplayArea.getSize(root).width - 16);
             const axisScale       = Math.min(1, availableWidth / Math.max(1, axisWidth));
-            axisGroup.style.gap   = `${finalGap}px`;
+            axisGroup.style.gap = `${finalGap}px`;
             axisGroup.style.setProperty('--axis-scale', axisScale.toFixed(4));
-            scaleVal.innerText    = `${Math.round(factor * 100)}%`;
+            scaleVal.textContent = `${Math.round(factor * 100)}%`;
         }
 
         function calculateBaseGap()
@@ -125,10 +133,6 @@
                     event.preventDefault();
                     TransitionManager.navigate(link);
                 }
-                else
-                {
-                    window.location.href = link;
-                }
             });
         });
 
@@ -171,6 +175,14 @@
     if (systemParticleField)
     {
         systemParticleField.start();
+        window.addEventListener('pagehide', () => systemParticleField.stop());
+        window.addEventListener('pageshow', (event) =>
+        {
+            if (event && event.persisted === true)
+            {
+                systemParticleField.start();
+            }
+        });
     }
 
     const recalculateLayout = initSystemSelectInteractions();
@@ -192,5 +204,11 @@
         recalculateLayout();
     }
 
-    requestAnimationFrame(() => ParticleBuilder.markReady({page: 'index'}));
+    requestAnimationFrame(() =>
+    {
+        if (typeof ParticleBuilder !== 'undefined' && typeof ParticleBuilder.markReady === 'function')
+        {
+            ParticleBuilder.markReady({page: 'index'});
+        }
+    });
 })();

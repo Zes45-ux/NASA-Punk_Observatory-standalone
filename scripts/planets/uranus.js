@@ -99,19 +99,25 @@ function createUranus()
     frameSampler = surface.frameSampler;
     surfaceConvergence = createSurfaceConvergence(surface.points);
 
-    const atmosGeo = new THREE.BufferGeometry();
-    const atmosPos = [];
-    const atmosCol = [];
-    for (let i = 0; i < 8000; i++)
+    const atmosCount = 8000;
+    const atmosPos   = new Float32Array(atmosCount * 3);
+    const atmosCol   = new Float32Array(atmosCount * 3);
+    for (let i = 0; i < atmosCount; i++)
     {
         const r     = 5.2;
         const theta = Math.random() * Math.PI * 2;
         const phi   = Math.acos(2 * Math.random() - 1);
-        atmosPos.push(r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
-        atmosCol.push(0.4, 0.9, 1.0);
+        const idx   = i * 3;
+        atmosPos[idx]     = r * Math.sin(phi) * Math.cos(theta);
+        atmosPos[idx + 1] = r * Math.sin(phi) * Math.sin(theta);
+        atmosPos[idx + 2] = r * Math.cos(phi);
+        atmosCol[idx]     = 0.4;
+        atmosCol[idx + 1] = 0.9;
+        atmosCol[idx + 2] = 1.0;
     }
-    atmosGeo.setAttribute('position', new THREE.Float32BufferAttribute(atmosPos, 3));
-    atmosGeo.setAttribute('color', new THREE.Float32BufferAttribute(atmosCol, 3));
+    const atmosGeo = new THREE.BufferGeometry();
+    atmosGeo.setAttribute('position', new THREE.BufferAttribute(atmosPos, 3));
+    atmosGeo.setAttribute('color', new THREE.BufferAttribute(atmosCol, 3));
     const atmos = new THREE.Points(atmosGeo, new THREE.PointsMaterial({
         size        : 0.08,
         vertexColors: true,
@@ -181,8 +187,10 @@ function createProceduralRings()
         }
     ];
 
-    const positions = [];
-    const colors    = [];
+    const totalParticles = ringDefs.reduce((sum, def) => sum + def.density, 0);
+    const positions      = new Float32Array(totalParticles * 3);
+    const colors         = new Float32Array(totalParticles * 3);
+    let offset           = 0;
 
     ringDefs.forEach(def =>
     {
@@ -197,19 +205,22 @@ function createProceduralRings()
             const x = r * Math.cos(angle);
             const z = r * Math.sin(angle);
 
-            positions.push(x, y, z);
+            const idx = offset * 3;
+            positions[idx]     = x;
+            positions[idx + 1] = y;
+            positions[idx + 2] = z;
 
-            let c = pColor.clone();
-            c.multiplyScalar(0.7 + Math.random() * 0.6);
-            c.multiplyScalar(0.8);
-
-            colors.push(c.r, c.g, c.b);
+            const factor = (0.7 + Math.random() * 0.6) * 0.8;
+            colors[idx]     = pColor.r * factor;
+            colors[idx + 1] = pColor.g * factor;
+            colors[idx + 2] = pColor.b * factor;
+            offset += 1;
         }
     });
 
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const mat = new THREE.PointsMaterial({
         size           : 0.05,
@@ -290,10 +301,11 @@ function createMoon(config)
         moonMeshGroup.add(new THREE.LineSegments(wireGeo, wireMat));
 
         const pCount    = 300;
-        const pPos      = [];
-        const pCol      = [];
+        const pPos      = new Float32Array(pCount * 3);
+        const pCol      = new Float32Array(pCount * 3);
         const mNoise    = new SimplexNoise(name);
         const darkColor = baseColor.clone().multiplyScalar(0.3);
+        const tempColor = new THREE.Color();
 
         for (let i = 0; i < pCount; i++)
         {
@@ -303,33 +315,38 @@ function createMoon(config)
             const x     = r * Math.sin(phi) * Math.cos(theta);
             const y     = r * Math.sin(phi) * Math.sin(theta);
             const z     = r * Math.cos(phi);
-            pPos.push(x, y, z);
+            const i3    = i * 3;
+            pPos[i3]     = x;
+            pPos[i3 + 1] = y;
+            pPos[i3 + 2] = z;
 
             let n = mNoise.noise3D(x * detail, y * detail, z * detail);
-            let c = new THREE.Color().copy(baseColor);
+            tempColor.copy(baseColor);
 
             if (name === "Miranda" && Math.abs(n) > 0.3)
             {
-                c.multiplyScalar(0.4);
+                tempColor.multiplyScalar(0.4);
             }
             else if (name === "Ariel" && n > 0.2)
             {
-                c.addScalar(0.3);
+                tempColor.addScalar(0.3);
             }
             else if (name === "Umbriel")
             {
-                c.multiplyScalar(0.6);
+                tempColor.multiplyScalar(0.6);
             }
             if (n < -0.2)
             {
-                c.lerp(darkColor, 0.5);
+                tempColor.lerp(darkColor, 0.5);
             }
 
-            pCol.push(c.r, c.g, c.b);
+            pCol[i3]     = tempColor.r;
+            pCol[i3 + 1] = tempColor.g;
+            pCol[i3 + 2] = tempColor.b;
         }
         const cloudGeo = new THREE.BufferGeometry();
-        cloudGeo.setAttribute('position', new THREE.Float32BufferAttribute(pPos, 3));
-        cloudGeo.setAttribute('color', new THREE.Float32BufferAttribute(pCol, 3));
+        cloudGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+        cloudGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
         moonMeshGroup.add(new THREE.Points(cloudGeo, new THREE.PointsMaterial({
             size        : size * 0.45,
             vertexColors: true
@@ -537,7 +554,7 @@ function animate(timestamp)
 {
     if (!window.isReducedMotionRequested || !window.isReducedMotionRequested())
     {
-        requestAnimationFrame(animate);
+        animationLoop.schedule();
     }
     const dt = nextDeltaTime(timestamp);
     frameCount++;
@@ -575,4 +592,5 @@ function animate(timestamp)
     renderer.render(scene, camera);
 }
 
+const animationLoop = window.createMotionAwareAnimation(animate);
 animate();

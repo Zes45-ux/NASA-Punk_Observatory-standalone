@@ -6,6 +6,7 @@ const vm = require('node:vm');
 function loadTelemetry({angleStep = 0.31} = {}) {
     // 每次遥测调用旋转一个角度，确保读数持续变化；angleStep 为 0 时读数恒定
     let angle = 0;
+    let matrixCalls = 0;
     const sandbox = {
         THREE: {
             Matrix4: class {
@@ -15,6 +16,7 @@ function loadTelemetry({angleStep = 0.31} = {}) {
             Vector3: class {
                 set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; }
                 applyMatrix4() {
+                    matrixCalls += 1;
                     angle += angleStep;
                     this.x = Math.sin(angle);
                     this.y = 0.2;
@@ -28,7 +30,7 @@ function loadTelemetry({angleStep = 0.31} = {}) {
         document: null
     };
     vm.runInNewContext(fs.readFileSync('scripts/core/telemetry.js', 'utf8'), sandbox);
-    return {update: sandbox.updatePlanetTelemetry};
+    return {update: sandbox.updatePlanetTelemetry, getMatrixCalls: () => matrixCalls};
 }
 
 let clock = 0;
@@ -67,15 +69,22 @@ test('telemetry throttles DOM writes to 10 Hz', () => {
 
 test('telemetry skips DOM writes entirely for identical readings', () => {
     clock = 0;
-    const {update} = loadTelemetry({angleStep: 0});
+    const {update, getMatrixCalls} = loadTelemetry({angleStep: 0});
     const label = {firstChild: {textContent: ''}};
 
     update(spinGroup, label, 1);
     const first = label.firstChild.textContent;
+    assert.equal(getMatrixCalls(), 1);
 
     clock = 5000;
     update(spinGroup, label, 1);
     assert.equal(label.firstChild.textContent, first, 'identical reading never rewrites the DOM node');
+    assert.equal(getMatrixCalls(), 2);
+
+    // Call again 16ms later: matrix math should NOT run again because _lastWriteTime was updated
+    clock = 5016;
+    update(spinGroup, label, 1);
+    assert.equal(getMatrixCalls(), 2, 'matrix calculation is throttled to 10 Hz even when readings do not change');
 });
 
 test('telemetry ignores calls without a label target', () => {

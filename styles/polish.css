@@ -1,0 +1,287 @@
+/* Final visual layer. Loaded last so the original component catalogue can stay
+   backward-compatible while the observatory keeps one authoritative finish. */
+
+body {
+    background:
+        radial-gradient(circle at 48% 48%, rgba(31, 48, 69, 0.18), transparent 42%),
+        radial-gradient(circle at 12% 86%, rgba(224, 98, 54, 0.06), transparent 30%),
+        var(--bg-deep);
+}
+
+#system-select-root,
+#ui-layer {
+    isolation: isolate;
+}
+
+#system-select-root::before,
+#ui-layer::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+        linear-gradient(90deg, rgba(3, 7, 13, 0.34), transparent 18%, transparent 78%, rgba(3, 7, 13, 0.2)),
+        radial-gradient(circle at center, transparent 42%, rgba(2, 5, 10, 0.34) 100%);
+}
+
+#system-select-root::after,
+#ui-layer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 200;
+    pointer-events: none;
+    opacity: 0.16;
+    background: repeating-linear-gradient(to bottom, transparent 0, transparent 3px, rgba(231, 227, 218, 0.025) 4px);
+    mix-blend-mode: screen;
+}
+
+.right-dock {
+    padding: 8px 10px 10px 18px;
+    animation: hud-enter 780ms var(--motion-snap) both;
+}
+
+.right-dock::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 74px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--const-orange));
+    box-shadow: 0 0 12px var(--instrument-glow);
+}
+
+.header-block { position: relative; border-right-color: var(--const-orange); }
+
+.header-block::after {
+    content: '';
+    position: absolute;
+    right: -3px;
+    bottom: -9px;
+    width: 7px;
+    height: 7px;
+    border: 1px solid var(--const-orange);
+    background: var(--bg-navy);
+    transform: rotate(45deg);
+    box-shadow: 0 0 12px var(--instrument-glow);
+}
+
+h1 {
+    color: transparent;
+    background: linear-gradient(180deg, #fffdf5 0%, var(--text-white) 54%, #aaa99f 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.35));
+}
+
+.data-block { position: relative; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.88); }
+
+.data-row::before {
+    content: '';
+    display: inline-block;
+    width: 3px;
+    height: 3px;
+    margin: 0 7px 2px 0;
+    border: 1px solid rgba(91, 120, 156, 0.68);
+    transform: rotate(45deg);
+}
+
+.axis-group { animation: axis-reveal 1050ms var(--motion-snap) 120ms both; }
+
+.axis-line {
+    overflow: visible;
+    background: linear-gradient(90deg, transparent, rgba(91, 120, 156, 0.42) 8%, rgba(215, 171, 97, 0.32) 52%, rgba(91, 120, 156, 0.28) 90%, transparent);
+    box-shadow: 0 0 12px rgba(91, 120, 156, 0.12);
+}
+
+.axis-line::after {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 0;
+    width: 16%;
+    height: 3px;
+    opacity: 0.55;
+    background: linear-gradient(90deg, transparent, var(--const-yellow), transparent);
+    animation: axis-scan 8s ease-in-out infinite;
+}
+
+.planet-node { transition: opacity 220ms ease, filter 320ms ease; }
+.planet-node:hover { opacity: 1; filter: brightness(1.2) saturate(1.12); }
+
+input[type=range]::-webkit-slider-thumb {
+    transform: rotate(45deg);
+    box-shadow: 0 0 0 3px rgba(224, 98, 54, 0.08), 0 0 16px rgba(224, 98, 54, 0.32);
+}
+
+input[type=range]::-webkit-slider-thumb:hover { transform: rotate(45deg) scale(1.16); }
+
+.quality-control {
+    border-color: rgba(91, 120, 156, 0.42);
+    background: linear-gradient(135deg, rgba(16, 24, 33, 0.82), rgba(5, 10, 17, 0.72));
+    box-shadow: inset 0 0 18px rgba(91, 120, 156, 0.05), 0 8px 30px rgba(0, 0, 0, 0.16);
+}
+
+@keyframes hud-enter {
+    from { opacity: 0; transform: translateX(18px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes axis-reveal {
+    from { opacity: 0; clip-path: inset(0 50% 0 50%); }
+    to { opacity: 1; clip-path: inset(-80px -100px -80px -100px); }
+}
+
+@keyframes axis-scan {
+    0%, 12% { transform: translateX(-100%); opacity: 0; }
+    24%, 76% { opacity: 0.6; }
+    88%, 100% { transform: translateX(625%); opacity: 0; }
+}
+
+.planet-body {
+    overflow: hidden;
+    background-color: #09101a;
+    background-image:
+        radial-gradient(circle at 34% 28%, color-mix(in srgb, var(--planet-color) 52%, white), transparent 8%),
+        radial-gradient(circle at 34% 34%, color-mix(in srgb, var(--planet-color) 32%, transparent), transparent 50%),
+        linear-gradient(120deg, color-mix(in srgb, var(--planet-color) 22%, #09101a) 0%, #07101a 52%, #02050a 78%);
+    border-width: 1px;
+    box-shadow:
+        inset 8px 4px 18px rgba(255, 255, 255, 0.04),
+        inset -12px -8px 22px rgba(0, 0, 0, 0.82),
+        0 0 13px color-mix(in srgb, var(--planet-color) 22%, transparent);
+}
+
+.planet-body::before {
+    content: '';
+    position: absolute;
+    inset: 8%;
+    border-radius: 50%;
+    opacity: 0.22;
+    background: repeating-linear-gradient(164deg, transparent 0 5px, color-mix(in srgb, var(--planet-color) 42%, transparent) 6px, transparent 7px 11px);
+    mix-blend-mode: screen;
+}
+
+.node-jupiter .planet-body,
+.node-saturn .planet-body {
+    background-image:
+        radial-gradient(circle at 31% 25%, rgba(255, 244, 217, 0.3), transparent 17%),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.02) 0 6px, color-mix(in srgb, var(--planet-color) 28%, transparent) 7px 10px, transparent 11px 16px),
+        linear-gradient(110deg, color-mix(in srgb, var(--planet-color) 34%, #09101a), #060a10 72%);
+}
+
+.node-earth .planet-body {
+    background-image:
+        radial-gradient(ellipse at 38% 38%, rgba(116, 190, 127, 0.7) 0 8%, transparent 9%),
+        radial-gradient(ellipse at 60% 66%, rgba(89, 151, 104, 0.55) 0 7%, transparent 8%),
+        radial-gradient(circle at 32% 26%, rgba(207, 238, 255, 0.45), transparent 18%),
+        linear-gradient(120deg, #1769a7 0%, #0b3158 50%, #02070f 78%);
+}
+
+.node-mars .planet-body {
+    background-image:
+        radial-gradient(circle at 35% 27%, rgba(255, 205, 157, 0.3), transparent 16%),
+        radial-gradient(circle at 62% 58%, rgba(82, 24, 17, 0.65) 0 8%, transparent 9%),
+        linear-gradient(125deg, #8f321f, #32110d 60%, #080506 82%);
+}
+
+.node-sun .planet-body {
+    background-image: radial-gradient(circle at 42% 38%, #fff9cf 0%, #efc66b 28%, #a9461f 64%, #1b0905 100%);
+    box-shadow: inset -18px -12px 35px rgba(94, 18, 5, 0.55), 0 0 24px rgba(215, 171, 97, 0.42), 0 0 70px rgba(224, 98, 54, 0.15);
+}
+
+.planet-node:hover .planet-body,
+.planet-node:focus-visible .planet-body {
+    background-color: var(--planet-color);
+    border-color: #fff8e6;
+    box-shadow:
+        inset 5px 3px 16px rgba(255, 255, 255, 0.12),
+        inset -12px -8px 24px rgba(0, 0, 0, 0.55),
+        0 0 14px color-mix(in srgb, var(--planet-color) 72%, transparent),
+        0 0 40px color-mix(in srgb, var(--planet-color) 24%, transparent);
+}
+
+#system-select-root .node-label {
+    top: auto;
+    bottom: -32px;
+    left: 50%;
+    opacity: 0.64;
+    transform: translate(-50%, 4px);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: color-mix(in srgb, var(--planet-color) 76%, var(--text-white));
+}
+
+#system-select-root .planet-node:hover .node-label,
+#system-select-root .planet-node:focus-visible .node-label {
+    opacity: 1;
+    color: var(--text-white);
+    transform: translate(-50%, 0);
+}
+
+.planet-node:focus-visible {
+    outline: 0 !important;
+}
+
+.system-strip {
+    bottom: 44px;
+    width: calc(100vw - 176px);
+    max-width: 1080px;
+    padding: 16px 24px 10px;
+    border-top: 1px solid rgba(215, 171, 97, 0.2);
+    border-bottom: 1px solid rgba(91, 120, 156, 0.22);
+    background:
+        linear-gradient(90deg, transparent, rgba(4, 9, 16, 0.88) 9%, rgba(4, 9, 16, 0.92) 50%, rgba(4, 9, 16, 0.88) 91%, transparent),
+        repeating-linear-gradient(90deg, transparent 0 59px, rgba(91, 120, 156, 0.045) 60px);
+    box-shadow: 0 -24px 60px rgba(0, 0, 0, 0.18), 0 24px 60px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(12px) saturate(0.76);
+}
+
+.system-strip::before,
+.system-strip::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    width: 38px;
+    height: 5px;
+    border-top: 1px solid var(--const-orange);
+}
+
+.system-strip::before { left: 9%; border-left: 1px solid var(--const-orange); }
+.system-strip::after { right: 9%; border-right: 1px solid var(--const-orange); }
+
+.system-strip .strip-axis-group {
+    height: 210px;
+    gap: 16px;
+    margin-inline: auto;
+}
+
+.system-strip .planet-system {
+    scale: 0.68;
+}
+
+.system-strip .node-label {
+    top: -20px;
+    font-size: 9px;
+    letter-spacing: 1.4px;
+}
+
+.system-strip .strip-hints {
+    color: rgba(109, 125, 140, 0.9);
+    padding-inline: 12px;
+}
+
+#ui-layer:has(.system-strip.open) .vertical-controls,
+#ui-layer:has(.system-strip.open) .quality-control {
+    opacity: 0.18;
+    filter: blur(1px);
+    pointer-events: none;
+    transition: opacity 220ms ease, filter 220ms ease;
+}
+
+#ui-layer:has(.system-strip.open) .right-dock {
+    opacity: 0.54;
+    transition: opacity 260ms ease;
+}

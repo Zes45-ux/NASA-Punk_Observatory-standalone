@@ -152,10 +152,10 @@ function createNeptuneRings()
 
     ringsConfig.forEach(config =>
     {
-        const pos = [];
-        const col = [];
+        const pos = new Float32Array(config.particles * 3);
+        const col = new Float32Array(config.particles * 3);
         const ringColor = new THREE.Color(config.color);
-        const c = new THREE.Color();
+        let count = 0;
 
         for (let i = 0; i < config.particles; i++)
         {
@@ -181,16 +181,22 @@ function createNeptuneRings()
 
             const x = r * Math.cos(theta);
             const z = r * Math.sin(theta);
+            const idx = count * 3;
 
-            pos.push(x, 0, z);
+            pos[idx]     = x;
+            pos[idx + 1] = 0;
+            pos[idx + 2] = z;
 
-            c.copy(ringColor).multiplyScalar(0.7 + Math.random() * 0.5);
-            col.push(c.r, c.g, c.b);
+            const scalar = 0.7 + Math.random() * 0.5;
+            col[idx]     = ringColor.r * scalar;
+            col[idx + 1] = ringColor.g * scalar;
+            col[idx + 2] = ringColor.b * scalar;
+            count++;
         }
 
         const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-        geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+        geo.setAttribute('position', new THREE.BufferAttribute(pos.subarray(0, count * 3), 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(col.subarray(0, count * 3), 3));
 
         const mat = new THREE.PointsMaterial({
             size           : 0.055,
@@ -252,12 +258,13 @@ function createTriton()
     tOrbitGroup.add(tBody);
 
     const tParticles = 800;
-    const tPos       = [];
-    const tCol       = [];
+    const tPos       = new Float32Array(tParticles * 3);
+    const tCol       = new Float32Array(tParticles * 3);
     // 使用代表冰和氮冰的颜色
     const colTriton  = new THREE.Color('#d0e0ff');
     // 使用代表喷流和黑暗条纹的颜色
     const colDark    = new THREE.Color('#90a0bb');
+    const tempColor  = new THREE.Color();
 
     for (let i = 0; i < tParticles; i++)
     {
@@ -269,9 +276,12 @@ function createTriton()
         let y = r * Math.sin(phi) * Math.sin(theta);
         let z = r * Math.cos(phi);
 
-        tPos.push(x, y, z);
+        const idx = i * 3;
+        tPos[idx]     = x;
+        tPos[idx + 1] = y;
+        tPos[idx + 2] = z;
 
-        let c = colTriton.clone();
+        const c = tempColor.copy(colTriton);
 
         // [MODIFIED] 使用 Simplex Noise 创建表面细节
         // 缩放系数 6.0 用于创建哈密瓜皮状的中等大小地貌
@@ -292,12 +302,14 @@ function createTriton()
             c.lerp(colDark, 0.4);
         }
 
-        tCol.push(c.r, c.g, c.b);
+        tCol[idx]     = c.r;
+        tCol[idx + 1] = c.g;
+        tCol[idx + 2] = c.b;
     }
 
     const tGeo = new THREE.BufferGeometry();
-    tGeo.setAttribute('position', new THREE.Float32BufferAttribute(tPos, 3));
-    tGeo.setAttribute('color', new THREE.Float32BufferAttribute(tCol, 3));
+    tGeo.setAttribute('position', new THREE.BufferAttribute(tPos, 3));
+    tGeo.setAttribute('color', new THREE.BufferAttribute(tCol, 3));
 
     const tMat = new THREE.PointsMaterial({
         size        : 0.045,
@@ -393,7 +405,7 @@ function animate(timestamp)
 {
     if (!window.isReducedMotionRequested || !window.isReducedMotionRequested())
     {
-        requestAnimationFrame(animate);
+        animationLoop.schedule();
     }
     const dt = nextDeltaTime(timestamp);
     frameCount++;
@@ -434,4 +446,5 @@ function animate(timestamp)
     renderer.render(scene, camera);
 }
 
+const animationLoop = window.createMotionAwareAnimation(animate);
 animate();

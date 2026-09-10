@@ -125,7 +125,7 @@ let sunPhotosphereUniforms;
 function createDynamicSun()
 {
     const particleCount = 30000;
-    const positions     = [];
+    const positions     = new Float32Array(particleCount * 3);
 
     for (let i = 0; i < particleCount; i++)
     {
@@ -136,11 +136,14 @@ function createDynamicSun()
         const y     = r * Math.sin(phi) * Math.sin(theta);
         const z     = r * Math.cos(phi);
 
-        positions.push(x, y, z);
+        const idx = i * 3;
+        positions[idx]     = x;
+        positions[idx + 1] = y;
+        positions[idx + 2] = z;
     }
 
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
     // 光球脉动（噪声亮度 + 半径脉冲 + 临边昏暗）全部在顶点着色器内完成，
     // CPU 每帧只更新 uTime/uScale，不再回传 30k×2 属性
@@ -212,8 +215,8 @@ let coreParticles;
 function createSunCore()
 {
     const particleCount = 5000;
-    const positions     = [];
-    const colors        = [];
+    const positions     = new Float32Array(particleCount * 3);
+    const colors        = new Float32Array(particleCount * 3);
 
     const colorCoreHot   = colCore;
     const colorCoreInner = colSurface;
@@ -228,18 +231,23 @@ function createSunCore()
         const y     = r * Math.sin(phi) * Math.sin(theta);
         const z     = r * Math.cos(phi);
 
-        positions.push(x, y, z);
+        const idx = i * 3;
+        positions[idx]     = x;
+        positions[idx + 1] = y;
+        positions[idx + 2] = z;
 
         const c           = coreColor;
         const normalizedR = (r - 4.0) / 1.5;
         c.copy(colorCoreHot).lerp(colorCoreInner, normalizedR);
 
-        colors.push(c.r, c.g, c.b);
+        colors[idx]     = c.r;
+        colors[idx + 1] = c.g;
+        colors[idx + 2] = c.b;
     }
 
     const coreGeo = new THREE.BufferGeometry();
-    coreGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    coreGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    coreGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    coreGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const coreMat = new THREE.PointsMaterial({
         size        : 0.12,
@@ -319,12 +327,12 @@ let coronaUniforms;
 function createCoronaSystem()
 {
     const coronaParticles = 6000;
-    const positions       = [];
-    const colors          = [];
-    const sizes           = [];
-    const directions      = [];
-    const speeds          = [];
-    const phases          = [];
+    const positions       = new Float32Array(coronaParticles * 3);
+    const colors          = new Float32Array(coronaParticles * 3);
+    const directions      = new Float32Array(coronaParticles * 3);
+    const sizes           = new Float32Array(coronaParticles);
+    const speeds          = new Float32Array(coronaParticles);
+    const phases          = new Float32Array(coronaParticles);
 
     const colInner = new THREE.Color('#ffcc66');
     const colOuter = new THREE.Color('#cc4400');
@@ -342,28 +350,35 @@ function createCoronaSystem()
         const y = r * Math.sin(phi) * Math.sin(theta);
         const z = r * Math.cos(phi);
 
-        positions.push(x, y, z);
+        const idx3 = i * 3;
+        positions[idx3]     = x;
+        positions[idx3 + 1] = y;
+        positions[idx3 + 2] = z;
 
         const normalizedDist = (r - 6.1) / 3.0;
         coronaColor.copy(colInner).lerp(colOuter, normalizedDist);
         coronaColor.multiplyScalar(0.8 + Math.random() * 0.4);
-        colors.push(coronaColor.r, coronaColor.g, coronaColor.b);
+        colors[idx3]     = coronaColor.r;
+        colors[idx3 + 1] = coronaColor.g;
+        colors[idx3 + 2] = coronaColor.b;
 
-        sizes.push(0.18 * (1.0 - normalizedDist * 0.5));
+        sizes[i] = 0.18 * (1.0 - normalizedDist * 0.5);
 
         const len = Math.sqrt(x * x + y * y + z * z);
-        directions.push(x / len, y / len, z / len);
-        speeds.push(0.003 + Math.random() * 0.007);
-        phases.push(Math.random() * 3.0);
+        directions[idx3]     = x / len;
+        directions[idx3 + 1] = y / len;
+        directions[idx3 + 2] = z / len;
+        speeds[i] = 0.003 + Math.random() * 0.007;
+        phases[i] = Math.random() * 3.0;
     }
 
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('aColor', new THREE.Float32BufferAttribute(colors, 3));
-    geo.setAttribute('aDirection', new THREE.Float32BufferAttribute(directions, 3));
-    geo.setAttribute('aSpeed', new THREE.Float32BufferAttribute(speeds, 1));
-    geo.setAttribute('aPhase', new THREE.Float32BufferAttribute(phases, 1));
-    geo.setAttribute('aSize', new THREE.Float32BufferAttribute(sizes, 1));
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute('aDirection', new THREE.BufferAttribute(directions, 3));
+    geo.setAttribute('aSpeed', new THREE.BufferAttribute(speeds, 1));
+    geo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+    geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
 
     // 日冕粒子沿径向循环外溢（模运算代替 CPU 逐帧积分），径向抖动在着色器内计算；
     // uTime 用帧计数值驱动，速度保持与旧逐帧积分一致的量纲
@@ -448,61 +463,6 @@ function createSunGrid()
 }
 
 const sunGrids = createSunGrid();
-
-
-// --- D-2. 小行星带 (Asteroid Belt, 2.2-3.3 AU 示意比例) ---
-// 火星与木星轨道之间的主带：3 万粒子一次性生成、位置完全静态，
-// 仅整组做极慢公转（animate 内单次 O(1) 更新）
-const asteroidBeltGroup = new THREE.Group();
-sunTiltGroup.add(asteroidBeltGroup);
-
-function createAsteroidBelt()
-{
-    const beltParticles = 30000;
-    const positions     = [];
-    const colors        = [];
-    const beltColor     = new THREE.Color();
-    const colRock       = new THREE.Color('#6b5d4f');
-    const colIce        = new THREE.Color('#a89a86');
-
-    for (let i = 0; i < beltParticles; i++)
-    {
-        // 内密外疏 + 轻微密度起伏，带内厚度向边缘收敛
-        const r     = 11.5 + Math.pow(Math.random(), 0.8) * 4.0;
-        const theta = Math.random() * Math.PI * 2;
-        const falloff = 1.0 - (r - 11.5) / 4.0 * 0.6;
-        const y     = (Math.random() - 0.5) * 0.8 * falloff;
-
-        positions.push(r * Math.cos(theta), y, r * Math.sin(theta));
-
-        beltColor.copy(colRock).lerp(colIce, Math.random() * 0.6);
-        const shade = 0.45 + Math.random() * 0.55;
-        colors.push(beltColor.r * shade, beltColor.g * shade, beltColor.b * shade);
-    }
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-    const mat = new THREE.PointsMaterial({
-        size           : 0.07,
-        vertexColors   : true,
-        transparent    : true,
-        opacity        : 0.45,
-        sizeAttenuation: true,
-        depthWrite     : false
-    });
-
-    const beltPoints = new THREE.Points(geo, mat);
-    asteroidBeltGroup.add(beltPoints);
-    return beltPoints;
-}
-
-const asteroidBelt = createAsteroidBelt();
-// 带内颗粒尺寸打散（消除均一点径的塑料感）+ 按画质档位缩放可见数量
-// （balanced 2.25 万 / low 1.5 万 / recovery 7.5 千），均为一次性配置
-createPointSizeJitter(asteroidBelt, {min: 0.5, max: 1.6});
-createQualityDrawRange(asteroidBelt);
 
 
 // --- E. 日面喷发 (Solar Eruptions) ---
@@ -602,7 +562,7 @@ function animate(timestamp)
 {
     if (!window.isReducedMotionRequested || !window.isReducedMotionRequested())
     {
-        requestAnimationFrame(animate);
+        animationLoop.schedule();
     }
     const dt = nextDeltaTime(timestamp);
     pendingDynamicDelta += dt;
@@ -615,9 +575,6 @@ function animate(timestamp)
     // 自转周期 ~25.4 天（赤道）。真实速率下几乎不可见，
     // 演示节奏压缩至 ~4 分钟/圈，慢于地球、快于水星（保持真实次序）
     sunGroup.rotation.y += 0.00045 * dt;
-
-    // 小行星带整体极慢公转（单次 O(1) 更新，粒子位置保持静态）
-    asteroidBeltGroup.rotation.y += 0.0002 * dt;
 
     if (coreParticles)
     {
@@ -723,4 +680,5 @@ function animate(timestamp)
     renderer.render(scene, camera);
 }
 
+const animationLoop = window.createMotionAwareAnimation(animate);
 animate();
