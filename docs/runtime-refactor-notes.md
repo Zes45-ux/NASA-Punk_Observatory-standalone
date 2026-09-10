@@ -252,7 +252,8 @@ manual profile locks the adaptive profile ladder (dynamic-stride automation
 keeps running) until switched back to auto; samplers created after the
 override inherit it. Interaction runs on Pointer Events: a single pointer
 drags rotation, a two-pointer pinch zooms, click-to-focus ignores multi-touch
-gestures, and the canvas opts out of browser touch gestures via
+gestures, and Mac trackpad pinch gestures use ctrl+wheel (or Safari's
+`gesture*` events). The canvas opts out of browser touch gestures via
 `touch-action: none`.
 
 Surface builds open with a convergence reveal: while the progressive build

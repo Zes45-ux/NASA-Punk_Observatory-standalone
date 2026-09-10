@@ -67,10 +67,15 @@ test('zoom readout avoids repeated layout-forcing DOM writes', () => {
 });
 
 function loadInteraction(extra = {}) {
+    const canvasListeners = new Map();
     const fakeCanvas = {
         style               : {},
         getBoundingClientRect: () => ({left: 0, top: 0, width: 100, height: 100}),
-        addEventListener    : () => {},
+        addEventListener    : (type, listener, options) => {
+            const listeners = canvasListeners.get(type) || [];
+            listeners.push({listener, options});
+            canvasListeners.set(type, listeners);
+        },
         setPointerCapture   : () => {}
     };
     const documentStub = {
@@ -99,8 +104,61 @@ function loadInteraction(extra = {}) {
     const source = fs.readFileSync('scripts/core/interaction.js', 'utf8') +
         '\n;globalThis.__interaction = {InteractionState, initInteraction, updateInteraction, initPlanetFocus, computeFocusSliderValue, isClickGesture};';
     vm.runInNewContext(source, sandbox);
-    return {api: sandbox.__interaction, fakeCanvas, setHitResult: (value) => { hitResult = value; }};
+    return {
+        api: sandbox.__interaction,
+        fakeCanvas,
+        canvasListeners,
+        emitCanvasEvent(type, event) {
+            for (const entry of canvasListeners.get(type) || [])
+            {
+                entry.listener(event);
+            }
+        },
+        setHitResult: (value) => { hitResult = value; }
+    };
 }
+
+test('Mac trackpad pinch zooms through ctrl+wheel without zooming the page', () => {
+    const env = loadInteraction();
+    env.api.initInteraction(null, 25);
+
+    let prevented = false;
+    env.emitCanvasEvent('wheel', {
+        ctrlKey: true,
+        deltaY: -20,
+        deltaMode: 0,
+        preventDefault() { prevented = true; }
+    });
+
+    assert.equal(prevented, true);
+    assert.ok(env.api.InteractionState.targetSliderVal > 50, 'spreading fingers zooms in');
+    const zoomedValue = env.api.InteractionState.targetSliderVal;
+
+    prevented = false;
+    env.emitCanvasEvent('wheel', {
+        ctrlKey: false,
+        deltaY: -100,
+        deltaMode: 0,
+        preventDefault() { prevented = true; }
+    });
+
+    assert.equal(prevented, false, 'ordinary wheel scrolling remains untouched');
+    assert.equal(env.api.InteractionState.targetSliderVal, zoomedValue);
+    assert.equal(env.canvasListeners.get('wheel')[0].options.passive, false);
+});
+
+test('Safari gesture events use the same zoom state and limits', () => {
+    const env = loadInteraction();
+    env.api.initInteraction(null, 25);
+
+    env.emitCanvasEvent('gesturestart', {preventDefault() {}});
+    env.emitCanvasEvent('gesturechange', {scale: 1.5, preventDefault() {}});
+    assert.ok(env.api.InteractionState.targetSliderVal > 50, 'gesture spread zooms in');
+
+    env.emitCanvasEvent('gesturechange', {scale: 0.001, preventDefault() {}});
+    assert.equal(env.api.InteractionState.targetSliderVal, 0, 'gesture zoom is clamped to the slider minimum');
+    env.emitCanvasEvent('gestureend', {preventDefault() {}});
+});
 
 test('computeFocusSliderValue inverts the zoom factor curve', () => {
     const {api} = loadInteraction();

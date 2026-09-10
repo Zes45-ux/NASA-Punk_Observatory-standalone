@@ -178,6 +178,101 @@ function initInteraction(targetGroup, initialZoomZ, sliderId = 'cam-zoom-slider'
     const canvas = document.querySelector('#canvas-container canvas') || document.querySelector('canvas');
     const activePointers = new Map();
     let pinchGesture = null;
+    let trackpadGesture = null;
+
+    function currentZoomFactor()
+    {
+        return 0.5 * Math.pow(4, InteractionState.targetSliderVal / 100);
+    }
+
+    function setTargetZoomFactor(factor)
+    {
+        if (!Number.isFinite(factor) || factor <= 0)
+        {
+            return;
+        }
+        const value = Math.min(100, Math.max(0, computeFocusSliderValue(factor)));
+        InteractionState.targetSliderVal = value;
+        if (InteractionState.slider)
+        {
+            InteractionState.slider.value = value;
+        }
+    }
+
+    function normalizeWheelDelta(e)
+    {
+        const deltaY = Number(e.deltaY);
+        if (!Number.isFinite(deltaY))
+        {
+            return 0;
+        }
+        // Trackpads normally report pixel deltas. Normalize the other modes so
+        // ctrl+wheel remains usable as a fallback for a mouse or test device.
+        if (e.deltaMode === 1)
+        {
+            return deltaY * 16;
+        }
+        if (e.deltaMode === 2)
+        {
+            return deltaY * 800;
+        }
+        return deltaY;
+    }
+
+    function handleTrackpadWheel(e)
+    {
+        // macOS trackpad pinch is exposed as a ctrl+wheel event by Chromium
+        // and Firefox. Intercept it so the browser does not zoom the page.
+        if (!e.ctrlKey)
+        {
+            return;
+        }
+        if (e.preventDefault)
+        {
+            e.preventDefault();
+        }
+        const delta = normalizeWheelDelta(e);
+        if (!delta)
+        {
+            return;
+        }
+        // A negative delta means fingers spreading apart: zoom toward the body.
+        const factor = currentZoomFactor() * Math.exp(-delta * 0.0025);
+        setTargetZoomFactor(factor);
+    }
+
+    function handleGestureStart(e)
+    {
+        if (e.preventDefault)
+        {
+            e.preventDefault();
+        }
+        trackpadGesture = {baseFactor: currentZoomFactor()};
+    }
+
+    function handleGestureChange(e)
+    {
+        if (e.preventDefault)
+        {
+            e.preventDefault();
+        }
+        if (!trackpadGesture || !Number.isFinite(Number(e.scale)) || Number(e.scale) <= 0)
+        {
+            return;
+        }
+        // Safari exposes the pinch as a cumulative gesture scale instead of a
+        // ctrl+wheel stream. Use the same zoom limits and slider synchronization.
+        setTargetZoomFactor(trackpadGesture.baseFactor * Number(e.scale));
+    }
+
+    function handleGestureEnd(e)
+    {
+        if (e.preventDefault)
+        {
+            e.preventDefault();
+        }
+        trackpadGesture = null;
+    }
 
     function canvasPoint(e)
     {
@@ -272,6 +367,13 @@ function initInteraction(targetGroup, initialZoomZ, sliderId = 'cam-zoom-slider'
 
         canvas.addEventListener('pointerup', releasePointer);
         canvas.addEventListener('pointercancel', releasePointer);
+
+        // Mac trackpads do not expose a pinch as two Pointer Events. Chromium
+        // and Firefox use ctrl+wheel, while Safari uses gesture* events.
+        canvas.addEventListener('wheel', handleTrackpadWheel, {passive: false});
+        canvas.addEventListener('gesturestart', handleGestureStart, {passive: false});
+        canvas.addEventListener('gesturechange', handleGestureChange, {passive: false});
+        canvas.addEventListener('gestureend', handleGestureEnd, {passive: false});
     }
 
     if (InteractionState.slider)
