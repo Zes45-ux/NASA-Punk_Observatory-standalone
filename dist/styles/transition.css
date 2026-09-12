@@ -1,0 +1,70 @@
+/* GPU 粒子转场由 planetScene.js 驱动。保留 curtain 节点作为旧页面 DOM
+   契约，但不再绘制四色幕布，避免遮断粒子逸散与重组的连续视觉。 */
+
+.transition-curtain {
+    display: none;
+}
+
+.particle-transition-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    contain: strict;
+    width: 100%;
+    height: 100%;
+}
+
+#canvas-container {
+    opacity: 1;
+    transform: scale(1);
+    transform-origin: 50% 50%;
+}
+
+body #ui-layer,
+body #system-select-root,
+body .serif-region {
+    opacity: 0;
+    filter: blur(3px);
+    transition: opacity 420ms ease-out, filter 520ms ease-out;
+}
+
+body.transition-ready #ui-layer,
+body.transition-ready #system-select-root,
+body.transition-ready .serif-region {
+    opacity: 1;
+    filter: blur(0);
+}
+
+body.particle-transition-exit #ui-layer,
+body.particle-transition-exit #system-select-root,
+body.particle-transition-exit .serif-region {
+    opacity: 0;
+    filter: blur(4px);
+    pointer-events: none;
+    transition-duration: 280ms;
+    transition-timing-function: ease-in;
+}
+
+body.particle-transition-exit #canvas-container {
+    opacity: 0;
+    transform: scale(1.012);
+    transition: opacity 220ms ease-in, transform 720ms cubic-bezier(0.22, 0.7, 0.22, 1);
+}
+
+body.particle-transition-continuation #canvas-container {
+    transition: opacity 240ms ease-out;
+}
+
+body.particle-transition-waiting #canvas-container {
+    opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body #ui-layer,
+    body #system-select-root,
+    body .serif-region {
+        transition: none !important;
+        filter: none !important;
+    }
+}

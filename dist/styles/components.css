@@ -1,0 +1,1765 @@
+/* =========================================
+   NASA-Punk Observatory : Common Styles
+   v5.0 - Final Unified Master
+   ========================================= */
+
+/* --- 2. 衬线、显示屏 & 背景 --- */
+.serif-region {
+    position: absolute;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.serif-region-top {
+    top: 0;
+    right: 0;
+    left: 0;
+    height: var(--display-top-inset);
+}
+
+.serif-region-right {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--display-right-inset);
+}
+
+.serif-region-bottom {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: var(--display-bottom-inset);
+}
+
+.serif-region-left {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--display-left-inset);
+}
+
+.brand-stripe {
+    position: absolute;
+    right: var(--segmented-colorbar-outer-gap);
+    top: 0;
+    bottom: 0;
+    width: var(--segmented-colorbar-stripe-width);
+    display: flex;
+    flex-direction: column;
+    box-shadow: -4px 0 15px rgba(0, 0, 0, 0.3);
+}
+
+.serif-segmented-colorbar-left .brand-stripe {
+    right: auto;
+    left: var(--segmented-colorbar-outer-gap);
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.3);
+}
+
+.stripe-seg {
+    width: 100%;
+    height: 25%;
+}
+
+.stacked-colorbar {
+    position: absolute;
+    inset: 0;
+    display: flex;
+}
+
+.serif-stacked-colorbar-bottom .stacked-colorbar {
+    flex-direction: column;
+    box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.serif-stacked-colorbar-top .stacked-colorbar {
+    flex-direction: column-reverse;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.serif-stacked-colorbar-left .stacked-colorbar {
+    flex-direction: row-reverse;
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.3);
+}
+
+.serif-stacked-colorbar-right .stacked-colorbar {
+    flex-direction: row;
+    box-shadow: -4px 0 15px rgba(0, 0, 0, 0.3);
+}
+
+.stacked-stripe {
+    flex: 0 0 var(--stacked-colorbar-stripe-width);
+}
+
+.serif-stacked-colorbar-bottom .stacked-stripe {
+    width: 100%;
+}
+
+.serif-stacked-colorbar-top .stacked-stripe {
+    width: 100%;
+}
+
+.serif-stacked-colorbar-left .stacked-stripe {
+    height: 100%;
+}
+
+.serif-stacked-colorbar-right .stacked-stripe {
+    height: 100%;
+}
+
+.s-1 {
+    background: var(--const-red);
+}
+
+.s-2 {
+    background: var(--const-orange);
+}
+
+.s-3 {
+    background: var(--const-yellow);
+}
+
+.s-4 {
+    background: var(--const-blue);
+}
+
+#topo-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    opacity: 0.3;
+}
+
+#system-particle-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0.82;
+    mix-blend-mode: screen;
+}
+
+#canvas-container {
+    position: absolute;
+    top: var(--display-top-inset);
+    right: var(--display-right-inset);
+    bottom: var(--display-bottom-inset);
+    left: var(--display-left-inset);
+    z-index: 1;
+    overflow: hidden;
+    filter: contrast(1.1) brightness(1.1);
+}
+
+#canvas-container canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    /* 触屏与 Mac 触控板缩放由交互层接管，禁用浏览器手势 */
+    touch-action: none;
+}
+
+#ui-layer {
+    position: absolute;
+    top: var(--display-top-inset);
+    right: var(--display-right-inset);
+    bottom: var(--display-bottom-inset);
+    left: var(--display-left-inset);
+    z-index: 5;
+    pointer-events: none;
+}
+
+#system-select-root {
+    position: absolute;
+    top: var(--display-top-inset);
+    right: var(--display-right-inset);
+    bottom: var(--display-bottom-inset);
+    left: var(--display-left-inset);
+    z-index: 5;
+}
+
+/* --- 3. 右侧 UI Dock --- */
+.right-dock {
+    position: absolute;
+    top: var(--display-ui-padding);
+    right: var(--display-ui-padding);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.header-block {
+    border-right: 3px solid var(--const-orange);
+    padding-right: 20px;
+    margin-bottom: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+h1 {
+    font-size: 42px;
+    letter-spacing: 6px;
+    margin: 0;
+    line-height: 1;
+    text-transform: uppercase;
+    font-weight: 700;
+    text-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.sub-text {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 11px;
+    color: var(--const-yellow);
+    letter-spacing: 1px;
+    margin-top: 8px;
+    white-space: nowrap;
+}
+
+.sub-text b {
+    color: var(--text-white);
+}
+
+.data-block {
+    text-align: left;
+    border-right: 1px solid rgba(255, 255, 255, 0.15);
+    padding-right: 20px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 11px;
+    line-height: 2.4;
+    color: var(--text-dim);
+    align-self: flex-end;
+    width: fit-content;
+}
+
+.data-row span {
+    color: var(--text-white);
+    font-weight: 500;
+}
+
+.data-row .alert {
+    color: var(--const-orange);
+    font-weight: 700;
+}
+
+.terminal-output {
+    display: block;
+    min-height: 80px;
+    color: var(--text-dim);
+    font-weight: 400;
+    white-space: pre-wrap;
+    margin-top: 0;
+    font-size: 11px;
+    line-height: 2.4;
+}
+
+.blink-cursor {
+    color: var(--const-orange);
+    font-weight: bold;
+    animation: blink 1s infinite;
+}
+
+/* --- 4. 星图雷达 (System Monitor) --- */
+.system-monitor-container {
+    position: absolute;
+    left: 24px;
+    bottom: 22px;
+    width: var(--system-monitor-shell-width);
+    height: calc(var(--system-monitor-body-size) + var(--system-monitor-caption-line-height) * 2);
+    padding: 0;
+    pointer-events: auto !important;
+    cursor: pointer;
+    z-index: 50;
+    transition: opacity 0.3s ease;
+}
+
+/* 星图展开为横向导航条期间，小地图退为暗态背景 */
+.system-monitor-container.strip-open {
+    opacity: 0.25;
+    pointer-events: none !important;
+}
+
+.system-monitor-body {
+    position: absolute;
+    top: 0;
+    left: var(--system-monitor-label-overflow);
+    width: var(--system-monitor-body-size);
+    height: var(--system-monitor-body-size);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: visible;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(22, 32, 48, 0.48) 0%,
+        rgba(8, 14, 24, 0.22) 58%,
+        transparent 76%
+    );
+    pointer-events: none;
+}
+
+/* 视觉星图只作装饰；真正的键盘/触屏入口由透明按钮承载 */
+.system-monitor-body * {
+    pointer-events: none !important;
+}
+
+.system-monitor-particle-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0.94;
+    mix-blend-mode: screen;
+}
+
+.system-monitor-trigger {
+    position: absolute;
+    top: 0;
+    left: var(--system-monitor-label-overflow);
+    width: var(--system-monitor-body-size);
+    height: var(--system-monitor-body-size);
+    display: block;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: transparent;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 20;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.system-monitor-caption {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: calc(var(--system-monitor-caption-line-height) * 2);
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.sun-marker {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: var(--sun-glow);
+    border-radius: 50%;
+    box-shadow:
+        0 0 8px rgba(255, 245, 204, 0.9),
+        0 0 18px rgba(215, 171, 97, 0.28);
+    z-index: 10;
+}
+
+/* 星图直达导航：悬停星图时冻结轨道便于瞄准；标记自带扩大命中区 */
+.system-monitor-container:hover .planet-container {
+    animation-play-state: paused;
+}
+
+.planet-marker,
+.sun-marker {
+    pointer-events: auto;
+    cursor: pointer;
+    transition: filter 0.15s;
+}
+
+.planet-marker::before,
+.sun-marker::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+}
+
+.planet-marker:hover,
+.sun-marker:hover {
+    filter: brightness(1.6);
+}
+
+.quality-control {
+    position: absolute;
+    right: calc(var(--display-ui-padding) + 52px);
+    bottom: var(--display-ui-padding);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 7px 10px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 100;
+    border: 1px solid rgba(91, 120, 156, 0.35);
+    background: rgba(16, 24, 33, 0.6);
+    transition: color 0.15s, border-color 0.15s;
+    user-select: none;
+    appearance: none;
+    -webkit-appearance: none;
+    text-align: center;
+}
+
+.quality-control:hover {
+    color: var(--text-white);
+    border-color: rgba(224, 98, 54, 0.6);
+}
+
+.quality-value {
+    color: var(--const-yellow);
+}
+
+.gesture-control-cluster {
+    position: absolute;
+    right: calc(var(--display-ui-padding) + 126px);
+    bottom: var(--display-ui-padding);
+    z-index: 110;
+    pointer-events: auto;
+    font-family: 'Roboto Mono', monospace;
+}
+
+.gesture-control {
+    display: flex;
+    min-width: 112px;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 7px 10px;
+    border: 1px solid rgba(91, 120, 156, 0.35);
+    background: rgba(16, 24, 33, 0.66);
+    color: var(--text-dim);
+    font: inherit;
+    font-size: 9px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.gesture-control:hover,
+.gesture-control[aria-pressed="true"] {
+    color: var(--text-white);
+    border-color: rgba(224, 98, 54, 0.68);
+}
+
+.gesture-control-value {
+    color: var(--const-yellow);
+}
+
+.gesture-control[aria-pressed="true"] .gesture-control-value {
+    color: #8fca9a;
+}
+
+.gesture-camera-panel {
+    position: absolute;
+    right: 0;
+    bottom: 48px;
+    width: 196px;
+    padding: 7px;
+    overflow: hidden;
+    border: 1px solid rgba(91, 120, 156, 0.48);
+    background: rgba(4, 9, 16, 0.9);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.42), inset 0 0 22px rgba(91, 120, 156, 0.06);
+}
+
+.gesture-camera-panel[hidden] {
+    display: none;
+}
+
+.gesture-camera-feed {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    opacity: 0.58;
+    filter: grayscale(0.78) contrast(1.22) brightness(0.72) sepia(0.16);
+    transform: scaleX(-1);
+}
+
+.gesture-camera-reticle {
+    position: absolute;
+    inset: 24px 26px 47px;
+    border: 1px solid rgba(215, 171, 97, 0.42);
+    pointer-events: none;
+}
+
+.gesture-camera-reticle::before,
+.gesture-camera-reticle::after {
+    content: '';
+    position: absolute;
+    background: rgba(224, 98, 54, 0.52);
+}
+
+.gesture-camera-reticle::before {
+    top: 50%;
+    left: -12px;
+    right: -12px;
+    height: 1px;
+}
+
+.gesture-camera-reticle::after {
+    top: -12px;
+    bottom: -12px;
+    left: 50%;
+    width: 1px;
+}
+
+.gesture-control-status,
+.gesture-control-hint {
+    position: relative;
+    margin-top: 6px;
+    font-size: 8px;
+    line-height: 1.4;
+    letter-spacing: 0.7px;
+    color: var(--text-white);
+    white-space: nowrap;
+}
+
+.gesture-control-hint {
+    margin-top: 2px;
+    color: var(--text-dim);
+}
+
+.gesture-camera-panel[data-state="tracking"] {
+    border-color: rgba(143, 202, 154, 0.62);
+}
+
+.gesture-camera-panel[data-state="error"] {
+    border-color: rgba(200, 67, 77, 0.78);
+}
+
+/* =========================================
+   Star Map Strip (expanded navigation overlay)
+   点击小星图后动画展开的水平星球选择条，
+   复用首页 system select 的行星节点视觉；
+   无面板底色，星体直接悬浮在页面上
+   ========================================= */
+
+.system-strip {
+    position: fixed;
+    left: 50%;
+    bottom: 96px;
+    transform: translateX(-50%) translateY(40px);
+    width: max-content;
+    max-width: calc(100vw - 16px);
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    padding: 14px 28px 6px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+    z-index: 150;
+}
+
+.system-strip.open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+}
+
+.strip-hints {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    padding: 0 4px 4px;
+    white-space: nowrap;
+    min-width: max-content;
+    text-shadow: 0 0 6px rgba(5, 10, 16, 0.95), 0 1px 2px rgba(5, 10, 16, 0.95);
+}
+
+.strip-overview {
+    color: var(--const-yellow);
+    cursor: pointer;
+}
+
+.strip-overview:hover {
+    text-decoration: underline;
+}
+
+.strip-axis-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    height: 300px;
+    padding: 0 18px;
+    width: max-content;
+    min-width: max-content;
+}
+
+.strip-axis-group .axis-line {
+    transform: translateY(-50%) scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.45s ease 0.15s;
+}
+
+.system-strip.open .strip-axis-group .axis-line {
+    transform: translateY(-50%) scaleX(1);
+}
+
+/* 节点逐个浮入，展开后带轻微浮动呼吸 */
+@keyframes strip-body-float {
+    from { translate: 0 -3px; }
+    to   { translate: 0 3px; }
+}
+
+.system-strip .planet-node {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.system-strip.open .planet-node {
+    opacity: 1;
+    transform: translateY(0);
+    animation: strip-body-float 4.5s ease-in-out infinite alternate;
+}
+
+.system-strip.open .strip-axis-group .planet-node:nth-child(2) { transition-delay: 0.05s; animation-delay: -0.3s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(3) { transition-delay: 0.1s; animation-delay: -1.2s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(4) { transition-delay: 0.15s; animation-delay: -2.1s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(5) { transition-delay: 0.2s; animation-delay: -0.8s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(6) { transition-delay: 0.25s; animation-delay: -1.7s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(7) { transition-delay: 0.3s; animation-delay: -2.6s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(8) { transition-delay: 0.35s; animation-delay: -1.3s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(9) { transition-delay: 0.4s; animation-delay: -2.2s; }
+.system-strip.open .strip-axis-group .planet-node:nth-child(10) { transition-delay: 0.45s; animation-delay: -0.5s; }
+
+.system-strip.open .node-sun {
+    animation-duration: 6.5s;
+}
+
+/* 名字常显，便于直接点选 */
+.system-strip .node-label {
+    opacity: 1;
+    top: -34px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: var(--text-white);
+}
+
+.system-strip .planet-node:hover .node-label {
+    transform: translateX(-50%);
+    color: var(--const-orange);
+}
+
+.system-strip .node-sun {
+    margin-left: 0;
+}
+
+.system-strip .strip-active .planet-body {
+    border-color: var(--const-orange);
+    box-shadow: 0 0 22px rgba(224, 98, 54, 0.45);
+}
+
+.system-strip .strip-active .node-label {
+    color: var(--const-orange);
+}
+
+.orbit-path {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px dashed var(--line-color);
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.orbit-path.orbit-active {
+    border-color: rgba(224, 98, 54, 0.6) !important;
+    opacity: 0.8 !important;
+    border-style: solid;
+}
+
+/* 小地图提高轨道辨识度；限定作用域，避免改变系统选择页。 */
+.system-monitor-body .orbit-path {
+    border-color: rgba(91, 120, 156, 0.46);
+}
+
+.system-monitor-body .o-jupiter,
+.system-monitor-body .o-saturn {
+    opacity: 0.34;
+}
+
+.system-monitor-body .o-uranus,
+.system-monitor-body .o-neptune {
+    opacity: 0.27;
+}
+
+.system-monitor-body .orbit-path.orbit-active {
+    border-color: rgba(224, 98, 54, 0.85) !important;
+    opacity: 1 !important;
+}
+
+.planet-container {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    animation: rotateOrbit linear infinite;
+    pointer-events: none;
+}
+
+.planet-marker {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+}
+
+.o-mercury {
+    width: 30px;
+    height: 30px;
+}
+
+.c-mercury {
+    animation-duration: 4s;
+}
+
+.p-mercury {
+    width: 3px;
+    height: 3px;
+    background: #aaa;
+    left: calc(50% - 15px);
+}
+
+.o-venus {
+    width: 50px;
+    height: 50px;
+}
+
+.c-venus {
+    animation-duration: 8s;
+}
+
+.p-venus {
+    width: 4px;
+    height: 4px;
+    background: #eec058;
+    left: calc(50% - 25px);
+}
+
+.o-earth {
+    width: 75px;
+    height: 75px;
+}
+
+.c-earth {
+    animation-duration: 15s;
+}
+
+.p-earth {
+    width: 4px;
+    height: 4px;
+    background: #4b70dd;
+    left: calc(50% - 37.5px);
+}
+
+.o-mars {
+    width: 95px;
+    height: 95px;
+}
+
+.c-mars {
+    animation-duration: 25s;
+}
+
+.p-mars {
+    width: 4px;
+    height: 4px;
+    background: var(--const-red);
+    left: calc(50% - 47.5px);
+}
+
+.o-jupiter {
+    width: 135px;
+    height: 135px;
+    opacity: 0.3;
+}
+
+.c-jupiter {
+    animation-duration: 50s;
+}
+
+.p-jupiter {
+    width: 10px;
+    height: 10px;
+    background: #d8ca9d;
+    left: calc(50% - 67.5px);
+}
+
+.o-saturn {
+    width: 170px;
+    height: 170px;
+    opacity: 0.3;
+}
+
+.c-saturn {
+    animation-duration: 80s;
+}
+
+.p-saturn {
+    width: 8px;
+    height: 8px;
+    background: #e0d0a0;
+    left: calc(50% - 85px);
+    z-index: 15;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5), 0 0 0 4px rgba(224, 208, 160, 0.3);
+}
+
+.o-uranus {
+    width: 205px;
+    height: 205px;
+    opacity: 0.2;
+}
+
+.c-uranus {
+    animation-duration: 110s;
+}
+
+.p-uranus {
+    width: 6px;
+    height: 6px;
+    background: #7fffd4;
+    left: calc(50% - 102.5px);
+}
+
+.o-neptune {
+    width: 240px;
+    height: 240px;
+    opacity: 0.2;
+}
+
+.c-neptune {
+    animation-duration: 150s;
+}
+
+.p-neptune {
+    width: 6px;
+    height: 6px;
+    background: #4b70dd;
+    left: calc(50% - 120px);
+}
+
+.target-reticle {
+    position: absolute;
+    z-index: 20;
+    pointer-events: none;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 14px;
+    height: 14px;
+}
+
+.target-reticle.large {
+    width: 24px;
+    height: 24px;
+}
+
+.reticle-corner {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    border-color: var(--const-orange);
+    border-style: solid;
+}
+
+.rc-tl {
+    top: 0;
+    left: 0;
+    border-width: 1px 0 0 1px;
+}
+
+.rc-tr {
+    top: 0;
+    right: 0;
+    border-width: 1px 1px 0 0;
+}
+
+.rc-bl {
+    bottom: 0;
+    left: 0;
+    border-width: 0 0 1px 1px;
+}
+
+.rc-br {
+    bottom: 0;
+    right: 0;
+    border-width: 0 1px 1px 0;
+}
+
+.scanner-trail {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 1;
+    background: conic-gradient(from 90deg, transparent 0deg, transparent 315deg, rgba(47, 76, 121, 0.35) 360deg);
+    -webkit-mask: radial-gradient(transparent 10px, #000 12px, #000 99%, transparent 100%);
+    mask: radial-gradient(transparent 10px, #000 12px, #000 99%, transparent 100%);
+    animation: scanSys 12s linear infinite;
+}
+
+.scanner-line-sys {
+    position: absolute;
+    width: 50%;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--const-blue));
+    top: 50%;
+    left: 50%;
+    transform-origin: left center;
+    animation: scanSys 12s linear infinite;
+    opacity: 0.9;
+    z-index: 11;
+    box-shadow: 0 0 4px var(--const-blue);
+}
+
+.monitor-label {
+    position: absolute;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 0.9px;
+    line-height: var(--system-monitor-caption-line-height);
+}
+
+.label-top {
+    top: 0;
+    left: 0;
+    width: 100%;
+    color: rgba(215, 171, 97, 0.9);
+    text-align: center;
+    white-space: nowrap;
+}
+
+.label-bottom {
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    white-space: nowrap;
+    color: rgba(109, 125, 140, 0.82);
+}
+
+.label-data {
+    font-weight: bold;
+    color: var(--text-white);
+}
+
+@keyframes rotateOrbit {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes scanSys {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0;
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
+}
+
+/* =========================================
+   Universal Slider Controls (Zoom & Vertical)
+   ========================================= */
+
+.zoom-controls {
+    position: absolute;
+    bottom: var(--display-ui-padding);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 240px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 100;
+    pointer-events: auto;
+}
+
+.zoom-label {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+    text-align: center;
+    width: 100%;
+}
+
+.zoom-value-display {
+    color: var(--const-orange);
+    font-weight: bold;
+}
+
+.vertical-controls {
+    position: absolute;
+    right: var(--display-ui-padding);
+    bottom: var(--display-ui-padding);
+    width: 40px;
+    height: calc(var(--vertical-control-body-height) + var(--vertical-control-label-offset));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    z-index: 100;
+    pointer-events: auto;
+}
+
+.v-label {
+    position: absolute;
+    bottom: 0;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 10px;
+    color: var(--const-orange);
+    letter-spacing: 1px;
+    font-weight: bold;
+    text-align: center;
+    width: 100%;
+}
+
+input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    background: transparent;
+}
+
+input[type=range]:focus {
+    outline: none;
+}
+
+input[type=range]:focus-visible,
+.planet-node:focus-visible,
+.system-monitor-trigger:focus-visible,
+.system-monitor-caption:focus-visible,
+.strip-overview:focus-visible,
+.quality-control:focus-visible,
+.gesture-control:focus-visible {
+    outline: 1px solid var(--const-yellow);
+    outline-offset: 4px;
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 1px;
+    cursor: pointer;
+    background: var(--line-color);
+    border: none;
+}
+
+input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 14px;
+    width: 14px;
+    background: var(--bg-navy);
+    border: 1px solid var(--const-orange);
+    margin-top: -6.5px;
+    box-shadow: 0 0 10px rgba(224, 98, 54, 0.4);
+    transition: background 0.2s, transform 0.1s;
+    cursor: col-resize;
+}
+
+input[type=range]::-webkit-slider-thumb:hover {
+    background: var(--const-orange);
+    transform: scale(1.2);
+}
+
+input[type=range].active::-webkit-slider-thumb {
+    background: var(--const-orange);
+}
+
+.tick {
+    width: 1px;
+    height: 6px;
+    background: var(--text-dim);
+}
+
+.tick-sub {
+    width: 1px;
+    height: 3px;
+    background: var(--text-dim);
+    opacity: 0.3;
+}
+
+.zoom-ticks {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 12px;
+    padding: 0 6px;
+    box-sizing: border-box;
+    pointer-events: none;
+}
+
+.v-slider-track {
+    position: relative;
+    width: 100%;
+    height: 180px;
+    margin-top: 10px;
+}
+
+.v-ticks {
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column-reverse;
+    justify-content: space-between;
+    padding: 6px 0;
+    box-sizing: border-box;
+    pointer-events: none;
+}
+
+.vertical-controls .tick {
+    width: 6px;
+    height: 1px;
+}
+
+.vertical-controls .tick-sub {
+    width: 3px;
+    height: 1px;
+}
+
+input[type=range].vertical {
+    width: 180px;
+    height: 20px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin-left: -90px;
+    margin-top: -10px;
+    transform: rotate(-90deg);
+    cursor: row-resize;
+    z-index: 10;
+}
+
+input[type=range].vertical::-webkit-slider-thumb {
+    cursor: row-resize;
+    margin-top: -6.5px;
+}
+
+/* =========================================
+   Navigation & System Select Specifics
+   ========================================= */
+
+.nav-stage {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.axis-group {
+    position: relative;
+    width: auto;
+    height: 300px;
+    display: flex;
+    align-items: center;
+    gap: 0px;
+    pointer-events: auto;
+    transform: scale(var(--axis-scale, 1));
+    transform-origin: center center;
+}
+
+.axis-line {
+    position: absolute;
+    top: 50%;
+    left: 70px;
+    right: 16px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.15);
+    z-index: 0;
+    transform: translateY(-50%);
+}
+
+.planet-node {
+    position: relative;
+    z-index: 10;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 0.3s;
+    flex-shrink: 0;
+    color: inherit;
+    text-decoration: none;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    font: inherit;
+}
+
+.planet-node[data-link=""] {
+    cursor: not-allowed;
+}
+
+.planet-node:hover {
+    opacity: 0.8;
+}
+
+.planet-system {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transform: rotate(0deg);
+    width: 100%;
+    height: 100%;
+}
+
+.planet-body {
+    border-radius: 50%;
+    background-color: var(--bg-navy);
+    border: 2px solid var(--planet-color);
+    position: relative;
+    z-index: 5;
+    box-sizing: border-box;
+    transition: all 0.3s ease-out;
+    box-shadow: inset -4px -4px 15px rgba(0, 0, 0, 0.5);
+}
+
+.planet-node:hover .planet-body {
+    background: var(--text-white);
+    border-color: var(--text-white);
+    box-shadow: 0 0 30px var(--planet-color);
+    transform: scale(1.1);
+}
+
+@keyframes system-node-breathe {
+    0%, 100% {
+        transform: translateY(-1px);
+        opacity: 0.9;
+    }
+
+    50% {
+        transform: translateY(1px);
+        opacity: 1;
+    }
+}
+
+#system-select-root .planet-node {
+    animation: system-node-breathe 6s ease-in-out infinite;
+    will-change: transform;
+}
+
+#system-select-root .axis-group .planet-node:nth-child(2) { animation-delay: -0.4s; }
+#system-select-root .axis-group .planet-node:nth-child(3) { animation-delay: -1.1s; }
+#system-select-root .axis-group .planet-node:nth-child(4) { animation-delay: -2.0s; }
+#system-select-root .axis-group .planet-node:nth-child(5) { animation-delay: -0.8s; }
+#system-select-root .axis-group .planet-node:nth-child(6) { animation-delay: -1.7s; }
+#system-select-root .axis-group .planet-node:nth-child(7) { animation-delay: -2.6s; }
+#system-select-root .axis-group .planet-node:nth-child(8) { animation-delay: -1.4s; }
+#system-select-root .axis-group .planet-node:nth-child(9) { animation-delay: -2.3s; }
+#system-select-root .axis-group .planet-node:nth-child(10) { animation-delay: -0.6s; }
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    #system-select-root .planet-node {
+        animation: none !important;
+        will-change: auto;
+    }
+
+    .system-monitor-container .planet-container,
+    .system-monitor-container .scanner-trail,
+    .system-monitor-container .scanner-line-sys,
+    .system-strip .planet-node {
+        animation: none !important;
+        will-change: auto;
+    }
+}
+
+@media (max-width: 720px) {
+    h1 {
+        font-size: clamp(26px, 8vw, 42px);
+        letter-spacing: clamp(2px, 1.1vw, 6px);
+    }
+
+    .right-dock {
+        right: 8px;
+        max-width: calc(100% - 16px);
+    }
+
+    .header-block {
+        padding-right: 12px;
+        margin-bottom: 24px;
+        border-right-width: 2px;
+    }
+
+    .sub-text {
+        max-width: calc(100vw - 80px);
+        white-space: normal;
+        font-size: 9px;
+        letter-spacing: 0.5px;
+    }
+
+    .data-block {
+        padding-right: 12px;
+        font-size: 9px;
+        line-height: 1.9;
+    }
+
+    .zoom-controls {
+        width: min(240px, calc(100% - 24px));
+    }
+}
+
+@media (max-width: 640px) {
+    :root {
+        --segmented-colorbar-outer-gap: 20px;
+    }
+}
+
+.ring-back {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 3px solid var(--planet-color);
+    opacity: 0.4;
+    z-index: 1;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+}
+
+.ring-front {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 3px solid var(--planet-color);
+    opacity: 0.8;
+    z-index: 10;
+    clip-path: polygon(0 50%, 100% 50%, 100% 100%, 0 100%);
+    pointer-events: none;
+}
+
+.ring-faint {
+    border-width: 1px;
+    opacity: 0.2;
+}
+
+.satellite-orbit {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    z-index: 6;
+    pointer-events: none;
+}
+
+.orbit-hidden {
+    border: none;
+}
+
+.satellite {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 4px;
+    height: 4px;
+    background: var(--text-white);
+    border-radius: 50%;
+    margin-left: -2px;
+    margin-top: -2px;
+}
+
+.sat-small {
+    width: 3px;
+    height: 3px;
+    margin-left: -1.5px;
+    margin-top: -1.5px;
+}
+
+@keyframes orbit-anim {
+    from {
+        transform: rotate(0deg) translateX(var(--sat-dist)) rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg) translateX(var(--sat-dist)) rotate(-360deg);
+    }
+}
+
+.node-label {
+    position: absolute;
+    top: -70px;
+    font-family: 'Jura', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: var(--const-blue);
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s ease-out;
+    pointer-events: none;
+    text-shadow: 0 0 8px rgba(47, 76, 121, 0.8);
+}
+
+.planet-node:hover .node-label {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.node-sun {
+    width: 160px;
+    height: 160px;
+    --planet-color: var(--const-yellow);
+    margin-left: -80px;
+}
+
+.node-sun .planet-body {
+    width: 100%;
+    height: 100%;
+    box-shadow: 0 0 80px rgba(215, 171, 97, 0.4);
+}
+
+.node-sun .planet-body::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 85%;
+    height: 85%;
+    border: 2px dashed var(--const-orange);
+    border-radius: 50%;
+    animation: spin 90s linear infinite;
+}
+
+.node-mercury {
+    width: 20px;
+    height: 20px;
+    --planet-color: #A5A5A5;
+}
+
+.node-mercury .planet-body {
+    width: 100%;
+    height: 100%;
+}
+
+.node-venus {
+    width: 34px;
+    height: 34px;
+    --planet-color: #D4AF37;
+}
+
+.node-venus .planet-system {
+    transform: rotate(177deg);
+}
+
+.node-venus .planet-body {
+    width: 100%;
+    height: 100%;
+}
+
+.node-earth {
+    width: 36px;
+    height: 36px;
+    --planet-color: #2492eb;
+}
+
+.node-earth .planet-system {
+    transform: rotate(-23.4deg);
+}
+
+.node-earth .planet-body {
+    width: 100%;
+    height: 100%;
+}
+
+.node-earth .satellite-orbit {
+    width: 70px;
+    height: 70px;
+    animation: spin 12s linear infinite;
+    border: none;
+}
+
+.node-earth .satellite {
+    --sat-dist: 35px;
+    animation: orbit-anim 8s linear infinite;
+}
+
+.node-mars {
+    width: 26px;
+    height: 26px;
+    --planet-color: #DD4F31;
+}
+
+.node-mars .planet-system {
+    transform: rotate(-25deg);
+}
+
+.node-mars .planet-body {
+    width: 100%;
+    height: 100%;
+}
+
+.o-phobos {
+    width: 40px;
+    height: 40px;
+    animation: spin 4s linear infinite;
+    border: none;
+}
+
+.s-phobos {
+    --sat-dist: 20px;
+    animation: orbit-anim 3s linear infinite;
+}
+
+.o-deimos {
+    width: 56px;
+    height: 56px;
+    animation: spin 7s linear infinite;
+    border: none;
+}
+
+.s-deimos {
+    --sat-dist: 28px;
+    animation: orbit-anim 6s linear infinite;
+}
+
+.node-jupiter {
+    width: 96px;
+    height: 96px;
+    --planet-color: #c78848;
+}
+
+.node-jupiter .planet-system {
+    transform: rotate(-3deg);
+}
+
+.node-jupiter .planet-body {
+    width: 100%;
+    height: 100%;
+}
+
+.node-jupiter .planet-body::after {
+    display: none;
+}
+
+.node-jupiter .satellite-orbit {
+    width: 160px;
+    height: 40px;
+    border: none;
+}
+
+.node-jupiter .satellite {
+    --sat-dist: 80px;
+    animation: orbit-anim 18s linear infinite;
+}
+
+.node-saturn {
+    width: 84px;
+    height: 84px;
+    --planet-color: #e0d0a0;
+}
+
+.node-saturn .planet-system {
+    transform: rotate(-26.7deg);
+}
+
+.node-saturn .planet-body {
+    width: 100%;
+    height: 100%;
+}
+
+.node-saturn .ring-back,
+.node-saturn .ring-front {
+    width: 150px;
+    height: 42px;
+    border-width: 5px;
+    box-shadow: 0 0 0 4px rgba(224, 208, 160, 0.1);
+}
+
+.node-saturn .ring-back {
+    opacity: 0.6;
+}
+
+.node-saturn .satellite-orbit {
+    width: 170px;
+    height: 170px;
+    border: none;
+}
+
+.node-saturn .satellite {
+    --sat-dist: 85px;
+    width: 3px;
+    height: 3px;
+    background: var(--const-orange);
+    animation: orbit-anim 25s linear infinite;
+}
+
+.node-uranus {
+    width: 56px;
+    height: 56px;
+    --planet-color: #7fffd4;
+}
+
+.node-uranus .planet-system {
+    transform: rotate(-97.8deg);
+}
+
+.node-uranus .planet-body {
+    width: 100%;
+    height: 100%;
+}
+
+.node-uranus .ring-back,
+.node-uranus .ring-front {
+    width: 110px;
+    height: 24px;
+    border-width: 2px;
+}
+
+.node-uranus .satellite-orbit {
+    width: 120px;
+    height: 120px;
+    border: none;
+}
+
+.node-uranus .satellite {
+    --sat-dist: 60px;
+    animation: orbit-anim 20s linear infinite reverse;
+}
+
+.node-neptune {
+    width: 54px;
+    height: 54px;
+    --planet-color: #3e54e8;
+}
+
+.node-neptune .planet-system {
+    transform: rotate(-28deg);
+}
+
+.node-neptune .planet-body {
+    width: 100%;
+    height: 100%;
+}
+
+.node-neptune .ring-back {
+    width: 100px;
+    height: 20px;
+    border-width: 1px;
+    opacity: 0.2;
+}
+
+.node-neptune .ring-front {
+    width: 100px;
+    height: 20px;
+    border-width: 1px;
+    opacity: 0.4;
+}
+
+.o-triton {
+    width: 130px;
+    height: 130px;
+    border: none;
+}
+
+.s-triton {
+    --sat-dist: 65px;
+    animation: orbit-anim 22s linear infinite reverse;
+}
+
+@media (max-width: 720px) {
+    h1 {
+        font-size: clamp(26px, 8vw, 42px);
+        letter-spacing: clamp(2px, 1.1vw, 6px);
+    }
+
+    .right-dock {
+        right: 8px;
+        max-width: calc(100% - 16px);
+    }
+
+    .header-block {
+        padding-right: 12px;
+        margin-bottom: 24px;
+        border-right-width: 2px;
+    }
+
+    .sub-text {
+        max-width: calc(100vw - 80px);
+        white-space: normal;
+        font-size: 9px;
+        letter-spacing: 0.5px;
+    }
+
+    .data-block {
+        padding-right: 12px;
+        font-size: 9px;
+        line-height: 1.9;
+    }
+
+    .zoom-controls {
+        width: min(240px, calc(100% - 24px));
+    }
+}
+
+@media (max-width: 640px) {
+    :root {
+        --segmented-colorbar-outer-gap: 20px;
+    }
+}

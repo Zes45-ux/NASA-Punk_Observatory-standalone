@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NASA-Punk Observatory : SYSTEM SELECT</title>
+    <link rel="stylesheet" href="./styles/tokens.css">
+    <link rel="stylesheet" href="./styles/base.css">
+    <link rel="stylesheet" href="./styles/components.css">
+    <link rel="stylesheet" href="./styles/utilities.css">
+    <link rel="stylesheet" href="./styles/transition.css">
+    <link rel="stylesheet" href="./styles/polish.css">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+</head>
+
+<body>
+<div class="transition-curtain start-covered" id="global-curtain">
+    <div class="curtain-col c1"></div>
+    <div class="curtain-col c2"></div>
+    <div class="curtain-col c3"></div>
+    <div class="curtain-col c4"></div>
+</div>
+
+<canvas id="topo-canvas"></canvas>
+<canvas id="system-particle-canvas" aria-hidden="true"></canvas>
+<div id="system-select-root"></div>
+
+<script src="./scripts/vendor/simplex-noise.min.js"></script>
+<script src="./scripts/components/topoRenderer.js"></script>
+<script src="./scripts/components/systemParticleField.js"></script>
+<script src="./scripts/components/observatoryUi.js"></script>
+<script src="./scripts/core/interaction.js"></script>
+<script src="./scripts/core/transition.js"></script>
+<script src="./scripts/core/particle-builder.js"></script>
+<script src="./scripts/core/serif.config.js"></script>
+<script src="./scripts/core/serif.js"></script>
+<script src="./scripts/core/display.js"></script>
+<script src="./scripts/components/systemSelect.config.js"></script>
+<script src="./scripts/components/systemSelectUi.js"></script>
+<script src="./scripts/pages/index.page.js"></script>
+
+</body>
+
+</html>

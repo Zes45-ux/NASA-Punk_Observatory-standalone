@@ -1,0 +1,205 @@
+/* Final visual layer. Loaded last so the original component catalogue can stay
+   backward-compatible while the observatory keeps one authoritative finish. */
+
+body {
+    background:
+        radial-gradient(circle at 48% 48%, rgba(31, 48, 69, 0.18), transparent 42%),
+        radial-gradient(circle at 12% 86%, rgba(224, 98, 54, 0.06), transparent 30%),
+        var(--bg-deep);
+}
+
+#system-select-root,
+#ui-layer {
+    isolation: isolate;
+}
+
+#system-select-root::before,
+#ui-layer::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+        linear-gradient(90deg, rgba(3, 7, 13, 0.34), transparent 18%, transparent 78%, rgba(3, 7, 13, 0.2)),
+        radial-gradient(circle at center, transparent 42%, rgba(2, 5, 10, 0.34) 100%);
+}
+
+#system-select-root::after,
+#ui-layer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 200;
+    pointer-events: none;
+    opacity: 0.16;
+    background: repeating-linear-gradient(to bottom, transparent 0, transparent 3px, rgba(231, 227, 218, 0.025) 4px);
+    mix-blend-mode: screen;
+}
+
+.right-dock {
+    padding: 8px 10px 10px 18px;
+    animation: hud-enter 780ms var(--motion-snap) both;
+}
+
+.right-dock::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 74px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--const-orange));
+    box-shadow: 0 0 12px var(--instrument-glow);
+}
+
+.header-block { position: relative; border-right-color: var(--const-orange); }
+
+.header-block::after {
+    content: '';
+    position: absolute;
+    right: -3px;
+    bottom: -9px;
+    width: 7px;
+    height: 7px;
+    border: 1px solid var(--const-orange);
+    background: var(--bg-navy);
+    transform: rotate(45deg);
+    box-shadow: 0 0 12px var(--instrument-glow);
+}
+
+h1 {
+    color: transparent;
+    background: linear-gradient(180deg, #fffdf5 0%, var(--text-white) 54%, #aaa99f 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.35));
+}
+
+.data-block { position: relative; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.88); }
+
+.data-row::before {
+    content: '';
+    display: inline-block;
+    width: 3px;
+    height: 3px;
+    margin: 0 7px 2px 0;
+    border: 1px solid rgba(91, 120, 156, 0.68);
+    transform: rotate(45deg);
+}
+
+.axis-group { animation: axis-reveal 1050ms var(--motion-snap) 120ms both; }
+
+.axis-line {
+    overflow: visible;
+    background: linear-gradient(90deg, transparent, rgba(91, 120, 156, 0.42) 8%, rgba(215, 171, 97, 0.32) 52%, rgba(91, 120, 156, 0.28) 90%, transparent);
+    box-shadow: 0 0 12px rgba(91, 120, 156, 0.12);
+}
+
+.axis-line::after {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 0;
+    width: 16%;
+    height: 3px;
+    opacity: 0.55;
+    background: linear-gradient(90deg, transparent, var(--const-yellow), transparent);
+    animation: axis-scan 8s ease-in-out infinite;
+}
+
+input[type=range]::-webkit-slider-thumb {
+    transform: rotate(45deg);
+    box-shadow: 0 0 0 3px rgba(224, 98, 54, 0.08), 0 0 16px rgba(224, 98, 54, 0.32);
+}
+
+input[type=range]::-webkit-slider-thumb:hover { transform: rotate(45deg) scale(1.16); }
+
+.quality-control {
+    border-color: rgba(91, 120, 156, 0.42);
+    background: linear-gradient(135deg, rgba(16, 24, 33, 0.82), rgba(5, 10, 17, 0.72));
+    box-shadow: inset 0 0 18px rgba(91, 120, 156, 0.05), 0 8px 30px rgba(0, 0, 0, 0.16);
+}
+
+.gesture-control,
+.gesture-camera-panel {
+    border-color: rgba(91, 120, 156, 0.42);
+    background: linear-gradient(135deg, rgba(16, 24, 33, 0.9), rgba(5, 10, 17, 0.82));
+    box-shadow: inset 0 0 18px rgba(91, 120, 156, 0.05), 0 8px 30px rgba(0, 0, 0, 0.2);
+}
+
+.gesture-control[aria-pressed="true"] {
+    box-shadow: inset 0 0 18px rgba(143, 202, 154, 0.07), 0 0 18px rgba(143, 202, 154, 0.08);
+}
+
+@keyframes hud-enter {
+    from { opacity: 0; transform: translateX(18px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes axis-reveal {
+    from { opacity: 0; clip-path: inset(0 50% 0 50%); }
+    to { opacity: 1; clip-path: inset(-80px -100px -80px -100px); }
+}
+
+@keyframes axis-scan {
+    0%, 12% { transform: translateX(-100%); opacity: 0; }
+    24%, 76% { opacity: 0.6; }
+    88%, 100% { transform: translateX(625%); opacity: 0; }
+}
+
+.system-strip {
+    bottom: 44px;
+    width: calc(100vw - 176px);
+    max-width: 1080px;
+    padding: 16px 24px 10px;
+    border-top: 1px solid rgba(215, 171, 97, 0.2);
+    border-bottom: 1px solid rgba(91, 120, 156, 0.22);
+    background:
+        linear-gradient(90deg, transparent, rgba(4, 9, 16, 0.88) 9%, rgba(4, 9, 16, 0.92) 50%, rgba(4, 9, 16, 0.88) 91%, transparent),
+        repeating-linear-gradient(90deg, transparent 0 59px, rgba(91, 120, 156, 0.045) 60px);
+    box-shadow: 0 -24px 60px rgba(0, 0, 0, 0.18), 0 24px 60px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(12px) saturate(0.76);
+}
+
+.system-strip::before,
+.system-strip::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    width: 38px;
+    height: 5px;
+    border-top: 1px solid var(--const-orange);
+}
+
+.system-strip::before { left: 9%; border-left: 1px solid var(--const-orange); }
+.system-strip::after { right: 9%; border-right: 1px solid var(--const-orange); }
+
+.system-strip .strip-axis-group {
+    height: 210px;
+    gap: 16px;
+    margin-inline: auto;
+}
+
+.system-strip .planet-system {
+    scale: 0.68;
+}
+
+.system-strip .strip-hints {
+    color: rgba(109, 125, 140, 0.9);
+    padding-inline: 12px;
+}
+
+#ui-layer:has(.system-strip.open) .vertical-controls,
+#ui-layer:has(.system-strip.open) .quality-control,
+#ui-layer:has(.system-strip.open) .gesture-control-cluster {
+    opacity: 0.18;
+    filter: blur(1px);
+    pointer-events: none;
+    transition: opacity 220ms ease, filter 220ms ease;
+}
+
+#ui-layer:has(.system-strip.open) .right-dock {
+    opacity: 0.54;
+    transition: opacity 260ms ease;
+}

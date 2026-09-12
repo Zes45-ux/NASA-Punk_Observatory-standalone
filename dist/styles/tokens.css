@@ -1,0 +1,69 @@
+@font-face {
+    font-family: 'Jura';
+    src: url('../fonts/Jura-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Jura';
+    src: url('../fonts/Jura-Medium.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Jura';
+    src: url('../fonts/Jura-Light.ttf') format('truetype');
+    font-weight: 300;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Roboto Mono';
+    src: url('../fonts/RobotoMono-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+:root {
+    --bg-navy: #070b12;
+    --panel-navy: #101821;
+    --line-color: #3b4e6b;
+    --const-red: #c8434d;
+    --const-orange: #e06236;
+    --const-yellow: #d7ab61;
+    --const-blue: #5b789c;
+    --text-white: #e7e3da;
+    --text-dim: #6d7d8c;
+    --sun-glow: #fff5cc;
+    --bg-deep: #03070d;
+    --panel-glass: rgba(7, 12, 20, 0.72);
+    --panel-glass-strong: rgba(7, 12, 20, 0.9);
+    --line-soft: rgba(91, 120, 156, 0.18);
+    --line-bright: rgba(215, 171, 97, 0.48);
+    --instrument-glow: rgba(224, 98, 54, 0.22);
+    --motion-snap: cubic-bezier(0.22, 0.72, 0.18, 1);
+    --display-top-inset: 0px;
+    --display-right-inset: 0px;
+    --display-bottom-inset: 0px;
+    --display-left-inset: 0px;
+    --display-width: calc(100vw - var(--display-left-inset) - var(--display-right-inset));
+    --display-height: calc(100vh - var(--display-top-inset) - var(--display-bottom-inset));
+    --display-ui-padding: 0px;
+    --system-monitor-body-size: 240px;
+    --system-monitor-label-overflow: 24px;
+    --system-monitor-shell-width: calc(var(--system-monitor-body-size) + var(--system-monitor-label-overflow) * 2);
+    --system-monitor-caption-line-height: 22px;
+    --vertical-control-body-height: 200px;
+    --vertical-control-label-offset: 25px;
+    --segmented-colorbar-stripe-width: 12px;
+    --segmented-colorbar-outer-gap: 40px;
+    --segmented-colorbar-serif-size: calc(var(--segmented-colorbar-stripe-width) + var(--segmented-colorbar-outer-gap));
+    --stacked-colorbar-stripe-width: var(--segmented-colorbar-stripe-width);
+    --stacked-colorbar-serif-size: calc(var(--stacked-colorbar-stripe-width) * 4);
+}

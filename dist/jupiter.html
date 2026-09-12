@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NASA-Punk : SOL-V (Jupiter)</title>
+    <link rel="stylesheet" href="./styles/tokens.css">
+    <link rel="stylesheet" href="./styles/base.css">
+    <link rel="stylesheet" href="./styles/components.css">
+    <link rel="stylesheet" href="./styles/utilities.css">
+    <link rel="stylesheet" href="./styles/transition.css">
+    <link rel="stylesheet" href="./styles/polish.css">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <style>
+        /* 木星专用配色微调 */
+        .p-jupiter {
+            box-shadow: 0 0 10px rgba(214, 168, 109, 0.8);
+            background-color: #d6a86d;
+        }
+    </style>
+</head>
+
+<body data-planet="jupiter">
+<div class="transition-curtain start-covered" id="global-curtain">
+    <div class="curtain-col c1"></div>
+    <div class="curtain-col c2"></div>
+    <div class="curtain-col c3"></div>
+    <div class="curtain-col c4"></div>
+</div>
+
+<canvas id="topo-canvas"></canvas>
+<div id="canvas-container"></div>
+
+<div id="ui-layer">
+    <div id="planet-ui-root"></div>
+</div>
+
+<script src="./scripts/vendor/three.min.js"></script>
+<script src="./scripts/vendor/simplex-noise.min.js"></script>
+<script src="./scripts/components/topoRenderer.js"></script>
+<script src="./scripts/components/observatoryUi.js"></script>
+<script src="./scripts/core/telemetry.js"></script>
+<script src="./scripts/core/interaction.js"></script>
+<script src="./scripts/vendor/mediapipe-hands/hands.js"></script>
+<script src="./scripts/core/gesture-control.js"></script>
+<script src="./scripts/core/transition.js"></script>
+<script src="./scripts/core/particle-builder.js"></script>
+<script src="./scripts/core/serif.config.js"></script>
+<script src="./scripts/core/serif.js"></script>
+<script src="./scripts/core/display.js"></script>
+<script src="./scripts/core/planetScene.js"></script>
+<script src="./scripts/planets/config.js"></script>
+<script src="./scripts/components/particleMiniMap.js"></script>
+<script src="./scripts/components/planetUi.js"></script>
+<script src="./scripts/pages/planet.page.js"></script>
+<script src="./scripts/planets/jupiter.js"></script>
+</body>
+
+</html>
