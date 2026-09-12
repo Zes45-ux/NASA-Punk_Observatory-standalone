@@ -1,0 +1,7 @@
+.agents/
+.firecrawl/
+.openai/
+dist/
+docs/
+test/
+ORIGINAL_REQUEST.md
