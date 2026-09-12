@@ -46,6 +46,12 @@ You can also open any planet page directly, such as `earth.html` or `saturn.html
 3. Import `index.html` from the project root to use the home page as the main entry.
 4. If needed, import any individual planet page instead.
 
+### Camera Hand Controls
+
+On any planet page, select `HAND CTRL` and grant camera access. Move your palm to orbit the view, then spread or pinch your thumb and index finger to zoom the planet. Zoom also drives the main surface particles' density, brightness, and size. In the final quarter of the close-up range, particles gain high-frequency irregular drift and burst radially out of orbit before leaving the viewport. All per-particle effects run on the GPU. The hand model is stored locally; camera frames are processed in the browser and are not uploaded.
+
+Camera access requires a secure context. If your browser blocks it on a direct `file://` page, run `python3 -m http.server 8000` in the project directory and open `http://localhost:8000/earth.html`. The camera is released as soon as hand control is disabled or the page is left.
+
 ## Tech Stack
 
 - Rendering: `Three.js`

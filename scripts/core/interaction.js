@@ -459,6 +459,12 @@ function initInteraction(targetGroup, initialZoomZ, sliderId = 'cam-zoom-slider'
             InteractionState.targetSliderVal = val;
         });
     }
+
+    if (typeof window !== 'undefined' && window.HandGestureControl
+        && typeof window.HandGestureControl.init === 'function')
+    {
+        window.HandGestureControl.init({state: InteractionState});
+    }
 }
 
 function updateInteraction(group, camera)
@@ -484,6 +490,16 @@ function updateInteraction(group, camera)
             // textContent avoids the synchronous layout work caused by innerText.
             InteractionState.textDisplay.textContent = zoomText;
             InteractionState.lastZoomText = zoomText;
+        }
+    }
+
+    if (typeof window !== 'undefined' && window.HandGestureControl
+        && typeof window.HandGestureControl.updateVisualState === 'function')
+    {
+        const gestureVisualState = window.HandGestureControl.updateVisualState(InteractionState.currentSliderVal);
+        if (typeof window.updateGestureParticleResponses === 'function')
+        {
+            window.updateGestureParticleResponses(gestureVisualState);
         }
     }
     return newZ;

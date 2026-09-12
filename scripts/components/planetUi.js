@@ -127,6 +127,22 @@
         </button>`;
     }
 
+    function buildGestureControl()
+    {
+        return `<div class="gesture-control-cluster">
+            <button type="button" class="gesture-control" id="gesture-control-toggle" aria-pressed="false" aria-controls="gesture-camera-panel" title="ENABLE CAMERA HAND TRACKING">
+                <span class="gesture-control-label">HAND CTRL</span>
+                <span class="gesture-control-value">OFFLINE</span>
+            </button>
+            <div class="gesture-camera-panel" id="gesture-camera-panel" data-state="idle" hidden>
+                <video id="gesture-camera-feed" class="gesture-camera-feed" playsinline muted aria-label="MIRRORED CAMERA PREVIEW"></video>
+                <div class="gesture-camera-reticle" aria-hidden="true"></div>
+                <div class="gesture-control-status" id="gesture-control-status" role="status" aria-live="polite">CAMERA STANDBY</div>
+                <div class="gesture-control-hint">MOVE PALM: ORBIT // PINCH: PARTICLE FLUX</div>
+            </div>
+        </div>`;
+    }
+
     function buildPlanetLayout(config)
     {
         return `${ObservatoryUI.buildRightDock({
@@ -138,7 +154,7 @@
         })}${ObservatoryUI.buildVerticalZoomControl({
             sliderId: 'cam-zoom-slider',
             label   : 'OPTICS'
-        })}${buildQualityControl()}${buildSystemMonitor(config)}${buildSystemStrip(config.active)}`;
+        })}${buildQualityControl()}${buildGestureControl()}${buildSystemMonitor(config)}${buildSystemStrip(config.active)}`;
     }
 
     const QUALITY_CYCLE = ['auto', 'high', 'balanced', 'low'];

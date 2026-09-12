@@ -523,6 +523,123 @@
         });
     }
 
+    const gestureParticleResponses = new Set();
+
+    // 手势驱动的粒子视觉层。参考 https://www.yjln.com/643.html 中
+    // uScale 同时驱动密度、亮度和近景混沌的设计，但保留当前项目的
+    // 相机缩放语义，并把响应统一成 0..1 energy。所有逐粒子计算均在
+    // GPU 内完成；CPU 每帧只更新共享 uniform。
+    function createGestureParticleResponse(points, options = {})
+    {
+        if (!points || !points.material)
+        {
+            return null;
+        }
+        const chaosScale = Number.isFinite(options.chaosScale) ? options.chaosScale : 0.55;
+        const reducedMotion = isReducedMotionRequested();
+        const uniforms = {
+            uGesturePresence: {value: 0},
+            uGestureEnergy: {value: 0},
+            uGestureTime: {value: 0},
+            uGestureMotion: {value: reducedMotion ? 0 : 1}
+        };
+
+        registerShaderPatch(points.material, ['gesture-particles-v1', chaosScale.toFixed(3)], (shader) =>
+        {
+            shader.uniforms.uGesturePresence = uniforms.uGesturePresence;
+            shader.uniforms.uGestureEnergy = uniforms.uGestureEnergy;
+            shader.uniforms.uGestureTime = uniforms.uGestureTime;
+            shader.uniforms.uGestureMotion = uniforms.uGestureMotion;
+
+            if (typeof shader.vertexShader === 'string')
+            {
+                shader.vertexShader = [
+                    'uniform float uGesturePresence;',
+                    'uniform float uGestureEnergy;',
+                    'uniform float uGestureTime;',
+                    'uniform float uGestureMotion;'
+                ].join('\n') + '\n' + shader.vertexShader.replace(
+                    '#include <begin_vertex>',
+                    [
+                        '#include <begin_vertex>',
+                        'if (uGesturePresence > 0.001) {',
+                        '    float gestureHash = fract(sin(dot(position, vec3(27.619, 57.583, 13.117))) * 43758.5453);',
+                        '    float gestureVisibility = 0.92 + uGestureEnergy * 0.08;',
+                        '    if (gestureHash > gestureVisibility) transformed += normalize(position + vec3(0.0001)) * 100000.0;',
+                        // Keep the orbital silhouette stable through most of the zoom. The
+                        // final quarter is a deliberately sharp loss-of-control zone just
+                        // before the particles would fill or leave the viewport.
+                        '    float gestureChaosBase = smoothstep(0.74, 0.98, uGestureEnergy);',
+                        '    float gestureChaos = gestureChaosBase * gestureChaosBase * uGesturePresence * uGestureMotion;',
+                        '    if (gestureChaos > 0.001) {',
+                        '        float gesturePhase = gestureHash * 31.4159;',
+                        '        float gestureRate = 38.0 + gestureHash * 41.0;',
+                        '        vec3 gestureFly = vec3(',
+                        '            sin(uGestureTime * gestureRate + position.y * 13.0 + gesturePhase),',
+                        '            cos(uGestureTime * (gestureRate * 1.173) + position.z * 17.0 + gesturePhase * 1.37),',
+                        '            sin(uGestureTime * (gestureRate * 0.827) + position.x * 19.0 + gesturePhase * 2.11)',
+                        '        );',
+                        '        vec3 gestureBrownian = vec3(',
+                        '            sin(uGestureTime * 91.0 + gesturePhase * 3.7),',
+                        '            cos(uGestureTime * 83.0 + gesturePhase * 5.3),',
+                        '            sin(uGestureTime * 97.0 + gesturePhase * 7.1)',
+                        '        );',
+                        '        vec3 gestureBurst = normalize(position + vec3(0.0001)) * (0.45 + gestureHash * 1.1);',
+                        '        transformed += (gestureFly * 0.68 + gestureBrownian * 0.32 + gestureBurst * 1.25)',
+                        '            * gestureChaos * ' + chaosScale.toFixed(3) + ';',
+                        '        transformed *= 1.0 + gestureChaos * 0.085;',
+                        '    }',
+                        '}'
+                    ].join('\n')
+                ).replace(
+                    '#include <logdepthbuf_vertex>',
+                    'gl_PointSize *= mix(1.0, 0.86 + uGestureEnergy * 0.34, uGesturePresence);\n#include <logdepthbuf_vertex>'
+                );
+            }
+
+            if (typeof shader.fragmentShader === 'string'
+                && shader.fragmentShader.indexOf('#include <color_fragment>') !== -1)
+            {
+                shader.fragmentShader = 'uniform float uGesturePresence;\nuniform float uGestureEnergy;\n'
+                    + shader.fragmentShader.replace(
+                        '#include <color_fragment>',
+                        [
+                            '#include <color_fragment>',
+                            'float gestureBrightness = mix(1.0, mix(0.72, 1.28, uGestureEnergy), uGesturePresence);',
+                            'float gestureDensity = mix(1.0, 0.72 + uGestureEnergy * 0.34, uGesturePresence);',
+                            'diffuseColor.rgb *= gestureBrightness;',
+                            'diffuseColor.a *= gestureDensity;'
+                        ].join('\n')
+                    );
+            }
+        });
+
+        const response = {points, uniforms};
+        gestureParticleResponses.add(response);
+        return response;
+    }
+
+    function updateGestureParticleResponses(state, timestamp)
+    {
+        const presence = state && Number.isFinite(state.presence)
+            ? Math.min(1, Math.max(0, state.presence))
+            : 0;
+        const energy = state && Number.isFinite(state.energy)
+            ? Math.min(1, Math.max(0, state.energy))
+            : 0;
+        const now = Number.isFinite(timestamp)
+            ? timestamp
+            : (global.performance && typeof global.performance.now === 'function'
+                ? global.performance.now()
+                : Date.now());
+        for (const response of gestureParticleResponses)
+        {
+            response.uniforms.uGesturePresence.value = presence;
+            response.uniforms.uGestureEnergy.value = energy;
+            response.uniforms.uGestureTime.value = now / 1000;
+        }
+    }
+
     // 静态粒子层接入画质档位：初始按手动档位或设备信号缩放 drawRange，
     // 之后跟随 observatory:quality 实时增减（O(1)，无逐帧成本）
     function createQualityDrawRange(points, options = {})
@@ -595,6 +712,8 @@
     global.createMotionAwareAnimation = createMotionAwareAnimation;
     global.createSurfaceConvergence = createSurfaceConvergence;
     global.createParticleAppearance = createParticleAppearance;
+    global.createGestureParticleResponse = createGestureParticleResponse;
+    global.updateGestureParticleResponses = updateGestureParticleResponses;
     global.createQualityDrawRange   = createQualityDrawRange;
     global.createPointSizeJitter    = createPointSizeJitter;
     global.PLANET_GLSL       = {snoise3D: SIMPLEX_3D_GLSL};

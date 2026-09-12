@@ -181,6 +181,9 @@
         {
             global.createParticleAppearance(points, options.appearance);
         }
+        const gestureResponse = typeof global.createGestureParticleResponse === 'function'
+            ? global.createGestureParticleResponse(points, options.gestureAppearance)
+            : null;
 
         const frameSampler = createFrameSampler({
             geometry,
@@ -226,7 +229,7 @@
             schedule: options.schedule
         });
 
-        return {allocation, geometry, points, frameSampler};
+        return {allocation, geometry, points, frameSampler, gestureResponse};
     }
 
     function createSurfaceLayer(options) {

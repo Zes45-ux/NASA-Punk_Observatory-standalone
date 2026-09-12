@@ -199,6 +199,9 @@ test('buildPlanetLayout generates expected HTML components', () => {
     assert.match(html, /class="system-monitor-container"/, 'contains monitor container');
     assert.match(html, /class="system-strip"/, 'contains system strip');
     assert.match(html, /id="quality-control"/, 'contains quality control');
+    assert.match(html, /id="gesture-control-toggle"/, 'contains opt-in camera control');
+    assert.match(html, /id="gesture-camera-feed"/, 'contains local camera preview');
+    assert.match(html, /PINCH: PARTICLE FLUX/, 'describes gesture-driven particle response');
     assert.match(html, /id="particle-build-progress"/, 'contains particle progress element');
 });
 

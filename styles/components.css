@@ -424,6 +424,125 @@ h1 {
     color: var(--const-yellow);
 }
 
+.gesture-control-cluster {
+    position: absolute;
+    right: calc(var(--display-ui-padding) + 126px);
+    bottom: var(--display-ui-padding);
+    z-index: 110;
+    pointer-events: auto;
+    font-family: 'Roboto Mono', monospace;
+}
+
+.gesture-control {
+    display: flex;
+    min-width: 112px;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 7px 10px;
+    border: 1px solid rgba(91, 120, 156, 0.35);
+    background: rgba(16, 24, 33, 0.66);
+    color: var(--text-dim);
+    font: inherit;
+    font-size: 9px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.gesture-control:hover,
+.gesture-control[aria-pressed="true"] {
+    color: var(--text-white);
+    border-color: rgba(224, 98, 54, 0.68);
+}
+
+.gesture-control-value {
+    color: var(--const-yellow);
+}
+
+.gesture-control[aria-pressed="true"] .gesture-control-value {
+    color: #8fca9a;
+}
+
+.gesture-camera-panel {
+    position: absolute;
+    right: 0;
+    bottom: 48px;
+    width: 196px;
+    padding: 7px;
+    overflow: hidden;
+    border: 1px solid rgba(91, 120, 156, 0.48);
+    background: rgba(4, 9, 16, 0.9);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.42), inset 0 0 22px rgba(91, 120, 156, 0.06);
+}
+
+.gesture-camera-panel[hidden] {
+    display: none;
+}
+
+.gesture-camera-feed {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    opacity: 0.58;
+    filter: grayscale(0.78) contrast(1.22) brightness(0.72) sepia(0.16);
+    transform: scaleX(-1);
+}
+
+.gesture-camera-reticle {
+    position: absolute;
+    inset: 24px 26px 47px;
+    border: 1px solid rgba(215, 171, 97, 0.42);
+    pointer-events: none;
+}
+
+.gesture-camera-reticle::before,
+.gesture-camera-reticle::after {
+    content: '';
+    position: absolute;
+    background: rgba(224, 98, 54, 0.52);
+}
+
+.gesture-camera-reticle::before {
+    top: 50%;
+    left: -12px;
+    right: -12px;
+    height: 1px;
+}
+
+.gesture-camera-reticle::after {
+    top: -12px;
+    bottom: -12px;
+    left: 50%;
+    width: 1px;
+}
+
+.gesture-control-status,
+.gesture-control-hint {
+    position: relative;
+    margin-top: 6px;
+    font-size: 8px;
+    line-height: 1.4;
+    letter-spacing: 0.7px;
+    color: var(--text-white);
+    white-space: nowrap;
+}
+
+.gesture-control-hint {
+    margin-top: 2px;
+    color: var(--text-dim);
+}
+
+.gesture-camera-panel[data-state="tracking"] {
+    border-color: rgba(143, 202, 154, 0.62);
+}
+
+.gesture-camera-panel[data-state="error"] {
+    border-color: rgba(200, 67, 77, 0.78);
+}
+
 /* =========================================
    Star Map Strip (expanded navigation overlay)
    点击小星图后动画展开的水平星球选择条，
@@ -955,7 +1074,8 @@ input[type=range]:focus-visible,
 .system-monitor-trigger:focus-visible,
 .system-monitor-caption:focus-visible,
 .strip-overview:focus-visible,
-.quality-control:focus-visible {
+.quality-control:focus-visible,
+.gesture-control:focus-visible {
     outline: 1px solid var(--const-yellow);
     outline-offset: 4px;
 }

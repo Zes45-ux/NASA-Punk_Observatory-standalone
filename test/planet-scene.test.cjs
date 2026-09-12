@@ -61,6 +61,8 @@ function loadPlanetScene(windowExtras = {}) {
             createMotionAwareAnimation: window.createMotionAwareAnimation,
             createSurfaceConvergence: window.createSurfaceConvergence,
             createParticleAppearance: window.createParticleAppearance,
+            createGestureParticleResponse: window.createGestureParticleResponse,
+            updateGestureParticleResponses: window.updateGestureParticleResponses,
             createQualityDrawRange: window.createQualityDrawRange,
             createPointSizeJitter: window.createPointSizeJitter
         },
@@ -209,6 +211,41 @@ test('surface convergence stays vertex-only when the fragment anchor is missing'
     assert.ok(!shader.vertexShader.includes('vConvReveal'), 'no varying without a fragment anchor');
     assert.ok(shader.vertexShader.includes('transformed = mix('), 'vertex swirl still applies');
     assert.equal(shader.fragmentShader, 'void main() {}', 'fragment stays untouched');
+});
+
+test('gesture particle response drives density, brightness, point size and GPU turbulence', () => {
+    const {api} = loadPlanetScene();
+    const material = {};
+    const response = api.createGestureParticleResponse({material});
+    const shader = {
+        uniforms: {},
+        vertexShader: '#include <begin_vertex>\ngl_PointSize = size;\n#include <logdepthbuf_vertex>',
+        fragmentShader: 'vec4 diffuseColor = vec4(1.0);\n#include <color_fragment>'
+    };
+    material.onBeforeCompile(shader);
+
+    assert.equal(shader.uniforms.uGestureEnergy, response.uniforms.uGestureEnergy);
+    assert.match(shader.vertexShader, /gestureVisibility/, 'zoom controls a stable GPU particle subset');
+    assert.match(shader.vertexShader, /gestureChaosBase/, 'close zoom ramps GPU turbulence');
+    assert.match(shader.vertexShader, /smoothstep\(0\.74, 0\.98/, 'chaos is reserved for the final zoom quarter');
+    assert.match(shader.vertexShader, /gestureRate = 38\.0 \+ gestureHash \* 41\.0/, 'each particle gets an independent high-frequency rate');
+    assert.match(shader.vertexShader, /gestureBrownian/, 'a second non-harmonic octave creates irregular fly-like motion');
+    assert.match(shader.vertexShader, /gestureBurst/, 'near clipping, particles break orbit in a radial burst');
+    assert.match(shader.vertexShader, /gestureChaos \* 0\.085/, 'the surface visibly expands before leaving the viewport');
+    assert.match(shader.vertexShader, /gl_PointSize \*= mix/, 'zoom changes particle size');
+    assert.match(shader.fragmentShader, /gestureBrightness/, 'zoom changes particle brightness');
+    assert.match(shader.fragmentShader, /gestureDensity/, 'zoom changes particle alpha density');
+
+    api.updateGestureParticleResponses({presence: 2, energy: -1}, 2500);
+    assert.equal(response.uniforms.uGesturePresence.value, 1, 'presence is clamped');
+    assert.equal(response.uniforms.uGestureEnergy.value, 0, 'energy is clamped');
+    assert.equal(response.uniforms.uGestureTime.value, 2.5);
+});
+
+test('reduced motion keeps gesture tone changes but disables turbulence', () => {
+    const {api} = loadPlanetScene({matchMedia: () => ({matches: true})});
+    const response = api.createGestureParticleResponse({material: {}});
+    assert.equal(response.uniforms.uGestureMotion.value, 0);
 });
 
 test('surface convergence falls back to a delayed start without the ready event', () => {
