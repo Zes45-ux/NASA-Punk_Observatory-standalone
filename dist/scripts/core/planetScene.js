@@ -1,0 +1,720 @@
+/**
+ * Planet Scene Kit
+ * 行星页共享的场景初始化工厂与动画工具：
+ *  - createPlanetScene: 场景/相机/渲染器/背景/resize 一站式初始化
+ *  - createFrameDelta : 帧率无关的动画步长因子（60fps 校准基准）
+ *  - createSurfaceConvergence: 表面点云螺旋汇聚入场（着色器内完成）
+ *  - createQualityDrawRange  : 静态粒子层按画质档位缩放 drawRange
+ *  - createPointSizeJitter   : 静态点云逐粒子尺寸差异（编译期补丁）
+ *  - createMotionAwareAnimation: reduced-motion 感知的共享动画调度器
+ *  - PLANET_GLSL.snoise3D: 顶点着色器用的 3D simplex 噪声（Ashima, MIT）
+ */
+(function initPlanetSceneKit(global)
+{
+    let reducedMotionMediaQuery;
+    let reducedMotionMediaQueryReady = false;
+
+    function getReducedMotionMediaQuery()
+    {
+        if (!reducedMotionMediaQueryReady)
+        {
+            reducedMotionMediaQuery = typeof global.matchMedia === 'function'
+                ? global.matchMedia('(prefers-reduced-motion: reduce)')
+                : null;
+            reducedMotionMediaQueryReady = true;
+        }
+        return reducedMotionMediaQuery;
+    }
+
+    function isReducedMotionRequested()
+    {
+        const mediaQuery = getReducedMotionMediaQuery();
+        return Boolean(mediaQuery && mediaQuery.matches);
+    }
+
+    function createMotionAwareAnimation(animate)
+    {
+        const mediaQuery   = getReducedMotionMediaQuery();
+        const document     = global.document;
+        const requestFrame = typeof global.requestAnimationFrame === 'function'
+            ? global.requestAnimationFrame.bind(global)
+            : null;
+        const cancelFrame  = typeof global.cancelAnimationFrame === 'function'
+            ? global.cancelAnimationFrame.bind(global)
+            : null;
+        let frameHandle = null;
+
+        function isPageHidden()
+        {
+            return Boolean(document && document.hidden);
+        }
+
+        function schedule()
+        {
+            if (!requestFrame
+                || frameHandle !== null
+                || (mediaQuery && mediaQuery.matches)
+                || isPageHidden())
+            {
+                return;
+            }
+            frameHandle = requestFrame((timestamp) =>
+            {
+                frameHandle = null;
+                if (isPageHidden())
+                {
+                    return;
+                }
+                animate(timestamp);
+            });
+        }
+
+        function handleVisibilityChange()
+        {
+            if (isPageHidden())
+            {
+                if (frameHandle !== null && cancelFrame)
+                {
+                    cancelFrame(frameHandle);
+                }
+                frameHandle = null;
+                return;
+            }
+            schedule();
+        }
+
+        function handleMotionChange(event)
+        {
+            const matches = event ? event.matches : mediaQuery && mediaQuery.matches;
+            if (matches)
+            {
+                if (frameHandle !== null && cancelFrame)
+                {
+                    cancelFrame(frameHandle);
+                    frameHandle = null;
+                }
+                return;
+            }
+            schedule();
+        }
+
+        if (mediaQuery)
+        {
+            if (typeof mediaQuery.addEventListener === 'function')
+            {
+                mediaQuery.addEventListener('change', handleMotionChange);
+            }
+            else if (typeof mediaQuery.addListener === 'function')
+            {
+                mediaQuery.addListener(handleMotionChange);
+            }
+        }
+
+        if (document && typeof document.addEventListener === 'function')
+        {
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+        }
+
+        return {schedule};
+    }
+
+    global.isReducedMotionRequested = isReducedMotionRequested;
+
+    function createPlanetScene(options)
+    {
+        const name        = options.name;
+        const initialZoom = options.zoom;
+        const noiseOffset = options.noiseOffset === undefined ? 100 : options.noiseOffset;
+
+        const sharedTopoBackground = createTopoBackground({
+            canvasId   : 'topo-canvas',
+            noiseOffset: noiseOffset,
+            overlayFill: options.overlayFill || null
+        });
+
+        const canvasContainer = document.getElementById('canvas-container');
+        const displaySize     = DisplayArea.getSize(canvasContainer);
+        const scene           = new THREE.Scene();
+        const camera          = new THREE.PerspectiveCamera(35, displaySize.width / displaySize.height, 0.1, 1000);
+        const transitionManager = global.TransitionManager;
+        const isTransitionContinuation = Boolean(transitionManager
+            && typeof transitionManager.isContinuingParticleTransition === 'function'
+            && transitionManager.isContinuingParticleTransition());
+        const fullPixelRatio = Math.min(global.devicePixelRatio || 1, 2);
+        let useTransitionPixelRatio = isTransitionContinuation;
+
+        camera.position.z = initialZoom;
+
+        const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+        // 4K/5K 屏按完整 devicePixelRatio 渲染点云代价过高，钳制到 2
+        // 跨页粒子交接期间先用 1x 建立 framebuffer，避免高 DPR 分配阻塞动画；
+        // 交接完成后再恢复清晰度。
+        renderer.setPixelRatio(useTransitionPixelRatio ? 1 : fullPixelRatio);
+        // 先设置像素比再设置尺寸，避免启动时先分配一份 1x framebuffer，
+        // 随后因 DPR 变化立即重复分配。
+        renderer.setSize(displaySize.width, displaySize.height);
+        canvasContainer.appendChild(renderer.domElement);
+
+        function resizeScene(forceFullQuality)
+        {
+            if (forceFullQuality) useTransitionPixelRatio = false;
+            const nextDisplaySize = DisplayArea.getSize(canvasContainer);
+            camera.aspect         = nextDisplaySize.width / nextDisplaySize.height;
+            camera.updateProjectionMatrix();
+            const nextPixelRatio = useTransitionPixelRatio
+                ? 1
+                : Math.min(global.devicePixelRatio || 1, 2);
+            if (typeof renderer.getPixelRatio !== 'function'
+                || renderer.getPixelRatio() !== nextPixelRatio)
+            {
+                renderer.setPixelRatio(nextPixelRatio);
+            }
+            renderer.setSize(nextDisplaySize.width, nextDisplaySize.height);
+        }
+
+        if (typeof ResizeObserver !== 'undefined')
+        {
+            const displayResizeObserver = new ResizeObserver(() =>
+            {
+                resizeScene();
+            });
+            displayResizeObserver.observe(canvasContainer);
+        }
+
+        global.addEventListener('resize', () =>
+        {
+            sharedTopoBackground.resize();
+        });
+
+        if (isTransitionContinuation)
+        {
+            global.addEventListener('observatory:transition-complete', () =>
+            {
+                resizeScene(true);
+            }, {once: true});
+        }
+
+        const tgtLabel = document.querySelector('.monitor-label.label-bottom');
+
+        const group = new THREE.Group();
+        scene.add(group);
+
+        if (global.TransitionManager
+            && typeof global.TransitionManager.registerParticleScene === 'function')
+        {
+            global.TransitionManager.registerParticleScene(scene, camera, renderer);
+        }
+
+        return {
+            scene,
+            camera,
+            renderer,
+            group,
+            tgtLabel,
+            resizeScene
+        };
+    }
+
+    // 动画步长按实际帧间隔归一化：60fps 时为 1，120Hz 约 0.5，
+    // 卡顿帧最多放大 2.5 倍、最小 0.25，避免切后台回来后瞬移
+    function createFrameDelta()
+    {
+        let lastTimestamp = null;
+
+        return function nextDeltaTime(timestamp)
+        {
+            if (typeof timestamp !== 'number' || !Number.isFinite(timestamp))
+            {
+                return 1;
+            }
+            if (lastTimestamp === null)
+            {
+                lastTimestamp = timestamp;
+                return 1;
+            }
+            const factor = (timestamp - lastTimestamp) / 16.667;
+            lastTimestamp = timestamp;
+            return Math.min(Math.max(factor, 0.25), 2.5);
+        };
+    }
+
+    // Ashima Arts / Ian McEwan 的 3D simplex 噪声（MIT），GLSL ES 1.0 兼容
+    const SIMPLEX_3D_GLSL = `
+        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 permute(vec4 x) { return mod289(((x * 34.0) + 1.0) * x); }
+        vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+        float snoise(vec3 v) {
+            const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+            const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+            vec3 i  = floor(v + dot(v, C.yyy));
+            vec3 x0 = v - i + dot(i, C.xxx);
+
+            vec3 g = step(x0.yzx, x0.xyz);
+            vec3 l = 1.0 - g;
+            vec3 i1 = min(g.xyz, l.zxy);
+            vec3 i2 = max(g.xyz, l.zxy);
+
+            vec3 x1 = x0 - i1 + C.xxx;
+            vec3 x2 = x0 - i2 + C.yyy;
+            vec3 x3 = x0 - D.yyy;
+
+            i = mod289(i);
+            vec4 p = permute(permute(permute(
+                     i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                   + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                   + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+            float n_ = 0.142857142857;
+            vec3 ns = n_ * D.wyz - D.xzx;
+
+            vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+
+            vec4 x_ = floor(j * ns.z);
+            vec4 y_ = floor(j - 7.0 * x_);
+
+            vec4 x = x_ * ns.x + ns.yyyy;
+            vec4 y = y_ * ns.x + ns.yyyy;
+            vec4 h = 1.0 - abs(x) - abs(y);
+
+            vec4 b0 = vec4(x.xy, y.xy);
+            vec4 b1 = vec4(x.zw, y.zw);
+
+            vec4 s0 = floor(b0) * 2.0 + 1.0;
+            vec4 s1 = floor(b1) * 2.0 + 1.0;
+            vec4 sh = -step(h, vec4(0.0));
+
+            vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+            vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+
+            vec3 p0 = vec3(a0.xy, h.x);
+            vec3 p1 = vec3(a0.zw, h.y);
+            vec3 p2 = vec3(a1.xy, h.z);
+            vec3 p3 = vec3(a1.zw, h.w);
+
+            vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
+            p0 *= norm.x;
+            p1 *= norm.y;
+            p2 *= norm.z;
+            p3 *= norm.w;
+
+            vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
+            m = m * m;
+            return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
+        }
+    `;
+
+    const SHADER_PATCHES = '__observatoryShaderPatches';
+
+    // 多个视觉增强都需要修改 PointsMaterial 的 onBeforeCompile。统一串联
+    // 补丁，避免后注册的效果把前一个效果覆盖掉。
+    function registerShaderPatch(material, key, patch)
+    {
+        if (!material || typeof patch !== 'function')
+        {
+            return;
+        }
+
+        if (!Array.isArray(material[SHADER_PATCHES]))
+        {
+            const patches  = [];
+            const original = material.onBeforeCompile;
+            const baseKey = typeof material.customProgramCacheKey === 'function'
+                ? material.customProgramCacheKey()
+                : String(original || '');
+            material[SHADER_PATCHES] = patches;
+            material.customProgramCacheKey = () => JSON.stringify([baseKey, ...patches.map(entry => entry.key)]);
+            material.onBeforeCompile = (shader, renderer) =>
+            {
+                if (typeof original === 'function')
+                {
+                    original.call(material, shader, renderer);
+                }
+                patches.forEach((entry) => entry.patch(shader));
+            };
+        }
+
+        material[SHADER_PATCHES].push({key, patch});
+        material.needsUpdate = true;
+    }
+
+    // 表面点云双向转场：入场时从外围壳层螺旋汇聚，切换星球时沿同一轨迹
+    // 反向逸散。位移、错峰和透明度都在 GPU 中完成，CPU 每帧只写两个
+    // uniform；导航管理器会等待离场阶段结束后再换页。
+    // 需要 observatory:ready 事件触发；事件缺失时 6 秒后兜底开始
+    function createSurfaceConvergence(points, options = {})
+    {
+        const continuing = global.TransitionManager
+            && typeof global.TransitionManager.isContinuingParticleTransition === 'function'
+            && global.TransitionManager.isContinuingParticleTransition();
+        const duration     = options.duration || (continuing ? 1000 : 1400);
+        const exitDuration = options.exitDuration || 720;
+        const fallbackDelay = Number.isFinite(options.fallbackDelay)
+            ? Math.max(0, options.fallbackDelay)
+            : 6000;
+        const scatter       = Number(options.scatter || 12).toFixed(2);
+        const reducedMotion = isReducedMotionRequested();
+        const uniforms      = {uReveal: {value: reducedMotion ? 1 : 0}, uTime: {value: 0}};
+        let startedAt = null;
+        let finished = reducedMotion;
+        let readyFired = false;
+        let waitingAt = null;
+        let exiting = false;
+        let exitFrom = 1;
+
+        function smootherStep(value)
+        {
+            return value * value * value * (value * (value * 6 - 15) + 10);
+        }
+
+        global.addEventListener('observatory:ready', () =>
+        {
+            readyFired = true;
+        }, {once: true});
+
+        global.addEventListener('observatory:navigate-start', (event) =>
+        {
+            if (reducedMotion) return;
+            exiting = true;
+            finished = false;
+            startedAt = null;
+            exitFrom = uniforms.uReveal.value;
+            if (event && event.detail && typeof event.detail.holdFor === 'function')
+            {
+                event.detail.holdFor(exitDuration);
+            }
+        });
+
+        registerShaderPatch(points.material, ['convergence-v1', scatter], (shader) =>
+        {
+            // 片元淡入依赖 PointsMaterial 模板里的 color_fragment 锚点；
+            // 锚点缺失时退化为纯顶点动画，varying 两侧同步省略
+            const fadeAnchor = '#include <color_fragment>';
+            const fadeSupported = typeof shader.fragmentShader === 'string'
+                && shader.fragmentShader.indexOf(fadeAnchor) !== -1;
+
+            shader.uniforms.uReveal = uniforms.uReveal;
+            shader.uniforms.uTime = uniforms.uTime;
+            shader.vertexShader = 'uniform float uReveal;\nuniform float uTime;\n'
+                + (fadeSupported ? 'varying float vConvReveal;\n' : '')
+                + shader.vertexShader.replace(
+                    '#include <begin_vertex>',
+                    [
+                        '#include <begin_vertex>',
+                        'float convHash = fract(sin(dot(position, vec3(12.9898, 78.233, 37.719))) * 43758.5453);',
+                        'float convReveal = clamp((uReveal - convHash * 0.6) / 0.4, 0.0, 1.0);',
+                        'convReveal = convReveal * convReveal * (3.0 - 2.0 * convReveal);',
+                        'vec3 convDir = normalize(position + vec3(0.0001, 0.0002, 0.0003));',
+                        'vec3 convJitter = vec3(fract(convHash * 91.17), fract(convHash * 47.23), fract(convHash * 13.7)) - 0.5;',
+                        'vec3 convScattered = position + convDir * ' + scatter + ' + convJitter * 3.0;',
+                        // 螺旋内旋：散布端点绕 Y 轴扭转，扭转角随 reveal 收敛到 0，
+                        // 叠加 sin(uTime) 让壳层在等待期缓慢呼吸
+                        'float convSpin = (1.0 - convReveal) * (0.9 + convHash * 1.6 + sin(convHash * 6.2832 + uTime * 0.5) * 0.15);',
+                        'float convSin = sin(convSpin);',
+                        'float convCos = cos(convSpin);',
+                        'convScattered.xz = mat2(convCos, convSin, -convSin, convCos) * convScattered.xz;',
+                        'convScattered += convJitter * sin(uTime * 0.8 + convHash * 6.2832) * (1.0 - convReveal);',
+                        'transformed = mix(convScattered, position, convReveal);'
+                    ].concat(fadeSupported ? ['vConvReveal = convReveal;'] : []).join('\n')
+                );
+
+            if (fadeSupported)
+            {
+                shader.fragmentShader = 'varying float vConvReveal;\n' + shader.fragmentShader.replace(
+                    fadeAnchor,
+                    fadeAnchor + '\n\tdiffuseColor.a *= vConvReveal;'
+                );
+            }
+        });
+
+        function update(timestamp)
+        {
+            if (finished || reducedMotion)
+            {
+                return;
+            }
+            const now = Number.isFinite(timestamp) ? timestamp : performance.now();
+            uniforms.uTime.value = now / 1000;
+            if (exiting)
+            {
+                if (startedAt === null)
+                {
+                    startedAt = now;
+                }
+                const progress = Math.min((now - startedAt) / exitDuration, 1);
+                uniforms.uReveal.value = exitFrom * (1 - smootherStep(progress));
+                if (progress >= 1)
+                {
+                    uniforms.uReveal.value = 0;
+                    finished = true;
+                }
+                return;
+            }
+            if (waitingAt === null)
+            {
+                waitingAt = now;
+            }
+            if (startedAt === null)
+            {
+                if (!readyFired && now - waitingAt < fallbackDelay)
+                {
+                    return;
+                }
+                startedAt = now;
+            }
+            const progress = Math.min((now - startedAt) / duration, 1);
+            uniforms.uReveal.value = smootherStep(progress);
+            if (progress >= 1)
+            {
+                finished = true;
+            }
+        }
+
+        return {update, uniforms};
+    }
+
+    // 共享的点精灵外观：把默认方形点裁成柔边圆点，并给每个粒子一个
+    // 稳定的尺寸差异。所有计算都在 shader 中完成，不增加逐帧 CPU 工作。
+    function createParticleAppearance(points, options = {})
+    {
+        const min    = Number.isFinite(options.min) ? options.min : 0.78;
+        const max    = Number.isFinite(options.max) ? Math.max(min, options.max) : 1.22;
+        const inside = Number.isFinite(options.inside) ? Math.min(0.49, Math.max(0.1, options.inside)) : 0.26;
+
+        registerShaderPatch(points && points.material,
+            ['appearance-v1', min.toFixed(3), (max - min).toFixed(3), inside.toFixed(3)], (shader) =>
+        {
+            if (typeof shader.vertexShader === 'string')
+            {
+                const pointSizeAnchor = 'gl_PointSize = size;';
+                if (shader.vertexShader.indexOf(pointSizeAnchor) !== -1)
+                {
+                    shader.vertexShader = shader.vertexShader.replace(
+                        pointSizeAnchor,
+                        [
+                            'float particleSizeHash = fract(sin(dot(position.xy, vec2(41.173, 17.431))) * 43758.5453);',
+                            'gl_PointSize = size * (' + min.toFixed(3) + ' + particleSizeHash * ' + (max - min).toFixed(3) + ');'
+                        ].join('\n')
+                    );
+                }
+            }
+
+            if (typeof shader.fragmentShader !== 'string')
+            {
+                return;
+            }
+
+            const colorAnchor = '#include <color_fragment>';
+            if (shader.fragmentShader.indexOf(colorAnchor) === -1)
+            {
+                return;
+            }
+
+            shader.fragmentShader = shader.fragmentShader.replace(
+                colorAnchor,
+                colorAnchor + '\n'
+                    + 'vec2 particlePoint = gl_PointCoord - vec2(0.5);\n'
+                    + 'float particleDistance = length(particlePoint);\n'
+                    + 'if (particleDistance > 0.5) discard;\n'
+                    + 'diffuseColor.a *= 1.0 - smoothstep(' + inside.toFixed(3) + ', 0.5, particleDistance);'
+            );
+        });
+    }
+
+    const gestureParticleResponses = new Set();
+
+    // 手势驱动的粒子视觉层。参考 https://www.yjln.com/643.html 中
+    // uScale 同时驱动密度、亮度和近景混沌的设计，但保留当前项目的
+    // 相机缩放语义，并把响应统一成 0..1 energy。所有逐粒子计算均在
+    // GPU 内完成；CPU 每帧只更新共享 uniform。
+    function createGestureParticleResponse(points, options = {})
+    {
+        if (!points || !points.material)
+        {
+            return null;
+        }
+        const chaosScale = Number.isFinite(options.chaosScale) ? options.chaosScale : 0.55;
+        const reducedMotion = isReducedMotionRequested();
+        const uniforms = {
+            uGesturePresence: {value: 0},
+            uGestureEnergy: {value: 0},
+            uGestureTime: {value: 0},
+            uGestureMotion: {value: reducedMotion ? 0 : 1}
+        };
+
+        registerShaderPatch(points.material, ['gesture-particles-v1', chaosScale.toFixed(3)], (shader) =>
+        {
+            shader.uniforms.uGesturePresence = uniforms.uGesturePresence;
+            shader.uniforms.uGestureEnergy = uniforms.uGestureEnergy;
+            shader.uniforms.uGestureTime = uniforms.uGestureTime;
+            shader.uniforms.uGestureMotion = uniforms.uGestureMotion;
+
+            if (typeof shader.vertexShader === 'string')
+            {
+                shader.vertexShader = [
+                    'uniform float uGesturePresence;',
+                    'uniform float uGestureEnergy;',
+                    'uniform float uGestureTime;',
+                    'uniform float uGestureMotion;'
+                ].join('\n') + '\n' + shader.vertexShader.replace(
+                    '#include <begin_vertex>',
+                    [
+                        '#include <begin_vertex>',
+                        'if (uGesturePresence > 0.001) {',
+                        '    float gestureHash = fract(sin(dot(position, vec3(27.619, 57.583, 13.117))) * 43758.5453);',
+                        '    float gestureVisibility = 0.92 + uGestureEnergy * 0.08;',
+                        '    if (gestureHash > gestureVisibility) transformed += normalize(position + vec3(0.0001)) * 100000.0;',
+                        // Keep the orbital silhouette stable through most of the zoom. The
+                        // final quarter is a deliberately sharp loss-of-control zone just
+                        // before the particles would fill or leave the viewport.
+                        '    float gestureChaosBase = smoothstep(0.74, 0.98, uGestureEnergy);',
+                        '    float gestureChaos = gestureChaosBase * gestureChaosBase * uGesturePresence * uGestureMotion;',
+                        '    if (gestureChaos > 0.001) {',
+                        '        float gesturePhase = gestureHash * 31.4159;',
+                        '        float gestureRate = 38.0 + gestureHash * 41.0;',
+                        '        vec3 gestureFly = vec3(',
+                        '            sin(uGestureTime * gestureRate + position.y * 13.0 + gesturePhase),',
+                        '            cos(uGestureTime * (gestureRate * 1.173) + position.z * 17.0 + gesturePhase * 1.37),',
+                        '            sin(uGestureTime * (gestureRate * 0.827) + position.x * 19.0 + gesturePhase * 2.11)',
+                        '        );',
+                        '        vec3 gestureBrownian = vec3(',
+                        '            sin(uGestureTime * 91.0 + gesturePhase * 3.7),',
+                        '            cos(uGestureTime * 83.0 + gesturePhase * 5.3),',
+                        '            sin(uGestureTime * 97.0 + gesturePhase * 7.1)',
+                        '        );',
+                        '        vec3 gestureBurst = normalize(position + vec3(0.0001)) * (0.45 + gestureHash * 1.1);',
+                        '        transformed += (gestureFly * 0.68 + gestureBrownian * 0.32 + gestureBurst * 1.25)',
+                        '            * gestureChaos * ' + chaosScale.toFixed(3) + ';',
+                        '        transformed *= 1.0 + gestureChaos * 0.085;',
+                        '    }',
+                        '}'
+                    ].join('\n')
+                ).replace(
+                    '#include <logdepthbuf_vertex>',
+                    'gl_PointSize *= mix(1.0, 0.86 + uGestureEnergy * 0.34, uGesturePresence);\n#include <logdepthbuf_vertex>'
+                );
+            }
+
+            if (typeof shader.fragmentShader === 'string'
+                && shader.fragmentShader.indexOf('#include <color_fragment>') !== -1)
+            {
+                shader.fragmentShader = 'uniform float uGesturePresence;\nuniform float uGestureEnergy;\n'
+                    + shader.fragmentShader.replace(
+                        '#include <color_fragment>',
+                        [
+                            '#include <color_fragment>',
+                            'float gestureBrightness = mix(1.0, mix(0.72, 1.28, uGestureEnergy), uGesturePresence);',
+                            'float gestureDensity = mix(1.0, 0.72 + uGestureEnergy * 0.34, uGesturePresence);',
+                            'diffuseColor.rgb *= gestureBrightness;',
+                            'diffuseColor.a *= gestureDensity;'
+                        ].join('\n')
+                    );
+            }
+        });
+
+        const response = {points, uniforms};
+        gestureParticleResponses.add(response);
+        return response;
+    }
+
+    function updateGestureParticleResponses(state, timestamp)
+    {
+        const presence = state && Number.isFinite(state.presence)
+            ? Math.min(1, Math.max(0, state.presence))
+            : 0;
+        const energy = state && Number.isFinite(state.energy)
+            ? Math.min(1, Math.max(0, state.energy))
+            : 0;
+        const now = Number.isFinite(timestamp)
+            ? timestamp
+            : (global.performance && typeof global.performance.now === 'function'
+                ? global.performance.now()
+                : Date.now());
+        for (const response of gestureParticleResponses)
+        {
+            response.uniforms.uGesturePresence.value = presence;
+            response.uniforms.uGestureEnergy.value = energy;
+            response.uniforms.uGestureTime.value = now / 1000;
+        }
+    }
+
+    // 静态粒子层接入画质档位：初始按手动档位或设备信号缩放 drawRange，
+    // 之后跟随 observatory:quality 实时增减（O(1)，无逐帧成本）
+    function createQualityDrawRange(points, options = {})
+    {
+        const ratios   = {high: 1, balanced: 0.75, low: 0.5, recovery: 0.25};
+        const maxCount = options.maxCount !== undefined
+            ? options.maxCount
+            : points.geometry.attributes.position.count;
+
+        function apply(profile)
+        {
+            if (profile === 'auto')
+            {
+                profile = global.ParticleBuilder
+                    ? global.ParticleBuilder.selectInitialProfile(global.navigator)
+                    : 'high';
+            }
+            const ratio = ratios[profile];
+            points.geometry.setDrawRange(0, ratio === undefined ? maxCount : Math.floor(maxCount * ratio));
+        }
+
+        const ParticleBuilder = global.ParticleBuilder;
+        if (ParticleBuilder && typeof ParticleBuilder.getQualityProfile === 'function')
+        {
+            const override = ParticleBuilder.getQualityProfile();
+            apply(override === 'auto'
+                ? ParticleBuilder.selectInitialProfile(global.navigator)
+                : override);
+        }
+        else
+        {
+            apply('high');
+        }
+
+        global.addEventListener('observatory:quality', (event) =>
+        {
+            apply(event && event.detail ? event.detail.profile : 'high');
+        });
+
+        return {apply};
+    }
+
+    // 静态点云逐粒子尺寸差异：编译期把均一 gl_PointSize 打散成哈希分布，
+    // 消除同一点径带来的"塑料感"（一次性补丁，无逐帧成本）
+    function createPointSizeJitter(points, options = {})
+    {
+        const min = Number.isFinite(options.min) ? options.min : 0.5;
+        const max = Number.isFinite(options.max) ? options.max : 1.5;
+        const anchor = 'gl_PointSize = size;';
+
+        registerShaderPatch(points.material, ['size-jitter-v1', min.toFixed(3), (max - min).toFixed(3)], (shader) =>
+        {
+            if (typeof shader.vertexShader !== 'string'
+                || shader.vertexShader.indexOf(anchor) === -1)
+            {
+                return;
+            }
+            shader.vertexShader = shader.vertexShader.replace(
+                anchor,
+                [
+                    'float sizeJitterHash = fract(sin(dot(position.xy, vec2(12.9898, 78.233))) * 43758.5453);',
+                    'gl_PointSize = size * (' + min.toFixed(3) + ' + sizeJitterHash * ' + (max - min).toFixed(3) + ');'
+                ].join('\n')
+            );
+        });
+    }
+
+    global.createPlanetScene = createPlanetScene;
+    global.createFrameDelta  = createFrameDelta;
+    global.createMotionAwareAnimation = createMotionAwareAnimation;
+    global.createSurfaceConvergence = createSurfaceConvergence;
+    global.createParticleAppearance = createParticleAppearance;
+    global.createGestureParticleResponse = createGestureParticleResponse;
+    global.updateGestureParticleResponses = updateGestureParticleResponses;
+    global.createQualityDrawRange   = createQualityDrawRange;
+    global.createPointSizeJitter    = createPointSizeJitter;
+    global.PLANET_GLSL       = {snoise3D: SIMPLEX_3D_GLSL};
+})(typeof window !== 'undefined' ? window : globalThis);

@@ -1,0 +1,369 @@
+// ==========================================
+// NASA-Punk Project: SOL-III (EARTH)
+// ==========================================
+
+// --- PART 1+2: 场景初始化（共享工厂：背景/相机/渲染器/resize） ---
+const INITIAL_ZOOM = 25;
+
+const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
+    name       : 'earth',
+    zoom       : INITIAL_ZOOM,
+    noiseOffset: 100
+});
+
+// 帧率无关的动画步长因子（60fps 校准基准）
+const nextDeltaTime = createFrameDelta();
+
+// 2. 倾角容器 (Earth Tilt ~23.44 deg)
+const earthTiltGroup      = new THREE.Group();
+earthTiltGroup.rotation.z = 23.44 * (Math.PI / 180);
+group.add(earthTiltGroup);
+
+// 3. 自转容器
+const earthSystemGroup = new THREE.Group();
+earthTiltGroup.add(earthSystemGroup);
+
+// 4. LEO 轨道容器
+const leoGroup = new THREE.Group();
+earthTiltGroup.add(leoGroup);
+
+// 5. 月球容器
+const moonSystemGroup      = new THREE.Group();
+moonSystemGroup.rotation.z = 5.14 * (Math.PI / 180);
+group.add(moonSystemGroup);
+
+let frameSampler;
+let surfaceConvergence;
+
+
+// --- A. 程序化地球 ---
+function createEarth()
+{
+    const planetName = 'earth';
+    const colLandBase = new THREE.Color('#3e6b48');
+    const colLandHigh = new THREE.Color('#9abf8a');
+    const colOcean    = new THREE.Color('#1a2b4a');
+    const colPeak     = new THREE.Color('#ffffff');
+    const noiseGen    = new SimplexNoise('seed-terra-firma-v2');
+    const surfaceColor = new THREE.Color();
+
+    // [建议] 稍微调小 size，配合高密度粒子，看起来更像细腻的沙盘
+    function sampleSurfaceParticle(i, positions, colors)
+    {
+        const rBase = 5.0;
+        const theta = Math.random() * Math.PI * 2;
+        const phi   = Math.acos(2 * Math.random() - 1);
+
+        // 原始球面坐标
+        let x = rBase * Math.sin(phi) * Math.cos(theta);
+        let y = rBase * Math.sin(phi) * Math.sin(theta);
+        let z = rBase * Math.cos(phi);
+
+        let n = 0;
+        n += noiseGen.noise3D(x * 0.15, y * 0.15, z * 0.15) * 1.2;
+        n += noiseGen.noise3D(x * 0.6, y * 0.6, z * 0.6) * 0.25;
+
+        const offset = i * 3;
+        if (n > 0.1)
+        {
+            // 1. 高度因子 (0.0 ~ 1.2 左右)
+            let h = (n - 0.1) * 1.2;
+
+            // [修正] 极微小的隆起系数
+            // 云层起始高度是 0.2 (即 5.2)
+            // 我们将最大隆起控制在 0.07 左右 (即 5.07)，保留明显的大气间隙
+            // 这样既能让点云产生"质感"和"厚度"，又不会破坏球体的完美轮廓
+            const reliefScale = 0.06;
+
+            // 2. 计算微调后的半径
+            const rMod = rBase + (Math.max(0, h) * reliefScale);
+
+            // 3. 缩放坐标
+            const scale = rMod / rBase;
+            positions[offset]     = x * scale;
+            positions[offset + 1] = y * scale;
+            positions[offset + 2] = z * scale;
+
+            // 颜色逻辑保持不变...
+            const c = surfaceColor;
+            if (h < 0.5)
+            {
+                c.copy(colLandBase).lerp(colLandHigh, h / 0.5);
+            }
+            else
+            {
+                c.copy(colLandHigh).lerp(colPeak, Math.min(1, (h - 0.5) * 2.0));
+            }
+            colors[offset]     = c.r;
+            colors[offset + 1] = c.g;
+            colors[offset + 2] = c.b;
+        }
+        else
+        {
+            positions[offset]     = x;
+            positions[offset + 1] = y;
+            positions[offset + 2] = z;
+            colors[offset]        = colOcean.r;
+            colors[offset + 1]    = colOcean.g;
+            colors[offset + 2]    = colOcean.b;
+        }
+    }
+
+    const surface = ParticleBuilder.createSurfaceLayer({
+        planetName,
+        budget: PLANET_PARTICLE_CONFIG[planetName].surface,
+        sample: sampleSurfaceParticle,
+        material: {
+            size        : 0.045,
+            vertexColors: true,
+            transparent : true,
+            opacity     : 0.9
+        },
+        group: earthSystemGroup,
+        onReady()
+        {
+            renderer.render(scene, camera);
+            ParticleBuilder.markReady({page: planetName});
+        }
+    });
+    frameSampler = surface.frameSampler;
+    surfaceConvergence = createSurfaceConvergence(surface.points);
+
+    // 地球网格 (基准参考面)
+    const wireGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(5.0, 24, 24));
+    const wireMat = new THREE.LineBasicMaterial({color: 0x3b4e6b, transparent: true, opacity: 0.08});
+    earthSystemGroup.add(new THREE.LineSegments(wireGeo, wireMat));
+}
+
+createEarth();
+
+
+// --- B. 云层 ---
+const cloudGroup = new THREE.Group();
+earthSystemGroup.add(cloudGroup);
+
+function createClouds()
+{
+    const cloudParticles = 20000;
+    const rawPos         = new Float32Array(cloudParticles * 3);
+    const cloudGen       = new SimplexNoise('cloud-layer-v3');
+    let accepted         = 0;
+
+    for (let i = 0; i < cloudParticles; i++)
+    {
+        const r     = 5 + 0.2 + Math.random() * 0.1;
+        const theta = Math.random() * Math.PI * 2;
+        const phi   = Math.acos(2 * Math.random() - 1);
+        const x     = r * Math.sin(phi) * Math.cos(theta);
+        const y     = r * Math.sin(phi) * Math.sin(theta);
+        const z     = r * Math.cos(phi);
+
+        let n = cloudGen.noise3D(x * 0.15, y * 0.1, z * 0.15);
+        n += 0.4 * cloudGen.noise3D(x * 0.8, y * 0.8, z * 0.8);
+
+        if (n > 0.3)
+        {
+            const idx = accepted * 3;
+            rawPos[idx]     = x;
+            rawPos[idx + 1] = y;
+            rawPos[idx + 2] = z;
+            accepted += 1;
+        }
+    }
+
+    const cloudPos = new Float32Array(rawPos.buffer, 0, accepted * 3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(cloudPos, 3));
+    const mat = new THREE.PointsMaterial({
+        color: 0xffffff, size: 0.06, transparent: true, opacity: 0.35
+    });
+    cloudGroup.add(new THREE.Points(geo, mat));
+}
+
+createClouds();
+
+
+// --- C. LEO 卫星群 ---
+const leoSats = [];
+
+function createLEOSatellites()
+{
+    const colors       = [0xffffff, 0xe06236, 0x7da5c6, 0xffffff];
+    const radii        = [6.0, 6.5, 5.8, 7.0];
+    const speeds       = [0.005, -0.003, 0.006, 0.002];
+    const inclinations = [0, Math.PI / 2, Math.PI / 4, -Math.PI / 6];
+
+    for (let i = 0; i < 4; i++)
+    {
+        const orbitContainer      = new THREE.Group();
+        orbitContainer.rotation.z = inclinations[i];
+        leoGroup.add(orbitContainer);
+
+        const curve    = new THREE.EllipseCurve(0, 0, radii[i], radii[i], 0, 2 * Math.PI, false, 0);
+        const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(64));
+        const line     = new THREE.Line(geometry, new THREE.LineDashedMaterial({
+            color: colors[i], opacity: 0.15, transparent: true, dashSize: 0.3, gapSize: 0.3
+        }));
+        line.computeLineDistances();
+        line.rotation.x = Math.PI / 2;
+        orbitContainer.add(line);
+
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.05), new THREE.MeshBasicMaterial({color: colors[i]}));
+        orbitContainer.add(mesh);
+        leoSats.push({mesh: mesh, radius: radii[i], speed: speeds[i], angle: Math.random() * Math.PI * 2});
+    }
+}
+
+createLEOSatellites();
+
+
+// --- D. 月球 ---
+const moonBodyGroup = new THREE.Group();
+moonSystemGroup.add(moonBodyGroup);
+let moonAngle    = 0;
+const moonRadius = 8.5;
+
+function createMoon()
+{
+    // 轨道线
+    const curve     = new THREE.EllipseCurve(0, 0, moonRadius, moonRadius, 0, 2 * Math.PI, false, 0);
+    const geometry  = new THREE.BufferGeometry().setFromPoints(curve.getPoints(128));
+    const orbitLine = new THREE.Line(geometry, new THREE.LineDashedMaterial({
+        color: 0xaaaaaa, opacity: 0.08, transparent: true, dashSize: 0.5, gapSize: 0.5
+    }));
+    orbitLine.computeLineDistances();
+    orbitLine.rotation.x = Math.PI / 2;
+    moonSystemGroup.add(orbitLine);
+
+    // 月球点云
+    const moonParticles = 1200;
+    const mPos          = new Float32Array(moonParticles * 3);
+    const mColors       = new Float32Array(moonParticles * 3);
+    const moonGen       = new SimplexNoise('luna-v2-refined');
+
+    const colMaria    = new THREE.Color('#1f242b');
+    const colHigh     = new THREE.Color('#e6e8eb');
+    const colRegolith = new THREE.Color('#7a7e85');
+    const tempColor   = new THREE.Color();
+
+    for (let i = 0; i < moonParticles; i++)
+    {
+        const r     = 0.8;
+        const theta = Math.random() * Math.PI * 2;
+        const phi   = Math.acos(2 * Math.random() - 1);
+        const x     = r * Math.sin(phi) * Math.cos(theta);
+        const y     = r * Math.sin(phi) * Math.sin(theta);
+        const z     = r * Math.cos(phi);
+
+        const idx = i * 3;
+        mPos[idx]     = x;
+        mPos[idx + 1] = y;
+        mPos[idx + 2] = z;
+
+        let n       = moonGen.noise3D(x * 2.5, y * 2.5, z * 2.5);
+        let nDetail = moonGen.noise3D(x * 6.0, y * 6.0, z * 6.0) * 0.3;
+        let val     = (n + nDetail + 1) / 2;
+        const c     = tempColor;
+        if (val < 0.45)
+        {
+            c.copy(colMaria).lerp(colRegolith, val / 0.45);
+        }
+        else
+        {
+            c.copy(colRegolith).lerp(colHigh, (val - 0.45) / 0.55);
+        }
+        mColors[idx]     = c.r;
+        mColors[idx + 1] = c.g;
+        mColors[idx + 2] = c.b;
+    }
+
+    const moonGeo = new THREE.BufferGeometry();
+    moonGeo.setAttribute('position', new THREE.Float32BufferAttribute(mPos, 3));
+    moonGeo.setAttribute('color', new THREE.Float32BufferAttribute(mColors, 3));
+    const moonPoints = new THREE.Points(moonGeo, new THREE.PointsMaterial({
+        size: 0.045, vertexColors: true, transparent: true, opacity: 1.0
+    }));
+    moonBodyGroup.add(moonPoints);
+
+    // 月球网格
+    const wireGeo = new THREE.WireframeGeometry(new THREE.SphereGeometry(0.8, 16, 16));
+    const wireMat = new THREE.LineBasicMaterial({color: 0x5d6d7e, transparent: true, opacity: 0.15});
+    moonBodyGroup.add(new THREE.LineSegments(wireGeo, wireMat));
+}
+
+createMoon();
+
+
+// ==========================================
+// PART 4: 交互与动画 (Interaction & Animation)
+// ==========================================
+
+// 初始化交互模块
+initInteraction(group, INITIAL_ZOOM);
+initPlanetFocus(group, camera, 5.0);
+
+// [NEW] 初始相机倾角设置
+if (typeof InteractionState !== 'undefined')
+{
+    InteractionState.targetRotationX = 0.2;
+    InteractionState.targetRotationY = 0.0;
+}
+group.rotation.x = 0.2;
+group.rotation.y = 0.0;
+
+let frameCount = 0;
+let pendingDynamicDelta = 0;
+
+function animate(timestamp)
+{
+    if (!window.isReducedMotionRequested || !window.isReducedMotionRequested())
+    {
+        animationLoop.schedule();
+    }
+    const dt = nextDeltaTime(timestamp);
+    pendingDynamicDelta += dt;
+    frameCount++;
+    frameSampler.sample(timestamp);
+    surfaceConvergence.update(timestamp);
+
+    // 1. 地球自转（演示节奏基准，~87 秒/圈）
+    earthSystemGroup.rotation.y += 0.0012 * dt;
+
+    if (frameCount % frameSampler.dynamicStride === 0)
+    {
+        const dynamicDt = pendingDynamicDelta;
+        pendingDynamicDelta = 0;
+        // 2. 云层差速
+        cloudGroup.rotation.y += 0.0005 * dynamicDt;
+
+        // 3. LEO 卫星动画
+        leoSats.forEach(sat =>
+        {
+            sat.angle += sat.speed * dynamicDt;
+            sat.mesh.position.x = sat.radius * Math.cos(sat.angle);
+            sat.mesh.position.z = sat.radius * Math.sin(sat.angle);
+            sat.mesh.rotation.y += 0.02 * dynamicDt;
+            sat.mesh.rotation.z = -sat.angle;
+        });
+
+        // 4. 月球公转 & 自转（恒星月 27.32 天，潮汐锁定）
+        moonAngle += 0.0000547 * dynamicDt;
+        moonBodyGroup.position.x = moonRadius * Math.cos(moonAngle);
+        moonBodyGroup.position.z = moonRadius * Math.sin(moonAngle);
+        moonBodyGroup.rotation.y = moonAngle;
+    }
+
+    // 5. [核心] 更新交互状态
+    updateInteraction(group, camera);
+
+    // 6. 遥测数据更新
+    if (typeof updatePlanetTelemetry === 'function')
+    {
+        updatePlanetTelemetry(earthSystemGroup, tgtLabel, 1);
+    }
+
+    renderer.render(scene, camera);
+}
+
+const animationLoop = window.createMotionAwareAnimation(animate);
+animate();

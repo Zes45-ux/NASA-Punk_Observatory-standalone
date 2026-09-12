@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NASA-Punk Observatory : SYSTEM SELECT</title>
+    <title>NASA-Punk : SOL-II (Venus)</title>
     <link rel="stylesheet" href="./styles/tokens.css">
     <link rel="stylesheet" href="./styles/base.css">
     <link rel="stylesheet" href="./styles/components.css">
@@ -12,9 +12,16 @@
     <link rel="stylesheet" href="./styles/transition.css">
     <link rel="stylesheet" href="./styles/polish.css">
     <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <style>
+        /* 金星专用：温暖、高热的橙色光晕 */
+        .p-venus {
+            box-shadow: 0 0 14px rgba(255, 170, 0, 0.9);
+            background-color: #ffaa00;
+        }
+    </style>
 </head>
 
-<body>
+<body data-planet="venus">
 <div class="transition-curtain start-covered" id="global-curtain">
     <div class="curtain-col c1"></div>
     <div class="curtain-col c2"></div>
@@ -23,23 +30,31 @@
 </div>
 
 <canvas id="topo-canvas"></canvas>
-<canvas id="system-particle-canvas" aria-hidden="true"></canvas>
-<div id="system-select-root"></div>
+<div id="canvas-container"></div>
 
+<div id="ui-layer">
+    <div id="planet-ui-root"></div>
+</div>
+
+<script src="./scripts/vendor/three.min.js"></script>
 <script src="./scripts/vendor/simplex-noise.min.js"></script>
 <script src="./scripts/components/topoRenderer.js"></script>
-<script src="./scripts/components/systemParticleField.js"></script>
 <script src="./scripts/components/observatoryUi.js"></script>
+<script src="./scripts/core/telemetry.js"></script>
 <script src="./scripts/core/interaction.js"></script>
+<script src="./scripts/vendor/mediapipe-hands/hands.js"></script>
+<script src="./scripts/core/gesture-control.js"></script>
 <script src="./scripts/core/transition.js"></script>
 <script src="./scripts/core/particle-builder.js"></script>
 <script src="./scripts/core/serif.config.js"></script>
 <script src="./scripts/core/serif.js"></script>
 <script src="./scripts/core/display.js"></script>
-<script src="./scripts/components/systemSelect.config.js"></script>
-<script src="./scripts/components/systemSelectUi.js"></script>
-<script src="./scripts/pages/index.page.js"></script>
-
+<script src="./scripts/core/planetScene.js"></script>
+<script src="./scripts/planets/config.js"></script>
+<script src="./scripts/components/particleMiniMap.js"></script>
+<script src="./scripts/components/planetUi.js"></script>
+<script src="./scripts/pages/planet.page.js"></script>
+<script src="./scripts/planets/venus.js"></script>
 </body>
 
 </html>
