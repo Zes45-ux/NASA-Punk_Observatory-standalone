@@ -6,15 +6,15 @@
 (function initSolarSystemOverview(global)
 {
     const PLANETS = [
-        {name: 'sun',     orbit: 0,    phase: 0,     radius: 4.9,  particles: 6200, color: '#ff8b24', accent: '#fff4bf', speed: 0,     atmosphere: 1.12},
-        {name: 'mercury', orbit: 10.5, phase: -0.65, radius: 0.62, particles: 780,  color: '#736f6b', accent: '#d7d0c7', speed: 0.48},
-        {name: 'venus',   orbit: 16.5, phase: 0.8,   radius: 0.98, particles: 1250, color: '#b65325', accent: '#ffd083', speed: 0.34, atmosphere: 1.06},
-        {name: 'earth',   orbit: 23,   phase: 2.35,  radius: 1.04, particles: 1500, color: '#1e4f8e', accent: '#7fc08a', speed: 0.28, atmosphere: 1.045},
-        {name: 'mars',    orbit: 30,   phase: -2.4,  radius: 0.76, particles: 980,  color: '#8f2e1c', accent: '#e58b59', speed: 0.23},
-        {name: 'jupiter', orbit: 41,   phase: -0.35, radius: 2.55, particles: 3400, color: '#8d5038', accent: '#f0d3a5', speed: 0.14, atmosphere: 1.035},
-        {name: 'saturn',  orbit: 52,   phase: 1.05,  radius: 2.1,  particles: 2900, color: '#a88c55', accent: '#f3e3b1', speed: 0.11, rings: true, atmosphere: 1.035},
-        {name: 'uranus',  orbit: 62,   phase: 2.8,   radius: 1.52, particles: 2050, color: '#4c98a9', accent: '#c3f5f2', speed: 0.08, rings: true, atmosphere: 1.045},
-        {name: 'neptune', orbit: 71,   phase: -2.8,  radius: 1.5,  particles: 2050, color: '#173f9b', accent: '#6fa7ff', speed: 0.065, atmosphere: 1.04}
+        {name: 'sun',     orbit: 0,    phase: 0,     radius: 4.9,  particles: 6200, color: '#cc4400', accent: '#ffffff', speed: 0,     atmosphere: {scale: 1.14, color: '#ffb84d', opacity: 0.2}},
+        {name: 'mercury', orbit: 10.5, phase: -0.65, radius: 0.62, particles: 780,  color: '#999999', accent: '#cccccc', speed: 0.48},
+        {name: 'venus',   orbit: 16.5, phase: 0.8,   radius: 0.98, particles: 1250, color: '#8b1a1a', accent: '#ffe0a0', speed: 0.34, atmosphere: {scale: 1.045, color: '#ffae20', opacity: 0.22, spin: -0.34}},
+        {name: 'earth',   orbit: 23,   phase: 2.35,  radius: 1.04, particles: 1500, color: '#1a2b4a', accent: '#9abf8a', speed: 0.28, atmosphere: {scale: 1.045, color: '#ffffff', opacity: 0.14, spin: 0.2}},
+        {name: 'mars',    orbit: 30,   phase: -2.4,  radius: 0.76, particles: 980,  color: '#94544d', accent: '#d98c6b', speed: 0.23, atmosphere: {scale: 1.055, color: '#ffc840', opacity: 0.1}},
+        {name: 'jupiter', orbit: 41,   phase: -0.35, radius: 2.55, particles: 3400, color: '#c28266', accent: '#f0e2c2', speed: 0.14, atmosphere: {scale: 1.028, color: '#ffe699', opacity: 0.12}},
+        {name: 'saturn',  orbit: 52,   phase: 1.05,  radius: 2.1,  particles: 2900, color: '#d9c37c', accent: '#f4f0d5', speed: 0.11, rings: 'saturn', atmosphere: {scale: 1.035, color: '#f4f0d5', opacity: 0.1}},
+        {name: 'uranus',  orbit: 62,   phase: 2.8,   radius: 1.52, particles: 2050, color: '#4a9cb8', accent: '#e0ffff', speed: 0.08, rings: 'uranus', atmosphere: {scale: 1.04, color: '#66e6ff', opacity: 0.14}},
+        {name: 'neptune', orbit: 71,   phase: -2.8,  radius: 1.5,  particles: 2050, color: '#1a237e', accent: '#448aff', speed: 0.065, rings: 'neptune'}
     ];
 
     function mulberry32(seed)
@@ -74,6 +74,7 @@
         const planetEntries = [];
         const disposables = [];
         const overviewMaterials = [];
+        const effectLayers = [];
         const labels = new Map();
         const labelNodes = document.querySelectorAll(options.labelSelector || '.solar-target');
         labelNodes.forEach((node) => labels.set(node.dataset.planet, node));
@@ -93,7 +94,7 @@
         let focusState = null;
         let navigationCommitted = false;
 
-        const FOCUS_DURATION_MS = 1080;
+        const FOCUS_DURATION_MS = 1280;
 
         function track(resource)
         {
@@ -119,14 +120,106 @@
 
         const particleTexture = createParticleTexture();
 
+        function createSurfaceSampler(definition)
+        {
+            const noise = global.SimplexNoise
+                ? new global.SimplexNoise(`overview-${definition.name}`)
+                : null;
+            const palette = {};
+            const colors = {
+                sun: ['#8a1c00', '#cc4400', '#ffb84d', '#ffffff'],
+                mercury: ['#555555', '#999999', '#cccccc'],
+                venus: ['#8b1a1a', '#d9531e', '#ffe0a0'],
+                earth: ['#1a2b4a', '#3e6b48', '#9abf8a', '#ffffff'],
+                mars: ['#6b433c', '#94544d', '#d98c6b'],
+                jupiter: ['#787878', '#8a3f2d', '#c28266', '#d6c7a5', '#f0e2c2'],
+                saturn: ['#6b7e8c', '#a68f58', '#d9c37c', '#f4f0d5'],
+                uranus: ['#4a9cb8', '#a4d8e6', '#e0ffff'],
+                neptune: ['#0d1238', '#1a237e', '#2962ff', '#448aff']
+            }[definition.name];
+            colors.forEach((color, index) => { palette[index] = new THREE.Color(color); });
+            const sampled = new THREE.Color();
+            const readNoise = (x, y, z, scaleX, scaleY = scaleX, scaleZ = scaleX) => noise
+                ? noise.noise3D(x * scaleX, y * scaleY, z * scaleZ)
+                : Math.sin((x * scaleX + y * scaleY + z * scaleZ) * 3.17);
+
+            return function sample(x, y, z, theta)
+            {
+                const nx = x / definition.radius;
+                const ny = y / definition.radius;
+                const nz = z / definition.radius;
+                const baseNoise = readNoise(nx, ny, nz, 1.8);
+                if (definition.name === 'sun')
+                {
+                    const detail = baseNoise + readNoise(nx, ny, nz, 6.2) * 0.5;
+                    if (detail > 0.6) sampled.copy(palette[3]);
+                    else if (detail > 0) sampled.copy(palette[2]).lerp(palette[3], detail);
+                    else if (detail > -0.5) sampled.copy(palette[1]).lerp(palette[2], (detail + 0.5) * 2);
+                    else sampled.copy(palette[0]).lerp(palette[1], (detail + 1) * 2);
+                }
+                else if (definition.name === 'mercury')
+                {
+                    const crater = 1 - Math.pow(Math.abs(readNoise(nx, ny, nz, 8)), 1.2);
+                    sampled.copy(crater > 0.62 ? palette[0] : (baseNoise > 0.2 ? palette[2] : palette[1]));
+                }
+                else if (definition.name === 'venus')
+                {
+                    const chaos = (readNoise(nx, ny, nz, 5) * 0.8 + readNoise(nx, ny, nz, 13) * 0.2 + 1) * 0.5;
+                    sampled.copy(chaos < 0.5 ? palette[0] : palette[1]);
+                    sampled.lerp(chaos < 0.5 ? palette[1] : palette[2], chaos < 0.5 ? chaos * 2 : (chaos - 0.5) * 2);
+                }
+                else if (definition.name === 'earth')
+                {
+                    const terrain = readNoise(nx, ny, nz, 1.1) * 1.2 + readNoise(nx, ny, nz, 4.2) * 0.25;
+                    if (terrain <= 0.1) sampled.copy(palette[0]);
+                    else if (terrain < 0.55) sampled.copy(palette[1]).lerp(palette[2], (terrain - 0.1) / 0.45);
+                    else sampled.copy(palette[2]).lerp(palette[3], Math.min(1, (terrain - 0.55) * 2.2));
+                }
+                else if (definition.name === 'mars')
+                {
+                    const crater = Math.abs(readNoise(nx, ny, nz, 9));
+                    sampled.copy(crater > 0.72 ? palette[0] : (baseNoise > 0.2 ? palette[2] : palette[1]));
+                }
+                else if (definition.name === 'jupiter')
+                {
+                    const latitude = Math.abs(ny);
+                    const signal = Math.sin(Math.sign(ny) * Math.pow(latitude, 1.4) * 12
+                        + readNoise(nx, ny, nz, 3.2, 0.9, 3.2) * 1.2);
+                    if (latitude > 0.85) sampled.copy(palette[3]).lerp(palette[0], (latitude - 0.85) * 4);
+                    else if (signal > 0.1) sampled.copy(palette[3]).lerp(palette[4], Math.min(1, signal));
+                    else sampled.copy(palette[2]).lerp(palette[1], Math.min(1, Math.abs(signal) * 0.8 + 0.2));
+                }
+                else if (definition.name === 'saturn')
+                {
+                    const band = Math.sin(ny * definition.radius * 3.5 + baseNoise * 0.3);
+                    sampled.copy(band > 0.5 ? palette[3] : (band < -0.3 ? palette[1] : palette[2]));
+                    if (ny > 0.55) sampled.lerp(palette[0], Math.min(0.7, (ny - 0.55) * 1.5));
+                }
+                else if (definition.name === 'uranus')
+                {
+                    sampled.copy(palette[0]).lerp(palette[1], Math.abs(ny) * 0.8 + 0.2);
+                    if (Math.abs(ny) > 0.8) sampled.lerp(palette[2], (Math.abs(ny) - 0.8) * 3);
+                }
+                else
+                {
+                    const wind = readNoise(nx, ny, nz, 1.8, 8, 1.8);
+                    const storm = ny < -0.25 && ny > -0.55 && nx > 0 && Math.abs(nz) < 0.4;
+                    if (storm) sampled.copy(palette[0]);
+                    else sampled.copy(wind < -0.2 ? palette[1] : palette[2])
+                        .lerp(wind < -0.2 ? palette[2] : palette[3], wind < -0.2 ? wind + 1 : wind);
+                }
+                sampled.multiplyScalar(0.88 + random() * 0.24);
+                return sampled;
+            };
+        }
+
         function createParticleSphere(definition, index)
         {
             const count = Math.max(180, Math.round(definition.particles * density));
             const positions = new Float32Array(count * 3);
             const colors = new Float32Array(count * 3);
-            const base = new THREE.Color(definition.color);
-            const accent = new THREE.Color(definition.accent);
             const mixed = new THREE.Color();
+            const sampleSurface = createSurfaceSampler(definition);
             const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 
             for (let i = 0; i < count; i++)
@@ -140,24 +233,7 @@
                 positions[offset + 1] = y * definition.radius * relief;
                 positions[offset + 2] = Math.sin(theta) * radial * definition.radius * relief;
 
-                let blend = 0.16 + random() * 0.38;
-                if (definition.name === 'earth')
-                {
-                    const terrain = Math.sin(theta * 2.7 + y * 4.2)
-                        + Math.sin(theta * 6.1 - y * 7.4) * 0.42;
-                    blend = terrain > 0.38 ? 0.82 : 0.08 + random() * 0.16;
-                    if (Math.abs(y) > 0.88) blend = 1;
-                }
-                else if (['venus', 'jupiter', 'saturn', 'uranus', 'neptune'].includes(definition.name))
-                {
-                    const bandFrequency = definition.name === 'jupiter' ? 11 : 8;
-                    blend = 0.1 + (Math.sin(y * Math.PI * bandFrequency + index) * 0.5 + 0.5) * 0.68;
-                }
-                else if (definition.name === 'sun')
-                {
-                    blend = Math.pow(random(), 0.65);
-                }
-                mixed.copy(base).lerp(accent, blend).multiplyScalar(0.78 + random() * 0.4);
+                mixed.copy(sampleSurface(positions[offset], positions[offset + 1], positions[offset + 2], theta));
                 colors[offset] = mixed.r;
                 colors[offset + 1] = mixed.g;
                 colors[offset + 2] = mixed.b;
@@ -181,19 +257,55 @@
             cloud.add(new THREE.Points(geometry, material));
             if (definition.atmosphere)
             {
+                const shellRatio = {
+                    sun: 0.58,
+                    venus: 0.5,
+                    earth: 0.34,
+                    mars: 0.2,
+                    jupiter: 0.38,
+                    saturn: 0.28,
+                    uranus: 0.34
+                }[definition.name] || 0.3;
+                const shellCapacity = Math.max(80, Math.round(count * shellRatio));
+                const shellPositions = new Float32Array(shellCapacity * 3);
+                let shellCount = 0;
+                for (let sourceIndex = 0; sourceIndex < count && shellCount < shellCapacity; sourceIndex++)
+                {
+                    const sourceOffset = sourceIndex * 3;
+                    const px = positions[sourceOffset] / definition.radius;
+                    const py = positions[sourceOffset + 1] / definition.radius;
+                    const pz = positions[sourceOffset + 2] / definition.radius;
+                    const cloudSignal = Math.sin(px * 7.2 + pz * 2.4)
+                        + Math.sin(py * 9.1 - pz * 5.3) * 0.55;
+                    const keep = definition.name === 'earth'
+                        ? cloudSignal > 0.28
+                        : (sourceIndex % Math.max(1, Math.round(1 / shellRatio)) === 0);
+                    if (!keep) continue;
+                    const targetOffset = shellCount * 3;
+                    shellPositions[targetOffset] = positions[sourceOffset];
+                    shellPositions[targetOffset + 1] = positions[sourceOffset + 1];
+                    shellPositions[targetOffset + 2] = positions[sourceOffset + 2];
+                    shellCount++;
+                }
+                const haloGeometry = track(new THREE.BufferGeometry());
+                haloGeometry.setAttribute('position', new THREE.BufferAttribute(
+                    shellPositions.subarray(0, shellCount * 3), 3
+                ));
                 const haloMaterial = track(new THREE.PointsMaterial({
                     size: definition.name === 'sun' ? 0.32 : 0.24,
                     map: particleTexture,
                     alphaTest: 0.01,
-                    color: definition.accent,
+                    color: definition.atmosphere.color,
                     transparent: true,
-                    opacity: definition.name === 'sun' ? 0.18 : 0.1,
+                    opacity: definition.atmosphere.opacity,
                     blending: THREE.AdditiveBlending,
                     depthWrite: false,
                     sizeAttenuation: true
                 }));
-                const halo = new THREE.Points(geometry, haloMaterial);
-                halo.scale.setScalar(definition.atmosphere);
+                const halo = new THREE.Points(haloGeometry, haloMaterial);
+                halo.scale.setScalar(definition.atmosphere.scale);
+                halo.userData.overviewSpin = definition.atmosphere.spin || 0;
+                effectLayers.push(halo);
                 cloud.add(halo);
             }
             return cloud;
@@ -223,19 +335,33 @@
             const count = Math.round((definition.name === 'saturn' ? 1600 : 700) * density);
             const positions = new Float32Array(count * 3);
             const colors = new Float32Array(count * 3);
-            const base = new THREE.Color(definition.accent);
+            const ringColor = new THREE.Color();
             for (let i = 0; i < count; i++)
             {
                 const angle = random() * Math.PI * 2;
-                const radius = definition.radius * (1.45 + random() * 0.65);
+                const radius = definition.radius * (1.38 + random() * (definition.rings === 'saturn' ? 0.95 : 0.72));
                 const offset = i * 3;
                 positions[offset] = Math.cos(angle) * radius;
                 positions[offset + 1] = (random() - 0.5) * 0.055;
                 positions[offset + 2] = Math.sin(angle) * radius;
-                const brightness = 0.5 + random() * 0.5;
-                colors[offset] = base.r * brightness;
-                colors[offset + 1] = base.g * brightness;
-                colors[offset + 2] = base.b * brightness;
+                const normalized = (radius / definition.radius - 1.38)
+                    / (definition.rings === 'saturn' ? 0.95 : 0.72);
+                if (definition.rings === 'saturn')
+                {
+                    ringColor.set(normalized < 0.28 ? '#4a3b2a' : (normalized < 0.72 ? '#f0e4c0' : '#a0b0c0'));
+                }
+                else if (definition.rings === 'uranus')
+                {
+                    ringColor.set(normalized > 0.76 ? '#40e0d0' : '#2a4f50');
+                }
+                else
+                {
+                    ringColor.set(normalized > 0.62 ? '#88aaff' : '#5566aa');
+                }
+                const brightness = 0.55 + random() * 0.55;
+                colors[offset] = ringColor.r * brightness;
+                colors[offset + 1] = ringColor.g * brightness;
+                colors[offset + 2] = ringColor.b * brightness;
             }
             const geometry = track(new THREE.BufferGeometry());
             geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -246,12 +372,14 @@
                 alphaTest: 0.02,
                 vertexColors: true,
                 transparent: true,
-                opacity: definition.name === 'saturn' ? 0.72 : 0.38,
+                opacity: definition.rings === 'saturn' ? 0.72 : (definition.rings === 'uranus' ? 0.42 : 0.3),
                 blending: THREE.AdditiveBlending,
                 depthWrite: false
             }));
             const rings = new THREE.Points(geometry, material);
-            rings.rotation.x = definition.name === 'uranus' ? Math.PI * 0.48 : Math.PI * 0.08;
+            rings.rotation.x = definition.rings === 'uranus' ? Math.PI * 0.48 : Math.PI * 0.08;
+            rings.userData.overviewSpin = definition.rings === 'neptune' ? 0.42 : 0.18;
+            effectLayers.push(rings);
             parent.add(rings);
         }
 
@@ -356,18 +484,29 @@
             return t * t * (3 - 2 * t);
         }
 
+        function smootherstep(value)
+        {
+            const t = Math.max(0, Math.min(1, value));
+            return t * t * t * (t * (t * 6 - 15) + 10);
+        }
+
         function updateFocus(timestamp)
         {
             const elapsed = Math.max(0, timestamp - focusState.startedAt);
             const progress = Math.min(1, elapsed / FOCUS_DURATION_MS);
-            const eased = 1 - Math.pow(1 - progress, 3);
+            const eased = smootherstep(progress);
+            const handoffProgress = navigationCommitted
+                ? Math.min(1, (timestamp - focusState.handoffStartedAt) / 720)
+                : 0;
             focusState.target.body.getWorldPosition(focusState.worldTarget);
-            focusState.endCamera.copy(focusState.worldTarget).add(focusState.cameraOffset);
+            focusState.liveOffset.copy(focusState.cameraOffset)
+                .multiplyScalar(1 - smootherstep(handoffProgress) * 0.1);
+            focusState.endCamera.copy(focusState.worldTarget).add(focusState.liveOffset);
             camera.position.lerpVectors(focusState.startCamera, focusState.endCamera, eased);
             focusState.lookAt.lerpVectors(focusState.startLookAt, focusState.worldTarget, eased);
             camera.lookAt(focusState.lookAt);
 
-            const fade = 1 - smoothstep(progress / 0.72);
+            const fade = 1 - smoothstep(progress / 0.86);
             overviewMaterials.forEach((entry) =>
             {
                 const belongsToTarget = isInside(entry.object, focusState.target.body)
@@ -432,6 +571,7 @@
             if (focusComplete && !navigationCommitted)
             {
                 navigationCommitted = true;
+                focusState.handoffStartedAt = timestamp;
                 prepareParticleHandoff();
                 global.TransitionManager.navigate(focusState.url);
             }
@@ -447,6 +587,17 @@
                 {
                     if (index > 0) entry.orbitPivot.rotation.y += entry.definition.speed * delta * 0.22;
                     entry.particles.rotation.y += delta * (entry.definition.name === 'sun' ? 0.055 : 0.12);
+                });
+            }
+            else if (!reducedMotion && focusState)
+            {
+                focusState.target.particles.rotation.y += delta * 0.08;
+            }
+            if (!reducedMotion)
+            {
+                effectLayers.forEach((layer) =>
+                {
+                    layer.rotation.y += delta * layer.userData.overviewSpin;
                 });
             }
             render(timestamp);
@@ -596,9 +747,11 @@
                 startCamera: camera.position.clone(),
                 endCamera: new THREE.Vector3(),
                 cameraOffset,
+                liveOffset: new THREE.Vector3(),
                 startLookAt: new THREE.Vector3(0, 0, 0),
                 lookAt: new THREE.Vector3(),
-                worldTarget: worldPosition.clone()
+                worldTarget: worldPosition.clone(),
+                handoffStartedAt: 0
             };
             document.body.classList.add('solar-system-targeting');
             return true;

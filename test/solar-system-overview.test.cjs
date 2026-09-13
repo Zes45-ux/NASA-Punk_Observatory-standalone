@@ -31,7 +31,13 @@ test('overview defines the sun and all eight planets as particle bodies', () =>
     assert.match(source, /prepareParticleHandoff/, 'handoff isolates the selected planet particles');
     assert.match(source, /registerParticleScene\(scene, camera, renderer\)/,
         'overview registers its particle scene with the cross-page bridge');
-    assert.match(source, /FOCUS_DURATION_MS = 1080/, 'camera push has an explicit cinematic duration');
+    assert.match(source, /FOCUS_DURATION_MS = 1280/, 'camera push has an explicit cinematic duration');
+    assert.match(source, /overview-\$\{definition\.name\}/,
+        'thumbnail surface noise is seeded per matching planet');
+    assert.match(source, /smootherstep\(progress\)/,
+        'camera movement eases smoothly at both ends of the flight');
+    assert.match(source, /cloudSignal > 0\.28/,
+        'Earth keeps a sparse cloud mask instead of a solid white shell');
 });
 
 test('planet labels route clicks through the overview focus before page navigation', () =>
@@ -40,4 +46,26 @@ test('planet labels route clicks through the overview focus before page navigati
     assert.match(source, /overview\.focusAndNavigate\(node\.dataset\.planet, link\)/);
     assert.match(source, /solarSystemOverview\.resetFocus\(\)/,
         'back-forward cache restores the full overview after a transition');
+});
+
+test('overview palettes reuse the defining colors from each full planet scene', () =>
+{
+    const overview = fs.readFileSync('scripts/components/solarSystemOverview.js', 'utf8');
+    const sharedColors = {
+        sun: '#ffb84d',
+        mercury: '#999999',
+        venus: '#8b1a1a',
+        earth: '#1a2b4a',
+        mars: '#94544d',
+        jupiter: '#f0e2c2',
+        saturn: '#d9c37c',
+        uranus: '#4a9cb8',
+        neptune: '#2962ff'
+    };
+    Object.entries(sharedColors).forEach(([planet, color]) =>
+    {
+        const fullScene = fs.readFileSync(`scripts/planets/${planet}.js`, 'utf8');
+        assert.ok(fullScene.includes(color), `${planet} full scene defines ${color}`);
+        assert.ok(overview.includes(color), `${planet} thumbnail reuses ${color}`);
+    });
 });
