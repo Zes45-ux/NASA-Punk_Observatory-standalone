@@ -289,13 +289,31 @@ test('particle bridge rendering stays on one GPU draw path instead of Canvas2D l
     const source = fs.readFileSync('scripts/core/transition.js', 'utf8');
     assert.ok(source.includes('new THREE.ShaderMaterial'));
     assert.ok(source.includes('bridgeRenderer.render(bridgeScene, bridgeCamera)'));
-    assert.ok(source.includes('PARTICLE_HANDOFF_MS = 120'));
-    assert.ok(source.includes('mesh.userData.fadeOutStartedAt = handoffStartedAt'));
+    assert.ok(source.includes('PARTICLE_HANDOFF_MS = 420'));
+    assert.ok(source.includes('PARTICLE_OUTGOING_HOLD_MS = 180'));
+    assert.ok(source.includes('mesh.userData.fadeOutStartedAt = handoffStartedAt + PARTICLE_OUTGOING_HOLD_MS'));
+    assert.ok(source.includes('progress >= 0.44'));
     assert.ok(source.includes("new CustomEvent('observatory:transition-complete')"));
     assert.equal(source.includes("getContext('2d')"), false);
     assert.equal(source.includes('context.arc('), false);
     assert.equal(source.includes('Array.from(bridgeMeshes)'), false);
     assert.ok(source.includes('disposeBridgeMesh(mesh);\n                    continue;'));
+});
+
+test('target pages bootstrap the outgoing particles before Three.js loads', () => {
+    const bootstrap = fs.readFileSync('scripts/core/transition-bootstrap.js', 'utf8');
+    assert.ok(bootstrap.includes("observatory-particle-bridge-v3"));
+    assert.ok(bootstrap.includes("getContext('2d')"));
+    assert.ok(bootstrap.includes('__observatoryParticleBootstrap'));
+    assert.ok(bootstrap.includes('progress = Math.min'));
+
+    for (const page of ['sun', 'mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'])
+    {
+        const html = fs.readFileSync(`${page}.html`, 'utf8');
+        const bootstrapIndex = html.indexOf('./scripts/core/transition-bootstrap.js');
+        const threeIndex = html.indexOf('./scripts/vendor/three.min.js');
+        assert.ok(bootstrapIndex >= 0 && bootstrapIndex < threeIndex, `${page} bootstraps before Three.js`);
+    }
 });
 
 test('completed bridge releases its temporary renderer and WebGL context', () => {

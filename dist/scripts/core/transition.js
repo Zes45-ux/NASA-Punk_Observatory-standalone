@@ -10,7 +10,8 @@
     const PARTICLE_BRIDGE_MS = 2400;
     const PARTICLE_BRIDGE_MAX_AGE_MS = 6000;
     const PARTICLE_INCOMING_MS = 1050;
-    const PARTICLE_HANDOFF_MS = 120;
+    const PARTICLE_HANDOFF_MS = 420;
+    const PARTICLE_OUTGOING_HOLD_MS = 180;
     const PARTICLE_LIMIT = 1800;
     const BRIDGE_STORAGE_KEY = 'observatory-particle-bridge-v3';
     let revealed = false;
@@ -27,6 +28,16 @@
     let bridgeSizeTarget = null;
     let incomingBridgeStarted = false;
     const bridgeMeshes = new Set();
+    let bootstrapReleased = false;
+
+    function releaseBootstrapBridge()
+    {
+        if (bootstrapReleased) return;
+        const bootstrap = global.__observatoryParticleBootstrap;
+        if (!bootstrap || typeof bootstrap.release !== 'function') return;
+        bootstrapReleased = true;
+        bootstrap.release();
+    }
 
     function isReducedMotionRequested()
     {
@@ -353,6 +364,7 @@
     {
         continuingParticleBridge = false;
         document.body.classList.remove('particle-transition-continuation', 'particle-transition-waiting');
+        releaseBootstrapBridge();
         global.dispatchEvent(new CustomEvent('observatory:transition-complete'));
     }
 
@@ -385,9 +397,11 @@
             const elapsedMs = Math.max(0, now - mesh.userData.startedAt);
             const progress = Math.min(elapsedMs / mesh.userData.duration, 1);
             mesh.material.uniforms.uElapsed.value = elapsedMs / 1000;
-            if (mesh.userData.fadeOutStartedAt !== null)
+            if (mesh.userData.fadeOutStartedAt !== null && now >= mesh.userData.fadeOutStartedAt)
             {
-                const fadeProgress = Math.min((now - mesh.userData.fadeOutStartedAt) / PARTICLE_HANDOFF_MS, 1);
+                const fadeProgress = Math.max(0, Math.min(
+                    (now - mesh.userData.fadeOutStartedAt) / PARTICLE_HANDOFF_MS, 1
+                ));
                 mesh.material.uniforms.uLayerAlpha.value = 1 - fadeProgress * fadeProgress * (3 - 2 * fadeProgress);
                 if (fadeProgress >= 1)
                 {
@@ -396,7 +410,7 @@
                     continue;
                 }
             }
-            if (mesh.userData.mode === 'incoming' && progress >= 0.7 && !mesh.userData.sceneRevealed)
+            if (mesh.userData.mode === 'incoming' && progress >= 0.44 && !mesh.userData.sceneRevealed)
             {
                 mesh.userData.sceneRevealed = true;
                 document.body.classList.remove('particle-transition-waiting');
@@ -417,6 +431,7 @@
             return;
         }
         bridgeRenderer.render(bridgeScene, bridgeCamera);
+        releaseBootstrapBridge();
         bridgeFrame = global.requestAnimationFrame(renderBridgeFrame);
     }
 
@@ -561,7 +576,7 @@
         {
             if (mesh !== incomingMesh && mesh.userData.mode === 'outgoing')
             {
-                mesh.userData.fadeOutStartedAt = handoffStartedAt;
+                mesh.userData.fadeOutStartedAt = handoffStartedAt + PARTICLE_OUTGOING_HOLD_MS;
             }
         });
     }

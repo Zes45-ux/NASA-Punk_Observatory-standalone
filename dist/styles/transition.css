@@ -15,6 +15,15 @@
     height: 100%;
 }
 
+.particle-transition-bootstrap {
+    opacity: 1;
+    transition: opacity 220ms ease-out;
+}
+
+.particle-transition-bootstrap.is-released {
+    opacity: 0;
+}
+
 #canvas-container {
     opacity: 1;
     transform: scale(1);
@@ -79,7 +88,7 @@ body.particle-transition-exit #solar-system-scene {
 }
 
 body.particle-transition-continuation #canvas-container {
-    transition: opacity 240ms ease-out;
+    transition: opacity 420ms ease-out;
 }
 
 body.particle-transition-waiting #canvas-container {
