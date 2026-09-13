@@ -150,3 +150,49 @@ test('camera activation can be cancelled while permission is still pending', asy
     assert.equal(trackStopped, true, 'a late camera stream is released immediately');
     assert.equal(value.textContent, 'OFFLINE');
 });
+
+test('camera policy failures expose a direct-site recovery path without requesting media', async () =>
+{
+    let cameraRequests = 0;
+    const value = {textContent: 'OFFLINE'};
+    const button = {
+        addEventListener() {},
+        querySelector: () => value,
+        setAttribute() {}
+    };
+    const status = {textContent: ''};
+    const panel = {dataset: {}, hidden: true};
+    const video = {srcObject: null};
+    const recovery = {hidden: true, href: ''};
+    const elements = {
+        'gesture-control-toggle': button,
+        'gesture-control-status': status,
+        'gesture-camera-panel': panel,
+        'gesture-camera-feed': video,
+        'gesture-control-recovery': recovery
+    };
+    const window = {
+        document: {
+            hidden: false,
+            permissionsPolicy: {allowsFeature: () => false},
+            getElementById: (id) => elements[id]
+        },
+        navigator: {mediaDevices: {getUserMedia: () => { cameraRequests += 1; }}},
+        Hands: class {},
+        location: {href: 'https://example.test/jupiter.html'},
+        addEventListener() {}
+    };
+    window.window = window;
+    vm.runInNewContext(fs.readFileSync('scripts/core/gesture-control.js', 'utf8'), {window});
+
+    const controller = window.HandGestureControl.init({
+        state: {targetSliderVal: 50, targetRotationX: 0, targetRotationY: 0, slider: null}
+    });
+    await controller.start();
+
+    assert.equal(cameraRequests, 0);
+    assert.equal(status.textContent, 'OPEN DIRECT SITE FOR CAMERA');
+    assert.equal(panel.hidden, false);
+    assert.equal(recovery.hidden, false);
+    assert.equal(recovery.href, window.location.href);
+});

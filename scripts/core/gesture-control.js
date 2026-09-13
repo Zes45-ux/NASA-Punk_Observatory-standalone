@@ -129,6 +129,7 @@
         const status = global.document && global.document.getElementById('gesture-control-status');
         const panel = global.document && global.document.getElementById('gesture-camera-panel');
         const video = global.document && global.document.getElementById('gesture-camera-feed');
+        const recovery = global.document && global.document.getElementById('gesture-control-recovery');
         if (!button || !status || !panel || !video || !state)
         {
             return null;
@@ -145,6 +146,79 @@
         let lastInferenceAt = 0;
         let gestureAnchor = null;
         let smoothedPinch = null;
+        let frameErrorReported = false;
+
+        function getCameraEnvironment()
+        {
+            let embedded = false;
+            try
+            {
+                embedded = Boolean(global.top && global.self && global.top !== global.self);
+            }
+            catch (error)
+            {
+                embedded = true;
+            }
+            const policy = global.document
+                && (global.document.permissionsPolicy || global.document.featurePolicy);
+            let policyAllowsCamera = true;
+            if (policy && typeof policy.allowsFeature === 'function')
+            {
+                try
+                {
+                    policyAllowsCamera = policy.allowsFeature('camera');
+                }
+                catch (error) {}
+            }
+            return {
+                embedded,
+                policyAllowsCamera,
+                secure: global.isSecureContext !== false
+            };
+        }
+
+        function showRecovery(visible)
+        {
+            if (!recovery)
+            {
+                return;
+            }
+            recovery.hidden = !visible;
+            if (visible && global.location)
+            {
+                recovery.href = global.location.href;
+            }
+        }
+
+        function getModelAssetUrl(file)
+        {
+            const base = global.document && global.document.baseURI;
+            if (base && typeof global.URL === 'function')
+            {
+                return new global.URL(`./scripts/vendor/mediapipe-hands/${file}`, base).href;
+            }
+            return `./scripts/vendor/mediapipe-hands/${file}`;
+        }
+
+        function getCameraErrorMessage(error, environment)
+        {
+            const name = error && error.name;
+            if (name === 'NotAllowedError' || name === 'PermissionDeniedError')
+            {
+                return environment.embedded
+                    ? 'EMBEDDED PREVIEW BLOCKS CAMERA'
+                    : 'CAMERA BLOCKED // ALLOW & RETRY';
+            }
+            if (name === 'NotFoundError' || name === 'DevicesNotFoundError')
+            {
+                return 'NO CAMERA FOUND';
+            }
+            if (name === 'NotReadableError' || name === 'TrackStartError')
+            {
+                return 'CAMERA BUSY // CLOSE OTHER APPS';
+            }
+            return 'CAMERA OR HAND MODEL FAILED // RETRY';
+        }
 
         function setStatus(message, mode)
         {
@@ -254,10 +328,16 @@
             try
             {
                 await hands.send({image: video});
+                frameErrorReported = false;
             }
             catch (error)
             {
-                setStatus('TRACKING INTERRUPTED', 'error');
+                setStatus('TRACKING INTERRUPTED // TAP TO RESET', 'error');
+                if (!frameErrorReported && global.console && typeof global.console.error === 'function')
+                {
+                    global.console.error('[HAND CTRL] inference failed', error);
+                    frameErrorReported = true;
+                }
             }
             finally
             {
@@ -291,9 +371,11 @@
                 catch (error) {}
             }
             hands = null;
+            frameErrorReported = false;
             button.setAttribute('aria-pressed', 'false');
             button.querySelector('.gesture-control-value').textContent = 'OFFLINE';
             panel.hidden = true;
+            showRecovery(false);
             setStatus('CAMERA STANDBY', 'idle');
         }
 
@@ -301,6 +383,20 @@
         {
             if (running || starting)
             {
+                return;
+            }
+            const environment = getCameraEnvironment();
+            if (!environment.secure)
+            {
+                setStatus('HTTPS REQUIRED FOR CAMERA', 'error');
+                panel.hidden = false;
+                return;
+            }
+            if (!environment.policyAllowsCamera)
+            {
+                setStatus('OPEN DIRECT SITE FOR CAMERA', 'error');
+                panel.hidden = false;
+                showRecovery(true);
                 return;
             }
             if (!global.navigator || !global.navigator.mediaDevices
@@ -318,6 +414,7 @@
             }
 
             panel.hidden = false;
+            showRecovery(false);
             setStatus('REQUESTING CAMERA', 'loading');
             button.querySelector('.gesture-control-value').textContent = 'LINKING';
             starting = true;
@@ -350,16 +447,25 @@
                 }
 
                 hands = new global.Hands({
-                    locateFile: (file) => `./scripts/vendor/mediapipe-hands/${file}`
+                    locateFile: getModelAssetUrl
                 });
                 hands.setOptions({
                     selfieMode: true,
                     maxNumHands: 1,
                     modelComplexity: 1,
-                    minDetectionConfidence: 0.7,
-                    minTrackingConfidence: 0.7
+                    minDetectionConfidence: 0.55,
+                    minTrackingConfidence: 0.5
                 });
                 hands.onResults(handleResults);
+                setStatus('LOADING HAND MODEL', 'loading');
+                if (typeof hands.initialize === 'function')
+                {
+                    await hands.initialize();
+                }
+                if (currentRequest !== requestVersion)
+                {
+                    return;
+                }
                 starting = false;
                 running = true;
                 button.setAttribute('aria-pressed', 'true');
@@ -373,10 +479,15 @@
                 {
                     return;
                 }
-                const denied = error && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError');
+                const message = getCameraErrorMessage(error, environment);
+                if (global.console && typeof global.console.error === 'function')
+                {
+                    global.console.error('[HAND CTRL] startup failed', error);
+                }
                 await stop();
                 panel.hidden = false;
-                setStatus(denied ? 'CAMERA PERMISSION DENIED' : 'CAMERA START FAILED', 'error');
+                showRecovery(environment.embedded);
+                setStatus(message, 'error');
             }
         }
 

@@ -527,12 +527,30 @@ h1 {
     line-height: 1.4;
     letter-spacing: 0.7px;
     color: var(--text-white);
-    white-space: nowrap;
+    white-space: normal;
 }
 
 .gesture-control-hint {
     margin-top: 2px;
     color: var(--text-dim);
+}
+
+.gesture-control-recovery {
+    position: relative;
+    display: block;
+    margin-top: 6px;
+    padding: 5px 6px;
+    border: 1px solid rgba(224, 98, 54, 0.62);
+    color: var(--const-yellow);
+    font-size: 8px;
+    line-height: 1.4;
+    letter-spacing: 0.7px;
+    text-align: center;
+    text-decoration: none;
+}
+
+.gesture-control-recovery[hidden] {
+    display: none;
 }
 
 .gesture-camera-panel[data-state="tracking"] {

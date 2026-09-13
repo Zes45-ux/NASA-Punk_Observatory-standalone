@@ -139,6 +139,7 @@
                 <div class="gesture-camera-reticle" aria-hidden="true"></div>
                 <div class="gesture-control-status" id="gesture-control-status" role="status" aria-live="polite">CAMERA STANDBY</div>
                 <div class="gesture-control-hint">MOVE PALM: ORBIT // PINCH: PARTICLE FLUX</div>
+                <a class="gesture-control-recovery" id="gesture-control-recovery" href="" target="_blank" rel="noopener" hidden>OPEN DIRECT CAMERA VIEW</a>
             </div>
         </div>`;
     }
