@@ -143,6 +143,28 @@
     mix-blend-mode: screen;
 }
 
+#solar-system-scene {
+    position: absolute;
+    top: var(--display-top-inset);
+    right: var(--display-right-inset);
+    bottom: var(--display-bottom-inset);
+    left: var(--display-left-inset);
+    z-index: 2;
+    overflow: hidden;
+}
+
+.solar-system-webgl {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+    touch-action: none;
+}
+
+.solar-system-webgl.is-dragging {
+    cursor: grabbing;
+}
+
 #canvas-container {
     position: absolute;
     top: var(--display-top-inset);
@@ -179,6 +201,177 @@
     bottom: var(--display-bottom-inset);
     left: var(--display-left-inset);
     z-index: 5;
+    pointer-events: none;
+}
+
+.solar-overview-stage {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.solar-title-cluster {
+    position: absolute;
+    top: var(--display-ui-padding);
+    left: var(--display-ui-padding);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    color: var(--text-dim);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.solar-title-cluster::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -12px;
+    width: 2px;
+    background: var(--const-yellow);
+    box-shadow: 0 0 14px rgba(215, 171, 97, 0.35);
+}
+
+.solar-title-cluster strong {
+    color: var(--text-white);
+    font-size: clamp(24px, 3.2vw, 46px);
+    line-height: 0.95;
+    letter-spacing: 0.13em;
+}
+
+.solar-kicker,
+.solar-coordinate,
+.solar-control-hint {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 9px;
+}
+
+.solar-kicker { color: var(--const-yellow); }
+
+.solar-coordinate { opacity: 0.62; }
+
+.solar-label-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.solar-target {
+    --target-depth: 1;
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: 22px auto;
+    align-items: center;
+    min-width: 72px;
+    color: rgba(222, 225, 222, calc(0.62 * var(--target-depth)));
+    text-decoration: none;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    pointer-events: auto;
+    opacity: 0;
+    animation: solar-target-enter 700ms ease 500ms forwards;
+    will-change: transform;
+}
+
+.solar-target::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 22px;
+    width: 28px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(215, 171, 97, 0.6), transparent);
+    transform: rotate(34deg);
+    transform-origin: left center;
+}
+
+.solar-target-index {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border: 1px solid rgba(91, 120, 156, 0.54);
+    color: var(--const-yellow);
+    background: rgba(5, 10, 17, 0.76);
+    box-shadow: 0 0 15px rgba(91, 120, 156, 0.12);
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.solar-target-label {
+    padding: 4px 6px;
+    background: linear-gradient(90deg, rgba(4, 9, 16, 0.82), rgba(4, 9, 16, 0));
+    text-shadow: 0 1px 7px #000;
+}
+
+.solar-target:hover,
+.solar-target:focus-visible {
+    z-index: 10;
+    color: var(--text-white);
+    outline: none;
+}
+
+.solar-target:hover .solar-target-index,
+.solar-target:focus-visible .solar-target-index {
+    border-color: var(--const-orange);
+    background: rgba(224, 98, 54, 0.2);
+    transform: rotate(45deg) scale(1.1);
+}
+
+.solar-control-hint {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    color: rgba(143, 158, 171, 0.72);
+    letter-spacing: 0.12em;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+@keyframes solar-target-enter {
+    to { opacity: 1; }
+}
+
+/* Planet catalogue classes are also used by the compact strip. Neutralize
+   their legacy fixed boxes when they become projected labels on the overview. */
+.solar-label-layer .solar-target {
+    width: auto;
+    height: auto;
+    margin: 0;
+}
+
+@media (max-width: 720px) {
+    .solar-title-cluster {
+        top: 18px;
+        left: 18px;
+    }
+
+    .solar-title-cluster strong {
+        font-size: 25px;
+    }
+
+    .solar-coordinate,
+    .solar-control-hint {
+        display: none;
+    }
+
+    .solar-target {
+        grid-template-columns: 18px auto;
+        min-width: 48px;
+        font-size: 7px;
+        letter-spacing: 0.08em;
+    }
+
+    .solar-target-index {
+        width: 15px;
+        height: 15px;
+        font-size: 7px;
+    }
 }
 
 /* --- 3. 右侧 UI Dock --- */

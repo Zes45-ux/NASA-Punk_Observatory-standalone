@@ -90,6 +90,16 @@ h1 {
 
 .axis-group { animation: axis-reveal 1050ms var(--motion-snap) 120ms both; }
 
+#solar-system-scene::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 50% 49%, rgba(215, 171, 97, 0.06), transparent 18%),
+        radial-gradient(ellipse at center, transparent 48%, rgba(2, 5, 10, 0.28) 100%);
+}
+
 .axis-line {
     overflow: visible;
     background: linear-gradient(90deg, transparent, rgba(91, 120, 156, 0.42) 8%, rgba(215, 171, 97, 0.32) 52%, rgba(91, 120, 156, 0.28) 90%, transparent);

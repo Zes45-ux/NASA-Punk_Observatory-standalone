@@ -57,48 +57,24 @@
 
     function initSystemSelectInteractions()
     {
-        const axisGroup       = document.getElementById('axis-group');
         const slider          = document.getElementById('zoom-slider');
         const scaleVal        = document.getElementById('scale-val');
         const terminalContent = document.getElementById('terminal-content');
-        const root            = document.getElementById('system-select-root');
-        const nodes           = document.querySelectorAll('.planet-node');
+        const nodes           = document.querySelectorAll('.solar-target');
 
-        if (!axisGroup || !slider || !scaleVal || !terminalContent || !root || nodes.length === 0)
+        if (!slider || !scaleVal || !terminalContent || nodes.length === 0)
         {
             return;
         }
 
-        const planetsTotalWidthPx = SYSTEM_SELECT_INTERACTION.planetsTotalWidthPx || 482;
-        const gapsCount           = SYSTEM_SELECT_INTERACTION.gapsCount || 8;
-        const targetWidthRatio    = SYSTEM_SELECT_INTERACTION.targetWidthRatio || 0.70;
-        const minimumGapPx        = SYSTEM_SELECT_INTERACTION.minimumGapPx || 20;
-        let currentBaseGapPx      = 0;
-
         function applyZoom(sliderValue)
         {
-            const factor         = 0.5 * Math.pow(4, sliderValue / 100);
-            const finalGap       = currentBaseGapPx * factor;
-            const axisWidth      = planetsTotalWidthPx + gapsCount * finalGap;
-            const availableWidth = Math.max(1, DisplayArea.getSize(root).width - 16);
-            const axisScale       = Math.min(1, availableWidth / Math.max(1, axisWidth));
-            axisGroup.style.gap = `${finalGap}px`;
-            axisGroup.style.setProperty('--axis-scale', axisScale.toFixed(4));
-            scaleVal.textContent = `${Math.round(factor * 100)}%`;
-        }
-
-        function calculateBaseGap()
-        {
-            const displaySize         = DisplayArea.getSize(document.getElementById('system-select-root'));
-            const targetTotalWidth    = displaySize.width * targetWidthRatio;
-            let availableSpaceForGaps = targetTotalWidth - planetsTotalWidthPx;
-            if (availableSpaceForGaps < gapsCount * minimumGapPx)
+            const value = Number(sliderValue);
+            scaleVal.textContent = `${Math.round(55 + value * 0.9)}%`;
+            if (window.solarSystemOverview)
             {
-                availableSpaceForGaps = gapsCount * minimumGapPx;
+                window.solarSystemOverview.setScale(value / 100);
             }
-
-            currentBaseGapPx = availableSpaceForGaps / gapsCount;
-            applyZoom(slider.value);
         }
 
         initPrecisionSlider(slider, (value) =>
@@ -144,7 +120,7 @@
             );
         }, 100);
 
-        return calculateBaseGap;
+        applyZoom(slider.value || SYSTEM_SELECT_INTERACTION.defaultScale || 100);
     }
 
     if (typeof renderSystemSelectUI === 'function')
@@ -185,7 +161,19 @@
         });
     }
 
-    const recalculateLayout = initSystemSelectInteractions();
+    const solarSystemOverview = typeof createSolarSystemOverview === 'function'
+        ? createSolarSystemOverview({
+            containerId: 'solar-system-scene',
+            labelSelector: '.solar-target',
+            profile: overviewProfile
+        })
+        : null;
+    if (solarSystemOverview)
+    {
+        solarSystemOverview.start();
+    }
+
+    initSystemSelectInteractions();
     window.addEventListener('resize', () =>
     {
         topoBackground.resize();
@@ -193,16 +181,13 @@
         {
             systemParticleField.resize();
         }
-        if (recalculateLayout)
+        if (solarSystemOverview)
         {
-            recalculateLayout();
+            solarSystemOverview.resize();
         }
     });
 
-    if (recalculateLayout)
-    {
-        recalculateLayout();
-    }
+    window.addEventListener('pagehide', () => solarSystemOverview && solarSystemOverview.stop());
 
     requestAnimationFrame(() =>
     {

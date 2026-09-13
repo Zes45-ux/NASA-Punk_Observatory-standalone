@@ -8,16 +8,13 @@
             footerRow: '<div class="terminal-output" id="terminal-content"></div>'
         },
         interaction: {
-            initialTerminalText: '> SYSTEM READY...\n> SELECT TARGET\n> STANDBY...',
-            planetsTotalWidthPx: 482,
-            gapsCount          : 8,
-            targetWidthRatio   : 0.70,
-            minimumGapPx       : 20
+            initialTerminalText: '> SYSTEM MAP ONLINE...\n> 9 CELESTIAL BODIES TRACKED\n> SELECT TARGET',
+            defaultScale      : 100
         },
         zoom       : {
             sliderId : 'zoom-slider',
             displayId: 'scale-val',
-            label    : 'FOV_SCALE',
+            label    : 'SYSTEM_SCALE',
             value    : '100%'
         },
         nodes      : [
