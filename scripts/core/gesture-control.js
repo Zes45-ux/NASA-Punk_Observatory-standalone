@@ -7,6 +7,7 @@
 (function initHandGestureModule(global)
 {
     const INFERENCE_INTERVAL_MS = 66;
+    const AUTO_START_DELAY_MS = 250;
     const PINCH_DEAD_ZONE = 0.004;
     const PALM_DEAD_ZONE = 0.0025;
     const ROTATION_GAIN = 2.4;
@@ -130,6 +131,7 @@
         const panel = global.document && global.document.getElementById('gesture-camera-panel');
         const video = global.document && global.document.getElementById('gesture-camera-feed');
         const recovery = global.document && global.document.getElementById('gesture-control-recovery');
+        const detectionValue = global.document && global.document.getElementById('gesture-detection-value');
         if (!button || !status || !panel || !video || !state)
         {
             return null;
@@ -147,6 +149,7 @@
         let gestureAnchor = null;
         let smoothedPinch = null;
         let frameErrorReported = false;
+        let autoStartHandle = null;
 
         function getCameraEnvironment()
         {
@@ -226,7 +229,42 @@
             {
                 status.textContent = message;
             }
-            panel.dataset.state = mode || 'idle';
+            const nextMode = mode || 'idle';
+            panel.dataset.state = nextMode;
+            if (detectionValue)
+            {
+                detectionValue.textContent = {
+                    tracking: 'HAND LOCK',
+                    searching: 'NO HAND',
+                    loading: 'STARTING',
+                    error: 'ERROR',
+                    idle: 'OFFLINE'
+                }[nextMode] || 'STANDBY';
+            }
+        }
+
+        function clearAutoStart()
+        {
+            if (autoStartHandle !== null && typeof global.clearTimeout === 'function')
+            {
+                global.clearTimeout(autoStartHandle);
+            }
+            autoStartHandle = null;
+        }
+
+        function scheduleAutoStart()
+        {
+            if (options.autoStart === false || typeof global.setTimeout !== 'function')
+            {
+                return;
+            }
+            panel.hidden = false;
+            setStatus('AUTO CAMERA INITIALIZING', 'loading');
+            autoStartHandle = global.setTimeout(() =>
+            {
+                autoStartHandle = null;
+                return start();
+            }, AUTO_START_DELAY_MS);
         }
 
         function resetTracking()
@@ -347,6 +385,7 @@
 
         async function stop()
         {
+            clearAutoStart();
             requestVersion += 1;
             starting = false;
             running = false;
@@ -381,6 +420,7 @@
 
         async function start()
         {
+            clearAutoStart();
             if (running || starting)
             {
                 return;
@@ -505,6 +545,7 @@
 
         button.addEventListener('click', toggle);
         global.addEventListener('pagehide', stop);
+        scheduleAutoStart();
         return {start, stop, toggle, handleResults, isRunning: () => running};
     }
 

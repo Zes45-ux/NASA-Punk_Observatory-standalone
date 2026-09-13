@@ -196,3 +196,58 @@ test('camera policy failures expose a direct-site recovery path without requesti
     assert.equal(recovery.hidden, false);
     assert.equal(recovery.href, window.location.href);
 });
+
+test('planet initialization automatically starts camera tracking and updates the detection state', async () =>
+{
+    let scheduledStart = null;
+    let cameraRequests = 0;
+    const value = {textContent: 'OFFLINE'};
+    const button = {
+        addEventListener() {},
+        querySelector: () => value,
+        setAttribute() {}
+    };
+    const status = {textContent: ''};
+    const detectionValue = {textContent: 'OFFLINE'};
+    const panel = {dataset: {}, hidden: true};
+    const video = {srcObject: null, play: async () => {}};
+    const elements = {
+        'gesture-control-toggle': button,
+        'gesture-control-status': status,
+        'gesture-camera-panel': panel,
+        'gesture-camera-feed': video,
+        'gesture-detection-value': detectionValue
+    };
+    const stream = {getTracks: () => [{stop() {}}]};
+    const window = {
+        document: {hidden: false, getElementById: (id) => elements[id]},
+        navigator: {mediaDevices: {getUserMedia: async () => { cameraRequests += 1; return stream; }}},
+        Hands: class {
+            setOptions() {}
+            onResults() {}
+            async initialize() {}
+            async close() {}
+        },
+        addEventListener() {},
+        setTimeout(callback) { scheduledStart = callback; return 1; },
+        clearTimeout() {},
+        requestAnimationFrame: () => 1,
+        cancelAnimationFrame() {}
+    };
+    window.window = window;
+    vm.runInNewContext(fs.readFileSync('scripts/core/gesture-control.js', 'utf8'), {window});
+
+    const controller = window.HandGestureControl.init({
+        state: {targetSliderVal: 50, targetRotationX: 0, targetRotationY: 0, slider: null}
+    });
+
+    assert.equal(panel.hidden, false);
+    assert.equal(detectionValue.textContent, 'STARTING');
+    assert.equal(typeof scheduledStart, 'function');
+    await scheduledStart();
+    assert.equal(cameraRequests, 1);
+    assert.equal(controller.isRunning(), true);
+    assert.equal(detectionValue.textContent, 'NO HAND');
+    assert.equal(value.textContent, 'ONLINE');
+    await controller.stop();
+});

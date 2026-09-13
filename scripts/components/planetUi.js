@@ -136,6 +136,11 @@
             </button>
             <div class="gesture-camera-panel" id="gesture-camera-panel" data-state="idle" hidden>
                 <video id="gesture-camera-feed" class="gesture-camera-feed" playsinline muted aria-label="MIRRORED CAMERA PREVIEW"></video>
+                <div class="gesture-detection-state" aria-hidden="true">
+                    <span class="gesture-detection-dot"></span>
+                    <span class="gesture-detection-label">GESTURE</span>
+                    <span class="gesture-detection-value" id="gesture-detection-value">OFFLINE</span>
+                </div>
                 <div class="gesture-camera-reticle" aria-hidden="true"></div>
                 <div class="gesture-control-status" id="gesture-control-status" role="status" aria-live="polite">CAMERA STANDBY</div>
                 <div class="gesture-control-hint">MOVE PALM: ORBIT // PINCH: PARTICLE FLUX</div>
