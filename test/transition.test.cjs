@@ -102,6 +102,18 @@ test('transition initializes immediately when its body-end script runs before DO
     assert.equal(env.timers[0].delay, 1500);
 });
 
+test('planet pages start the transition bridge immediately after Three.js', () => {
+    ['sun', 'mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune']
+        .forEach((planet) => {
+            const html = fs.readFileSync(`${planet}.html`, 'utf8');
+            const threeIndex = html.indexOf('./scripts/vendor/three.min.js');
+            const transitionIndex = html.indexOf('./scripts/core/transition.js');
+            const gestureIndex = html.indexOf('./scripts/core/gesture-control.js');
+            assert.ok(transitionIndex > threeIndex, `${planet} loads transition after Three.js`);
+            assert.ok(transitionIndex < gestureIndex, `${planet} starts transition before gesture startup`);
+        });
+});
+
 test('readiness fallback uses the same bridge-completion path as the ready event', () => {
     const source = fs.readFileSync('scripts/core/transition.js', 'utf8');
     assert.ok(source.includes('function handleReady()'));
@@ -263,6 +275,14 @@ test('source page stores the bridge without rendering a duplicate overlay', () =
     const navigateSource = source.slice(source.indexOf('function navigate(url)'), source.indexOf('const TransitionManager'));
     assert.ok(navigateSource.includes('storeBridgeState(bridgeState)'));
     assert.equal(navigateSource.includes('attachParticleBridge(bridgeState)'), false);
+});
+
+test('target page restarts a still-valid bridge instead of spending its animation during navigation', () => {
+    const source = fs.readFileSync('scripts/core/transition.js', 'utf8');
+    assert.match(source, /PARTICLE_BRIDGE_MAX_AGE_MS = 6000/);
+    assert.match(source, /pendingBridgeState = \{[\s\S]*startedAt: Date\.now\(\),[\s\S]*duration: PARTICLE_BRIDGE_MS/);
+    assert.match(source, /\(progress - 0\.78\) \/ 0\.22/,
+        'outgoing bridge remains visible until the incoming scene can take over');
 });
 
 test('particle bridge rendering stays on one GPU draw path instead of Canvas2D loops', () => {

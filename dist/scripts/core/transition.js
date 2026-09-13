@@ -7,7 +7,8 @@
     const DEFAULT_EXIT_MS = 480;
     const MAX_EXIT_MS = 1200;
     const PARTICLE_EXIT_MS = 720;
-    const PARTICLE_BRIDGE_MS = 1800;
+    const PARTICLE_BRIDGE_MS = 2400;
+    const PARTICLE_BRIDGE_MAX_AGE_MS = 6000;
     const PARTICLE_INCOMING_MS = 1050;
     const PARTICLE_HANDOFF_MS = 120;
     const PARTICLE_LIMIT = 1800;
@@ -491,13 +492,13 @@
                     float progress = clamp(uElapsed / uDuration, 0.0, 1.0);
                     float eased = smoother(progress);
                     float incoming = step(0.5, uMode);
-                    float outgoingTravel = uElapsed * (0.35 + eased * 0.65);
+                    float outgoingTravel = uElapsed * (0.12 + eased * 0.25);
                     float incomingTravel = (1.0 - eased) * uDuration * 0.88;
                     float travel = mix(outgoingTravel, incomingTravel, incoming);
                     float waveAmount = mix(eased, 1.0 - eased, incoming);
                     vec2 wave = vec2(sin(aPhase + uElapsed * 4.2), cos(aPhase * 1.37 + uElapsed * 3.4));
                     vec2 transformed = position.xy + aVelocity * travel + wave * 0.022 * waveAmount;
-                    float outgoingAlpha = 1.0 - smoother(clamp((progress - 0.34) / 0.66, 0.0, 1.0));
+                    float outgoingAlpha = 1.0 - smoother(clamp((progress - 0.78) / 0.22, 0.0, 1.0));
                     float incomingAlpha = smoother(clamp(progress / 0.18, 0.0, 1.0))
                         * (1.0 - smoother(clamp((progress - 0.82) / 0.18, 0.0, 1.0)));
                     vAlpha = mix(outgoingAlpha, incomingAlpha, incoming);
@@ -573,12 +574,19 @@
         const currentTarget = global.location && global.location.pathname
             ? global.location.pathname.split('/').pop()
             : '';
-        if (age < 0 || age >= state.duration || (currentTarget && currentTarget !== state.target))
+        if (age < 0 || age >= PARTICLE_BRIDGE_MAX_AGE_MS
+            || (currentTarget && currentTarget !== state.target))
         {
             clearBridgeState();
             return;
         }
-        pendingBridgeState = state;
+        // 跨文档加载耗时不应消耗粒子动画本身：目标页从旧页面的最后一帧
+        // 重新开始逸散，这样脚本解析和粒子构建期间始终有可见内容承接。
+        pendingBridgeState = {
+            ...state,
+            startedAt: Date.now(),
+            duration: PARTICLE_BRIDGE_MS
+        };
         continuingParticleBridge = true;
         document.body.classList.add('particle-transition-continuation', 'particle-transition-waiting');
     }
