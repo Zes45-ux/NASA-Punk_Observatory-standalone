@@ -32,7 +32,12 @@
 
     function inertOverview()
     {
-        return {start() {}, stop() {}, resize() {}, setScale() {}, running: false, planetCount: 0};
+        return {
+            start() {}, stop() {}, resize() {}, setScale() {}, resetFocus() {},
+            focusAndNavigate() { return false; },
+            running: false,
+            planetCount: 0
+        };
     }
 
     function createSolarSystemOverview(options = {})
@@ -68,6 +73,7 @@
         const projected = new THREE.Vector3();
         const planetEntries = [];
         const disposables = [];
+        const overviewMaterials = [];
         const labels = new Map();
         const labelNodes = document.querySelectorAll(options.labelSelector || '.solar-target');
         labelNodes.forEach((node) => labels.set(node.dataset.planet, node));
@@ -84,6 +90,10 @@
         let pointerMoved = false;
         let pointerX = 0;
         let pointerY = 0;
+        let focusState = null;
+        let navigationCommitted = false;
+
+        const FOCUS_DURATION_MS = 1080;
 
         function track(resource)
         {
@@ -319,6 +329,63 @@
         sunGlow.scale.set(15, 15, 1);
         system.add(sunGlow);
 
+        system.traverse((object) =>
+        {
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            materials.filter(Boolean).forEach((material) =>
+            {
+                if (!Number.isFinite(material.opacity)) return;
+                overviewMaterials.push({object, material, opacity: material.opacity});
+            });
+        });
+
+        function isInside(object, ancestor)
+        {
+            let current = object;
+            while (current)
+            {
+                if (current === ancestor) return true;
+                current = current.parent;
+            }
+            return false;
+        }
+
+        function smoothstep(value)
+        {
+            const t = Math.max(0, Math.min(1, value));
+            return t * t * (3 - 2 * t);
+        }
+
+        function updateFocus(timestamp)
+        {
+            const elapsed = Math.max(0, timestamp - focusState.startedAt);
+            const progress = Math.min(1, elapsed / FOCUS_DURATION_MS);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            focusState.target.body.getWorldPosition(focusState.worldTarget);
+            focusState.endCamera.copy(focusState.worldTarget).add(focusState.cameraOffset);
+            camera.position.lerpVectors(focusState.startCamera, focusState.endCamera, eased);
+            focusState.lookAt.lerpVectors(focusState.startLookAt, focusState.worldTarget, eased);
+            camera.lookAt(focusState.lookAt);
+
+            const fade = 1 - smoothstep(progress / 0.72);
+            overviewMaterials.forEach((entry) =>
+            {
+                const belongsToTarget = isInside(entry.object, focusState.target.body)
+                    || (focusState.target.definition.name === 'sun' && entry.object === sunGlow);
+                entry.material.opacity = entry.opacity * (belongsToTarget ? 1 : fade);
+            });
+            return progress >= 1;
+        }
+
+        function prepareParticleHandoff()
+        {
+            system.traverse((object) =>
+            {
+                if (!object.isPoints) return;
+                object.visible = isInside(object, focusState.target.body);
+            });
+        }
+
         function updateLabels()
         {
             const rect = container.getBoundingClientRect();
@@ -326,6 +393,11 @@
             {
                 const label = labels.get(entry.definition.name);
                 if (!label) return;
+                if (focusState && entry !== focusState.target)
+                {
+                    label.hidden = true;
+                    return;
+                }
                 entry.body.getWorldPosition(worldPosition);
                 projected.copy(worldPosition).project(camera);
                 const visible = projected.z > -1 && projected.z < 1
@@ -337,24 +409,39 @@
             });
         }
 
-        function render()
+        function render(timestamp = global.performance ? global.performance.now() : Date.now())
         {
-            currentYaw += (targetYaw - currentYaw) * 0.075;
-            currentPitch += (targetPitch - currentPitch) * 0.075;
-            currentDistance += (targetDistance - currentDistance) * 0.075;
-            system.rotation.y = currentYaw;
-            system.rotation.x = -0.03 + currentPitch;
-            camera.position.set(0, currentDistance * 0.56, currentDistance);
-            camera.lookAt(0, 0, 0);
+            let focusComplete = false;
+            if (focusState)
+            {
+                focusComplete = updateFocus(timestamp);
+            }
+            else
+            {
+                currentYaw += (targetYaw - currentYaw) * 0.075;
+                currentPitch += (targetPitch - currentPitch) * 0.075;
+                currentDistance += (targetDistance - currentDistance) * 0.075;
+                system.rotation.y = currentYaw;
+                system.rotation.x = -0.03 + currentPitch;
+                camera.position.set(0, currentDistance * 0.56, currentDistance);
+                camera.lookAt(0, 0, 0);
+            }
             renderer.render(scene, camera);
             updateLabels();
+
+            if (focusComplete && !navigationCommitted)
+            {
+                navigationCommitted = true;
+                prepareParticleHandoff();
+                global.TransitionManager.navigate(focusState.url);
+            }
         }
 
-        function tick()
+        function tick(timestamp)
         {
             if (!running) return;
             const delta = Math.min(clock.getDelta(), 0.05);
-            if (!reducedMotion)
+            if (!reducedMotion && !focusState)
             {
                 planetEntries.forEach((entry, index) =>
                 {
@@ -362,7 +449,7 @@
                     entry.particles.rotation.y += delta * (entry.definition.name === 'sun' ? 0.055 : 0.12);
                 });
             }
-            render();
+            render(timestamp);
             frameHandle = global.requestAnimationFrame(tick);
         }
 
@@ -384,6 +471,7 @@
 
         function onPointerDown(event)
         {
+            if (focusState) return;
             pointerDown = true;
             pointerMoved = false;
             pointerX = event.clientX;
@@ -394,7 +482,7 @@
 
         function onPointerMove(event)
         {
-            if (!pointerDown) return;
+            if (!pointerDown || focusState) return;
             const dx = event.clientX - pointerX;
             const dy = event.clientY - pointerY;
             if (Math.abs(dx) + Math.abs(dy) > 2) pointerMoved = true;
@@ -417,6 +505,7 @@
         function onWheel(event)
         {
             event.preventDefault();
+            if (focusState) return;
             targetDistance = Math.max(110, Math.min(186, targetDistance + event.deltaY * 0.06));
             const slider = document.getElementById('zoom-slider');
             const display = document.getElementById('scale-val');
@@ -466,6 +555,55 @@
             document.removeEventListener('visibilitychange', handleVisibility);
         }
 
+        function resetFocus()
+        {
+            focusState = null;
+            navigationCommitted = false;
+            document.body.classList.remove('solar-system-targeting');
+            overviewMaterials.forEach((entry) => { entry.material.opacity = entry.opacity; });
+            system.traverse((object) =>
+            {
+                if (object.isPoints) object.visible = true;
+            });
+            render();
+        }
+
+        function focusAndNavigate(planetName, url)
+        {
+            const target = planetEntries.find((entry) => entry.definition.name === planetName);
+            if (!target || !url || navigationCommitted || focusState) return false;
+            if (!global.TransitionManager || typeof global.TransitionManager.navigate !== 'function')
+            {
+                global.location.href = url;
+                return true;
+            }
+            if (reducedMotion)
+            {
+                global.TransitionManager.navigate(url);
+                return true;
+            }
+
+            scene.updateMatrixWorld(true);
+            target.body.getWorldPosition(worldPosition);
+            const cameraOffset = camera.position.clone().sub(worldPosition).normalize();
+            const focusDistance = Math.max(4.2, target.definition.radius
+                * (target.definition.rings ? 6.2 : 4.8));
+            cameraOffset.multiplyScalar(focusDistance);
+            focusState = {
+                target,
+                url,
+                startedAt: global.performance ? global.performance.now() : Date.now(),
+                startCamera: camera.position.clone(),
+                endCamera: new THREE.Vector3(),
+                cameraOffset,
+                startLookAt: new THREE.Vector3(0, 0, 0),
+                lookAt: new THREE.Vector3(),
+                worldTarget: worldPosition.clone()
+            };
+            document.body.classList.add('solar-system-targeting');
+            return true;
+        }
+
         function dispose()
         {
             stop();
@@ -478,11 +616,17 @@
             stop,
             resize,
             setScale,
+            focusAndNavigate,
+            resetFocus,
             dispose,
             render,
             get running() { return running; },
             get planetCount() { return planetEntries.length; }
         };
+        if (global.TransitionManager && typeof global.TransitionManager.registerParticleScene === 'function')
+        {
+            global.TransitionManager.registerParticleScene(scene, camera, renderer);
+        }
         global.solarSystemOverview = api;
         return api;
     }

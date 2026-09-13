@@ -107,7 +107,11 @@
                 if (typeof TransitionManager !== 'undefined')
                 {
                     event.preventDefault();
-                    TransitionManager.navigate(link);
+                    const overview = window.solarSystemOverview;
+                    if (!overview || !overview.focusAndNavigate(node.dataset.planet, link))
+                    {
+                        TransitionManager.navigate(link);
+                    }
                 }
             });
         });
@@ -188,6 +192,12 @@
     });
 
     window.addEventListener('pagehide', () => solarSystemOverview && solarSystemOverview.stop());
+    window.addEventListener('pageshow', (event) =>
+    {
+        if (!solarSystemOverview || !event.persisted) return;
+        solarSystemOverview.resetFocus();
+        solarSystemOverview.start();
+    });
 
     requestAnimationFrame(() =>
     {
