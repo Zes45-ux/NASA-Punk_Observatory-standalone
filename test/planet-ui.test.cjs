@@ -200,10 +200,11 @@ test('buildPlanetLayout generates expected HTML components', () => {
     assert.match(html, /class="system-strip"/, 'contains system strip');
     assert.match(html, /id="quality-control"/, 'contains quality control');
     assert.match(html, /id="gesture-control-toggle"/, 'contains opt-in camera control');
-    assert.match(html, /id="gesture-camera-feed"/, 'contains local camera preview');
+    assert.match(html, /id="gesture-camera-feed"[^>]+aria-hidden="true"/, 'keeps the camera feed hidden for background inference');
     assert.match(html, /id="gesture-detection-value"/, 'contains a visible gesture detection state');
+    assert.doesNotMatch(html, /gesture-camera-reticle/, 'does not render a camera preview reticle');
+    assert.doesNotMatch(html, /MOVE PALM: ORBIT/, 'keeps the corner indicator limited to current status text');
     assert.match(html, /id="gesture-control-recovery"/, 'contains a direct-site camera recovery link');
-    assert.match(html, /PINCH: PARTICLE FLUX/, 'describes gesture-driven particle response');
     assert.match(html, /id="particle-build-progress"/, 'contains particle progress element');
 });
 
