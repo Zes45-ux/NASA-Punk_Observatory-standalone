@@ -4,16 +4,16 @@ This repository uses two release tracks. Treat them as a hard boundary.
 
 ## Default development branch
 
-- Start every new Codex task on `codex/sites-deploy` and confirm the checkout before editing.
-- Perform normal feature work, fixes, tests, and preview preparation on `codex/sites-deploy`.
-- Keep Codex Sites-only artifacts (`.openai/hosting.json` and `dist/`) on `codex/sites-deploy`.
+- Start every new task on `gemini` and confirm the checkout before editing.
+- Perform normal feature work, fixes, tests, and preview preparation on `gemini`.
+- Keep Codex Sites-only artifacts (`.openai/hosting.json` and `dist/`) on `gemini` and `codex/sites-deploy`.
 - Do not create additional preview branches unless the user explicitly requests one.
 
 ## Preview release
 
 - After completing a development task, run `npm run check:all`.
 - Synchronize the validated source into `dist/` when needed.
-- Commit and push only the intended changes to `origin/codex/sites-deploy`.
+- Commit and push only the intended changes to `origin/gemini` (or `origin/codex/sites-deploy` if specifically deploying to Sites).
 - Publish the validated `dist/` output to the existing Codex Site and return its preview URL for review.
 
 ## Production release
