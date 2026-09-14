@@ -21,8 +21,7 @@
     const age = state ? Date.now() - state.startedAt : Infinity;
     if (!state || state.version !== 3 || !Array.isArray(state.particles)
         || age < 0 || age >= MAX_AGE_MS || (target && target !== state.target)
-        || (typeof global.matchMedia === 'function'
-            && global.matchMedia('(prefers-reduced-motion: reduce)').matches))
+        || global.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)
     {
         return;
     }
@@ -55,18 +54,13 @@
         canvas.style.height = `${height}px`;
     }
 
-    function smoother(value)
-    {
-        return value * value * value * (value * (value * 6 - 15) + 10);
-    }
-
     function render(timestamp)
     {
         if (released) return;
         const elapsed = Math.max(0, timestamp - startedAt);
         // Keep the old planet fully legible until the WebGL bridge has rendered.
         const progress = Math.min(elapsed / Math.max(1, state.duration || 2400), 0.7);
-        const eased = smoother(progress);
+        const eased = progress * progress * progress * (progress * (progress * 6 - 15) + 10);
         const travel = elapsed / 1000 * (0.08 + eased * 0.16);
         const scaleX = width / Math.max(1, state.width);
         const scaleY = height / Math.max(1, state.height);

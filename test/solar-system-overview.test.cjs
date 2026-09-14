@@ -69,3 +69,29 @@ test('overview palettes reuse the defining colors from each full planet scene', 
         assert.ok(overview.includes(color), `${planet} thumbnail reuses ${color}`);
     });
 });
+
+test('overview thumbnail models replicate full planet features with physical tilt, rings, wireframes, and GRS', () =>
+{
+    const overview = fs.readFileSync('scripts/components/solarSystemOverview.js', 'utf8');
+    assert.match(overview, /tiltGroup\.rotation\.z = \(definition\.tilt \|\| 0\)/, 'planets rotate on physical axial tilts');
+    assert.match(overview, /new THREE\.WireframeGeometry/, 'tactical reference wireframe is embedded on planet bodies');
+    assert.match(overview, /hexPoints\.push/, 'Saturn features the north polar hexagon');
+    assert.match(overview, /#cc3300/, 'Jupiter features the Great Red Spot crimson vortex');
+    assert.match(overview, /flareCount/, 'Sun features dynamic solar prominence flare particles');
+    assert.match(overview, /returnToOverview/, 'overview exposes pull-back reverse transit');
+    assert.match(overview, /camera\.fov = 38 - Math\.sin/, 'camera exhibits dynamic FOV warp during push transit');
+    assert.match(overview, /__observatoryClientRouter/, 'overview integrates with client-side seamless router');
+});
+
+test('landing page hosts planet UI layer and client-side seamless transition router', () =>
+{
+    const html = fs.readFileSync('index.html', 'utf8');
+    assert.ok(html.includes('id="planet-ui-root"'), 'index.html contains planet UI root mount point');
+    assert.ok(html.includes('scripts/components/planetUi.js'), 'index.html loads planet UI components');
+
+    const page = fs.readFileSync('scripts/pages/index.page.js', 'utf8');
+    assert.match(page, /setupClientRouter\(\)/, 'index page initializes the client router');
+    assert.match(page, /mountPlanet\(planetName, url\)/, 'client router dynamically mounts planet view');
+    assert.match(page, /returnToSystem\(/, 'client router supports return-to-system flight');
+    assert.match(page, /history\.pushState/, 'client router synchronizes URLs without full page reload');
+});

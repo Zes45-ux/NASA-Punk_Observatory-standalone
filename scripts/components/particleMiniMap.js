@@ -17,19 +17,6 @@
         {name: 'neptune', color: '#4b70dd', radius: 0.47, speed: 0.000045, size: 1.8}
     ];
 
-    function createRandom(seed)
-    {
-        let state = (Number(seed) || 1) >>> 0;
-        return function random()
-        {
-            state += 0x6D2B79F5;
-            let value = state;
-            value = Math.imul(value ^ (value >>> 15), value | 1);
-            value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-            return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-        };
-    }
-
     function createInertMap()
     {
         return {
@@ -49,12 +36,9 @@
             ? document.getElementById(options.canvasId || 'system-monitor-particle-canvas')
             : null);
 
-        if (!canvas || typeof canvas.getContext !== 'function')
-        {
-            return createInertMap();
-        }
-
-        const context = canvas.getContext('2d');
+        const context = canvas && typeof canvas.getContext === 'function'
+            ? canvas.getContext('2d')
+            : null;
         if (!context)
         {
             return createInertMap();
@@ -64,7 +48,7 @@
             Number.isFinite(options.maxCount) ? options.maxCount : 180,
             Math.floor(options.count || 128)
         ));
-        const random = createRandom(options.seed || 20260909);
+        const random = Math.random;
         const active = options.active || 'sun';
         const motionQuery = options.reducedMotion === true || typeof global.matchMedia !== 'function'
             ? null
@@ -94,20 +78,9 @@
             });
         }
 
-        const colorBatches = [];
-        const batchMap     = new Map();
-        for (let i = 0; i < particles.length; i++)
-        {
-            const particle = particles[i];
-            let batch = batchMap.get(particle.color);
-            if (!batch)
-            {
-                batch = { color: particle.color, list: [] };
-                batchMap.set(particle.color, batch);
-                colorBatches.push(batch);
-            }
-            batch.list.push(particle);
-        }
+        const batchMap = new Map();
+        particles.forEach((p) => (batchMap.get(p.color) || batchMap.set(p.color, []).get(p.color)).push(p));
+        const colorBatches = Array.from(batchMap, ([color, list]) => ({ color, list }));
 
         let viewportWidth  = 260;
         let viewportHeight = 260;
@@ -119,11 +92,7 @@
 
         function now()
         {
-            if (global.performance && typeof global.performance.now === 'function')
-            {
-                return global.performance.now();
-            }
-            return Date.now();
+            return global.performance?.now?.() ?? Date.now();
         }
 
         function readViewport()

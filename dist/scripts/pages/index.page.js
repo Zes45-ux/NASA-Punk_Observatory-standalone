@@ -178,20 +178,146 @@
     }
 
     initSystemSelectInteractions();
+
+    // ==========================================
+    // Seamless Client Navigation & Interaction Router
+    // ==========================================
+    function setupClientRouter()
+    {
+        const overview = window.solarSystemOverview;
+        const systemSelectRoot = document.getElementById('system-select-root');
+        const planetUiRoot = document.getElementById('planet-ui-root');
+        const uiLayer = document.getElementById('ui-layer');
+
+        function mountPlanet(planetName, url)
+        {
+            if (systemSelectRoot) systemSelectRoot.style.display = 'none';
+            if (uiLayer) uiLayer.style.display = 'block';
+            document.body.classList.add('planet-view-active', 'transition-ready');
+            document.body.classList.remove('solar-system-targeting');
+
+            if (typeof renderPlanetUI === 'function')
+            {
+                renderPlanetUI(planetName);
+                bindPlanetInteractions(planetName);
+            }
+            if (url)
+            {
+                history.pushState({ planet: planetName }, '', url);
+            }
+            const config = window.PLANET_DOCK_CONFIG?.[planetName];
+            if (config?.title)
+            {
+                document.title = `NASA-Punk : ${config.title}`;
+            }
+        }
+
+        function returnToSystem(push = true)
+        {
+            if (overview && typeof overview.returnToOverview === 'function')
+            {
+                overview.returnToOverview(() =>
+                {
+                    if (uiLayer) uiLayer.style.display = 'none';
+                    if (planetUiRoot) planetUiRoot.innerHTML = '';
+                    if (systemSelectRoot) systemSelectRoot.style.display = '';
+                    document.body.classList.remove('planet-view-active');
+                    document.body.classList.add('transition-ready');
+                    document.title = 'NASA-Punk Observatory : SYSTEM SELECT';
+                    if (push) history.pushState(null, '', 'index.html');
+                });
+            }
+            else
+            {
+                if (uiLayer) uiLayer.style.display = 'none';
+                if (planetUiRoot) planetUiRoot.innerHTML = '';
+                if (systemSelectRoot) systemSelectRoot.style.display = '';
+                document.body.classList.remove('planet-view-active');
+                if (push) history.pushState(null, '', 'index.html');
+            }
+        }
+
+        function bindPlanetInteractions(currentPlanet)
+        {
+            const monitorCaption = document.querySelector('.system-monitor-caption');
+            if (monitorCaption)
+            {
+                monitorCaption.addEventListener('click', (e) =>
+                {
+                    e.preventDefault();
+                    returnToSystem(true);
+                });
+            }
+
+            const stripNodes = document.querySelectorAll('[data-planet-link]');
+            stripNodes.forEach((node) =>
+            {
+                node.addEventListener('click', (e) =>
+                {
+                    const targetLink = node.dataset.planetLink;
+                    const targetName = targetLink.replace('.html', '');
+                    if (targetName && targetName !== currentPlanet)
+                    {
+                        e.preventDefault();
+                        if (overview)
+                        {
+                            overview.focusAndNavigate(targetName, targetLink, {
+                                onArrival: (name, url) => mountPlanet(name, url)
+                            });
+                        }
+                    }
+                });
+            });
+        }
+
+        window.addEventListener('popstate', (event) =>
+        {
+            if (event.state && event.state.planet)
+            {
+                if (overview)
+                {
+                    overview.focusAndNavigate(event.state.planet, `${event.state.planet}.html`, {
+                        onArrival: (name, url) => mountPlanet(name, url)
+                    });
+                }
+            }
+            else
+            {
+                returnToSystem(false);
+            }
+        });
+
+        window.__observatoryClientRouter = {
+            onPlanetArrival: (planetName, url) => mountPlanet(planetName, url),
+            returnToSystem
+        };
+
+        window.addEventListener('observatory:transit-step', (e) =>
+        {
+            const terminalContent = document.getElementById('terminal-content');
+            if (!terminalContent || !e.detail) return;
+            const { planet, progress, distanceRemaining } = e.detail;
+            if (progress < 0.95)
+            {
+                terminalContent.textContent = `> TGT LOCK: [${planet.toUpperCase()}]\n> DISTANCE: ${distanceRemaining} AU\n> INERTIAL TRANSIT: ${Math.round(progress * 100)}%`;
+            }
+            else
+            {
+                terminalContent.textContent = `> TGT: [${planet.toUpperCase()}] ARRIVED\n> ORBIT INSERTION: 100% COMPLETE`;
+            }
+        });
+    }
+
+    setupClientRouter();
+
     window.addEventListener('resize', () =>
     {
         topoBackground.resize();
-        if (systemParticleField)
-        {
-            systemParticleField.resize();
-        }
-        if (solarSystemOverview)
-        {
-            solarSystemOverview.resize();
-        }
+        systemParticleField?.resize();
+        solarSystemOverview?.resize();
     });
 
-    window.addEventListener('pagehide', () => solarSystemOverview && solarSystemOverview.stop());
+    window.addEventListener('pagehide', () => solarSystemOverview?.stop());
     window.addEventListener('pageshow', (event) =>
     {
         if (!solarSystemOverview || !event.persisted) return;

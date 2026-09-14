@@ -7,18 +7,14 @@
  */
 (function initSystemParticleField(global)
 {
-    function createRandom(seed)
-    {
-        let state = (Number(seed) || 1) >>> 0;
-        return function random()
-        {
-            state += 0x6D2B79F5;
-            let value = state;
-            value = Math.imul(value ^ (value >>> 15), value | 1);
-            value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-            return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-        };
-    }
+    const INERT_FIELD = {
+        start() {},
+        stop() {},
+        resize() {},
+        frame() {},
+        running: false,
+        particleCount: 0
+    };
 
     function createSystemParticleField(options = {})
     {
@@ -28,34 +24,17 @@
             ? document.getElementById(canvasId)
             : null;
 
-        if (!canvas || typeof canvas.getContext !== 'function')
-        {
-            return {
-                start() {},
-                stop() {},
-                resize() {},
-                frame() {},
-                running: false,
-                particleCount: 0
-            };
-        }
-
-        const context = canvas.getContext('2d');
+        const context = canvas && typeof canvas.getContext === 'function'
+            ? canvas.getContext('2d')
+            : null;
         if (!context)
         {
-            return {
-                start() {},
-                stop() {},
-                resize() {},
-                frame() {},
-                running: false,
-                particleCount: 0
-            };
+            return INERT_FIELD;
         }
 
         const maxCount = Number.isFinite(options.maxCount) ? options.maxCount : 420;
         const count    = Math.max(0, Math.min(maxCount, Math.floor(options.count || 240)));
-        const random   = createRandom(options.seed || 20260906);
+        const random   = Math.random;
         const bands    = Math.max(1, Math.floor(options.bands || 6));
         const particles = [];
 
@@ -76,8 +55,7 @@
         }
 
         const reducedMotion = options.reducedMotion === true
-            || (typeof global.matchMedia === 'function'
-                && global.matchMedia('(prefers-reduced-motion: reduce)').matches);
+            || Boolean(global.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
         const requestFrame = typeof global.requestAnimationFrame === 'function'
             ? global.requestAnimationFrame.bind(global)
             : null;
@@ -95,11 +73,7 @@
 
         function now()
         {
-            if (global.performance && typeof global.performance.now === 'function')
-            {
-                return global.performance.now();
-            }
-            return Date.now();
+            return global.performance?.now?.() ?? Date.now();
         }
 
         function resize()
