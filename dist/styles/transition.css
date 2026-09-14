@@ -1,4 +1,4 @@
-/* GPU 粒子转场由 planetScene.js 与 solarSystemOverview.js 驱动。保留 curtain 节点作为旧页面 DOM
+/* GPU 粒子转场由 planetScene.js 驱动。保留 curtain 节点作为旧页面 DOM
    契约，但不再绘制四色幕布，避免遮断粒子逸散与重组的连续视觉。 */
 
 .transition-curtain {
@@ -51,21 +51,6 @@ body.transition-ready .serif-region {
     filter: blur(0);
 }
 
-body.planet-view-active #ui-layer {
-    opacity: 1;
-    filter: blur(0);
-    pointer-events: auto;
-}
-
-body.planet-view-active #system-select-root {
-    display: none !important;
-}
-
-body.planet-view-active #solar-system-scene {
-    opacity: 1;
-    filter: none;
-}
-
 body.particle-transition-exit #ui-layer,
 body.particle-transition-exit #system-select-root,
 body.particle-transition-exit .serif-region {
@@ -87,18 +72,13 @@ body.solar-system-targeting .serif-region {
     opacity: 0;
     filter: blur(5px);
     pointer-events: none;
-    transition-duration: 320ms;
+    transition-duration: 420ms;
 }
 
 body.solar-system-targeting #topo-canvas,
 body.solar-system-targeting #system-particle-canvas {
-    opacity: 0.12;
+    opacity: 0.08;
     filter: blur(2px);
-}
-
-body.solar-system-targeting #solar-system-scene {
-    opacity: 1;
-    filter: none;
 }
 
 body.particle-transition-exit #solar-system-scene {
@@ -118,13 +98,8 @@ body.particle-transition-waiting #canvas-container {
 @media (prefers-reduced-motion: reduce) {
     body #ui-layer,
     body #system-select-root,
-    body .serif-region,
-    body.particle-transition-exit #ui-layer,
-    body.particle-transition-exit #system-select-root,
-    body.particle-transition-exit .serif-region,
-    body.solar-system-targeting #system-select-root,
-    body.solar-system-targeting .serif-region {
-        transition: none;
-        filter: none;
+    body .serif-region {
+        transition: none !important;
+        filter: none !important;
     }
 }

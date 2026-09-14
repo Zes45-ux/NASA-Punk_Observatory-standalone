@@ -38,7 +38,10 @@
 
     function buildHorizontalZoomControl(config)
     {
-        const { sliderId = 'zoom-slider', displayId = 'scale-val', label = 'FOV_SCALE', value = '100%' } = config || {};
+        const sliderId  = config && config.sliderId ? config.sliderId : 'zoom-slider';
+        const displayId = config && config.displayId ? config.displayId : 'scale-val';
+        const label     = config && config.label ? config.label : 'FOV_SCALE';
+        const value     = config && config.value ? config.value : '100%';
 
         return `<div class="zoom-controls">
             <label class="zoom-label" for="${sliderId}">${label} // <span id="${displayId}" class="zoom-value-display">${value}</span></label>
@@ -49,7 +52,8 @@
 
     function buildVerticalZoomControl(config)
     {
-        const { sliderId = 'cam-zoom-slider', label = 'OPTICS' } = config || {};
+        const sliderId = config && config.sliderId ? config.sliderId : 'cam-zoom-slider';
+        const label    = config && config.label ? config.label : 'OPTICS';
 
         return `<div class="vertical-controls">
             <div class="v-slider-track">

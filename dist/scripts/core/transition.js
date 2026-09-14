@@ -628,23 +628,6 @@
 
     function navigate(url)
     {
-        if (global.__observatoryClientRouter)
-        {
-            if (url === 'index.html' || url === './index.html' || url === '/')
-            {
-                global.__observatoryClientRouter.returnToSystem(true);
-                return;
-            }
-            const match = String(url).match(/([a-z]+)\.html/);
-            if (match && global.solarSystemOverview)
-            {
-                const targetName = match[1];
-                global.solarSystemOverview.focusAndNavigate(targetName, url, {
-                    onArrival: (name, link) => global.__observatoryClientRouter.onPlanetArrival(name, link)
-                });
-                return;
-            }
-        }
         if (navigating) return;
         navigating = true;
         let requestedExitMs = 0;

@@ -5,18 +5,34 @@
  */
 (function initDisplayArea(global)
 {
+    function getRoot()
+    {
+        return document.getElementById('canvas-container')
+            || document.getElementById('ui-layer')
+            || document.getElementById('system-select-root')
+            || document.body;
+    }
+
     function getSize(element)
     {
-        const target = element || document.body;
-        const rect = target?.getBoundingClientRect?.() || {};
+        const target = element || getRoot();
+        if (!target)
+        {
+            return {
+                width : window.innerWidth,
+                height: window.innerHeight
+            };
+        }
+
+        const rect = target.getBoundingClientRect();
         return {
-            width : Math.max(1, Math.round(rect.width || global.innerWidth || 1)),
-            height: Math.max(1, Math.round(rect.height || global.innerHeight || 1))
+            width : Math.max(1, Math.round(rect.width || window.innerWidth)),
+            height: Math.max(1, Math.round(rect.height || window.innerHeight))
         };
     }
 
     global.DisplayArea = {
-        getRoot: () => document.body,
-        getSize
+        getRoot: getRoot,
+        getSize: getSize
     };
 })(window);

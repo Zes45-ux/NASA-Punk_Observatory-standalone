@@ -38,12 +38,15 @@
             node.remove();
         });
 
-        ['right', 'left', 'top', 'bottom'].forEach((edge) =>
-        {
-            document.body.classList.remove(`has-serif-${edge}`);
-            document.body.style.removeProperty(`--display-${edge}-inset`);
-        });
+        document.body.classList.remove('has-serif-right');
+        document.body.classList.remove('has-serif-left');
+        document.body.classList.remove('has-serif-top');
+        document.body.classList.remove('has-serif-bottom');
         document.body.classList.remove('serif-disabled');
+        document.body.style.removeProperty('--display-top-inset');
+        document.body.style.removeProperty('--display-right-inset');
+        document.body.style.removeProperty('--display-bottom-inset');
+        document.body.style.removeProperty('--display-left-inset');
         document.body.style.removeProperty('--display-ui-padding');
     }
 
