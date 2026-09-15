@@ -343,7 +343,7 @@
     }
 
     function cancelActiveBuilds() {
-        Array.from(activeBuilds).forEach((buildJob) => buildJob.cancel());
+        for (const buildJob of activeBuilds) buildJob.cancel();
         frameSamplers.forEach(({reset}) => reset());
         frameSamplers.clear();
     }
@@ -361,7 +361,7 @@
         global.addEventListener('pageshow', (event) => {
             if (!event || !event.persisted) return;
             frameSamplers.forEach((entry) => entry.setPaused(false));
-            Array.from(activeBuilds).forEach((job) => job.resume());
+            for (const job of activeBuilds) job.resume();
         });
     }
 

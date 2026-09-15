@@ -24,7 +24,7 @@
         {name: 'venus',   orbit: 16.5, phase: 0.8,   radius: 0.98, particles: 1250, color: visualColor('venus', 'base', '#8b1a1a'), accent: visualColor('venus', 'peak', '#ffe0a0'), speed: 0.34, visual: visualFor('venus'),   atmosphere: {scale: 1.045, color: visualColor('venus', 'atmosphere', '#ffae20'), opacity: 0.22, spin: -0.34}},
         {name: 'earth',   orbit: 23,   phase: 2.35,  radius: 1.04, particles: 1500, color: visualColor('earth', 'ocean', '#1a2b4a'), accent: visualColor('earth', 'landHigh', '#9abf8a'), speed: 0.28, visual: visualFor('earth'),   atmosphere: {scale: 1.045, color: visualColor('earth', 'atmosphere', '#ffffff'), opacity: 0.14, spin: 0.2}},
         {name: 'mars',    orbit: 30,   phase: -2.4,  radius: 0.76, particles: 980,  color: visualColor('mars', 'base', '#94544d'), accent: visualColor('mars', 'light', '#d98c6b'), speed: 0.23, visual: visualFor('mars'),    atmosphere: {scale: 1.055, color: visualColor('mars', 'atmosphere', '#ffc840'), opacity: 0.1}},
-        {name: 'jupiter', orbit: 41,   phase: -0.35, radius: 2.55, particles: 3400, color: visualColor('jupiter', 'beltBase', '#c28266'), accent: visualColor('jupiter', 'zoneLight', '#f0e2c2'), speed: 0.14, visual: visualFor('jupiter'), atmosphere: {scale: 1.028, color: visualColor('jupiter', 'atmosphere', '#ffe699'), opacity: 0.12}},
+        {name: 'jupiter', orbit: 41,   phase: -0.35, radius: 2.55, particles: 3400, color: visualColor('jupiter', 'beltBase', '#c28266'), accent: visualColor('jupiter', 'zoneLight', '#f0e2c2'), speed: 0.14, visual: visualFor('jupiter'), rings: 'jupiter', atmosphere: {scale: 1.028, color: visualColor('jupiter', 'atmosphere', '#ffe699'), opacity: 0.12}},
         {name: 'saturn',  orbit: 52,   phase: 1.05,  radius: 2.1,  particles: 2900, color: visualColor('saturn', 'beige', '#d9c37c'), accent: visualColor('saturn', 'cream', '#f4f0d5'), speed: 0.11, visual: visualFor('saturn'),  rings: 'saturn', atmosphere: {scale: 1.035, color: visualColor('saturn', 'atmosphere', '#f4f0d5'), opacity: 0.1}},
         {name: 'uranus',  orbit: 62,   phase: 2.8,   radius: 1.52, particles: 2050, color: visualColor('uranus', 'deep', '#4a9cb8'), accent: visualColor('uranus', 'high', '#e0ffff'), speed: 0.08, visual: visualFor('uranus'),  rings: 'uranus', atmosphere: {scale: 1.04, color: visualColor('uranus', 'atmosphere', '#66e6ff'), opacity: 0.14}},
         {name: 'neptune', orbit: 71,   phase: -2.8,  radius: 1.5,  particles: 2050, color: visualColor('neptune', 'deep', '#1a237e'), accent: visualColor('neptune', 'bright', '#448aff'), speed: 0.065, visual: visualFor('neptune'), rings: 'neptune'}
@@ -47,6 +47,7 @@
     {
         return {
             start() {}, stop() {}, resize() {}, setScale() {}, resetFocus() {},
+            returnToOverview() { return false; },
             focusAndNavigate() { return false; },
             running: false,
             planetCount: 0
@@ -111,10 +112,14 @@
         let pointerX = 0;
         let pointerY = 0;
         let focusState = null;
+        let focusedPlanet = null;
+        const focusedCameraOffset = new THREE.Vector3();
         let navigationCommitted = false;
 
         const FOCUS_DURATION_MS = 820;
         const NAVIGATION_COMMIT_PROGRESS = 0.74;
+        const OVERVIEW_FOV = 38;
+        const TRANSIT_FOV = 34.2;
         let activeQualityProfile = profileName;
 
         function track(resource)
@@ -333,18 +338,185 @@
                 cloud.add(wireframe);
             }
 
+            if (features.latitudeLongitudeGrid && typeof THREE.LineLoop === 'function')
+            {
+                const gridGroup = new THREE.Group();
+                const gridMaterial = track(new THREE.LineBasicMaterial({
+                    color: definition.accent || 0x6b7e8c,
+                    transparent: true,
+                    opacity: 0.16,
+                    blending: THREE.AdditiveBlending
+                }));
+                const gridSegments = 32;
+                for (let latitudeIndex = -3; latitudeIndex <= 3; latitudeIndex++)
+                {
+                    const latitude = latitudeIndex / 4 * Math.PI * 0.5;
+                    const ringRadius = definition.radius * Math.cos(latitude);
+                    const points = [];
+                    for (let point = 0; point < gridSegments; point++)
+                    {
+                        const angle = point / gridSegments * Math.PI * 2;
+                        points.push(new THREE.Vector3(
+                            Math.cos(angle) * ringRadius,
+                            Math.sin(latitude) * definition.radius,
+                            Math.sin(angle) * ringRadius
+                        ));
+                    }
+                    const geometry = track(new THREE.BufferGeometry().setFromPoints(points));
+                    gridGroup.add(new THREE.LineLoop(geometry, gridMaterial));
+                }
+                for (let longitudeIndex = 0; longitudeIndex < 8; longitudeIndex++)
+                {
+                    const longitude = longitudeIndex / 8 * Math.PI * 2;
+                    const points = [];
+                    for (let point = 0; point <= gridSegments; point++)
+                    {
+                        const latitude = point / gridSegments * Math.PI - Math.PI * 0.5;
+                        const radius = Math.cos(latitude) * definition.radius;
+                        points.push(new THREE.Vector3(
+                            Math.cos(longitude) * radius,
+                            Math.sin(latitude) * definition.radius,
+                            Math.sin(longitude) * radius
+                        ));
+                    }
+                    const geometry = track(new THREE.BufferGeometry().setFromPoints(points));
+                    gridGroup.add(new THREE.Line(geometry, gridMaterial));
+                }
+                gridGroup.userData.visualLayer = 'latitude-longitude-grid';
+                cloud.add(gridGroup);
+            }
+
+            if (features.greatRedSpot && typeof THREE.Points === 'function')
+            {
+                const stormCount = Math.max(90, Math.round(280 * density));
+                const stormPositions = new Float32Array(stormCount * 3);
+                const stormColors = new Float32Array(stormCount * 3);
+                const stormAngles = new Float32Array(stormCount);
+                const stormRadii = new Float32Array(stormCount);
+                const stormPhases = new Float32Array(stormCount);
+                const stormCore = visual.palette && visual.palette.redSpotCore
+                    ? new THREE.Color(visual.palette.redSpotCore)
+                    : new THREE.Color('#8a3f2d');
+                const stormEye = visual.palette && visual.palette.redSpotEye
+                    ? new THREE.Color(visual.palette.redSpotEye)
+                    : new THREE.Color('#c25e40');
+                const stormSwirl = visual.palette
+                    ? new THREE.Color(visual.palette.redSpotSwirl || '#e3dccb')
+                    : new THREE.Color('#e3dccb');
+                const centerX = definition.radius * 0.45;
+                const centerY = -definition.radius * 0.38;
+                const centerZ = definition.radius * 0.25;
+                for (let stormIndex = 0; stormIndex < stormCount; stormIndex++)
+                {
+                    const angle = random() * Math.PI * 2;
+                    const radial = Math.sqrt(random()) * definition.radius * 0.23;
+                    const offset = stormIndex * 3;
+                    const swirlMix = Math.min(1, radial / (definition.radius * 0.23));
+                    stormPositions[offset] = centerX + Math.cos(angle) * radial;
+                    stormPositions[offset + 1] = centerY + (random() - 0.5) * definition.radius * 0.08;
+                    stormPositions[offset + 2] = centerZ + Math.sin(angle) * radial * 0.52;
+                    const color = stormCore.clone().lerp(stormEye, 1 - swirlMix * 0.72)
+                        .lerp(stormSwirl, Math.max(0, swirlMix - 0.62) * 2.3);
+                    stormColors[offset] = color.r;
+                    stormColors[offset + 1] = color.g;
+                    stormColors[offset + 2] = color.b;
+                    stormAngles[stormIndex] = angle;
+                    stormRadii[stormIndex] = radial;
+                    stormPhases[stormIndex] = random() * Math.PI * 2;
+                }
+                const stormGeometry = track(new THREE.BufferGeometry());
+                stormGeometry.setAttribute('position', new THREE.BufferAttribute(stormPositions, 3));
+                stormGeometry.setAttribute('color', new THREE.BufferAttribute(stormColors, 3));
+                const stormMaterial = track(new THREE.PointsMaterial({
+                    size: 0.13,
+                    map: particleTexture,
+                    alphaTest: 0.02,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 0.82,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                }));
+                const stormPoints = new THREE.Points(stormGeometry, stormMaterial);
+                stormPoints.userData.visualLayer = 'great-red-spot-vortex';
+                cloud.add(stormPoints);
+                overviewPointLayers.push({object: stormPoints, fullCount: stormCount, minimumCount: 36});
+                dynamicLayers.push({
+                    update(time)
+                    {
+                        const positions = stormGeometry.attributes.position.array;
+                        for (let stormIndex = 0; stormIndex < stormCount; stormIndex++)
+                        {
+                            const radius = stormRadii[stormIndex];
+                            const phase = stormPhases[stormIndex];
+                            const swirl = stormAngles[stormIndex]
+                                + time * (0.09 + (1 - radius / (definition.radius * 0.23)) * 0.18);
+                            const offset = stormIndex * 3;
+                            positions[offset] = centerX + Math.cos(swirl) * radius;
+                            positions[offset + 2] = centerZ + Math.sin(swirl) * radius * 0.52;
+                            positions[offset + 1] = centerY
+                                + Math.sin(time * 0.42 + phase) * definition.radius * 0.018;
+                        }
+                        stormGeometry.attributes.position.needsUpdate = true;
+                    }
+                });
+            }
+
+            if (features.olympusMons && typeof THREE.Points === 'function')
+            {
+                const mountainCount = Math.max(32, Math.round(96 * density));
+                const mountainPositions = new Float32Array(mountainCount * 3);
+                const mountainColors = new Float32Array(mountainCount * 3);
+                const mountainColor = visual.palette && visual.palette.light
+                    ? new THREE.Color(visual.palette.light)
+                    : new THREE.Color('#d98c6b');
+                for (let mountainIndex = 0; mountainIndex < mountainCount; mountainIndex++)
+                {
+                    const angle = random() * Math.PI * 2;
+                    const radial = Math.sqrt(random()) * definition.radius * 0.11;
+                    const offset = mountainIndex * 3;
+                    mountainPositions[offset] = definition.radius * 0.18 + Math.cos(angle) * radial;
+                    mountainPositions[offset + 1] = definition.radius * 0.05
+                        + Math.sin(angle) * radial * 0.45;
+                    mountainPositions[offset + 2] = definition.radius * 0.965
+                        + (random() - 0.35) * definition.radius * 0.035;
+                    const brightness = 0.72 + random() * 0.28;
+                    mountainColors[offset] = mountainColor.r * brightness;
+                    mountainColors[offset + 1] = mountainColor.g * brightness;
+                    mountainColors[offset + 2] = mountainColor.b * brightness;
+                }
+                const mountainGeometry = track(new THREE.BufferGeometry());
+                mountainGeometry.setAttribute('position', new THREE.BufferAttribute(mountainPositions, 3));
+                mountainGeometry.setAttribute('color', new THREE.BufferAttribute(mountainColors, 3));
+                const mountainMaterial = track(new THREE.PointsMaterial({
+                    size: 0.12,
+                    map: particleTexture,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 0.7,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                }));
+                const mountainPoints = new THREE.Points(mountainGeometry, mountainMaterial);
+                mountainPoints.userData.visualLayer = 'olympus-mons';
+                cloud.add(mountainPoints);
+                overviewPointLayers.push({object: mountainPoints, fullCount: mountainCount, minimumCount: 18});
+            }
+
             if (features.polarHexagon && typeof THREE.Line === 'function')
             {
                 const hexPoints = [];
                 const hexRadius = definition.radius * 0.25;
-                const hexSurfaceY = definition.radius * 0.96;
                 for (let point = 0; point <= 6; point++)
                 {
                     const angle = point * Math.PI / 3;
+                    const x = hexRadius * Math.cos(angle);
+                    const z = hexRadius * Math.sin(angle);
                     hexPoints.push(new THREE.Vector3(
-                        hexRadius * Math.cos(angle),
-                        hexSurfaceY,
-                        hexRadius * Math.sin(angle)
+                        x,
+                        Math.sqrt(Math.max(0, definition.radius * definition.radius - x * x - z * z))
+                            * 0.99,
+                        z
                     ));
                 }
                 const hexGeometry = track(new THREE.BufferGeometry().setFromPoints(hexPoints));
@@ -379,7 +551,10 @@
                     opacity: 0.22,
                     blending: THREE.AdditiveBlending
                 }));
-                cloud.add(new THREE.LineLoop(moonOrbitGeometry, moonOrbitMaterial));
+                const moonOrbitGroup = new THREE.Group();
+                moonOrbitGroup.rotation.z = ((visual.moonTilt || 5.14) * Math.PI) / 180;
+                moonOrbitGroup.userData.overviewSpin = 0.072;
+                moonOrbitGroup.add(new THREE.LineLoop(moonOrbitGeometry, moonOrbitMaterial));
 
                 const moonGeometry = track(new THREE.BufferGeometry());
                 moonGeometry.setAttribute('position', new THREE.BufferAttribute(
@@ -396,8 +571,70 @@
                 }));
                 const moonPoints = new THREE.Points(moonGeometry, moonMaterial);
                 moonPoints.userData.visualLayer = 'moon';
-                cloud.add(moonPoints);
+                moonOrbitGroup.add(moonPoints);
+                cloud.add(moonOrbitGroup);
+                effectLayers.push(moonOrbitGroup);
                 overviewPointLayers.push({object: moonPoints, fullCount: 1, minimumCount: 1});
+            }
+
+            if (features.moons && !features.moon && typeof THREE.Points === 'function')
+            {
+                const satelliteCount = definition.name === 'jupiter' ? 4 : 2;
+                const satellitePositions = new Float32Array(satelliteCount * 3);
+                const satelliteColors = new Float32Array(satelliteCount * 3);
+                const satelliteAngles = new Float32Array(satelliteCount);
+                const satelliteRadii = new Float32Array(satelliteCount);
+                const satelliteSpeeds = new Float32Array(satelliteCount);
+                const satelliteGroup = new THREE.Group();
+                const satelliteOrbitColor = definition.name === 'mars' ? 0xc8434d : 0x9aa9b7;
+                const satelliteMaterial = track(new THREE.PointsMaterial({
+                    size: definition.name === 'jupiter' ? 0.12 : 0.1,
+                    map: particleTexture,
+                    color: satelliteOrbitColor,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 0.7,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                }));
+                for (let satelliteIndex = 0; satelliteIndex < satelliteCount; satelliteIndex++)
+                {
+                    const angle = random() * Math.PI * 2;
+                    const radius = definition.radius * (2 + satelliteIndex * 0.62);
+                    const offset = satelliteIndex * 3;
+                    satelliteAngles[satelliteIndex] = angle;
+                    satelliteRadii[satelliteIndex] = radius;
+                    satelliteSpeeds[satelliteIndex] = 0.18 / (1 + satelliteIndex * 0.6);
+                    satellitePositions[offset] = Math.cos(angle) * radius;
+                    satellitePositions[offset + 1] = (random() - 0.5) * definition.radius * 0.22;
+                    satellitePositions[offset + 2] = Math.sin(angle) * radius;
+                    satelliteColors[offset] = 0.58 + satelliteIndex * 0.06;
+                    satelliteColors[offset + 1] = 0.68 + satelliteIndex * 0.04;
+                    satelliteColors[offset + 2] = 0.78 + satelliteIndex * 0.03;
+                }
+                const satelliteGeometry = track(new THREE.BufferGeometry());
+                satelliteGeometry.setAttribute('position', new THREE.BufferAttribute(satellitePositions, 3));
+                satelliteGeometry.setAttribute('color', new THREE.BufferAttribute(satelliteColors, 3));
+                const satellitePoints = new THREE.Points(satelliteGeometry, satelliteMaterial);
+                satellitePoints.userData.visualLayer = 'moons';
+                satelliteGroup.add(satellitePoints);
+                satelliteGroup.userData.visualLayer = 'moon-orbits';
+                cloud.add(satelliteGroup);
+                overviewPointLayers.push({object: satellitePoints, fullCount: satelliteCount, minimumCount: satelliteCount});
+                dynamicLayers.push({
+                    update(_time, delta)
+                    {
+                        const positions = satelliteGeometry.attributes.position.array;
+                        for (let satelliteIndex = 0; satelliteIndex < satelliteCount; satelliteIndex++)
+                        {
+                            satelliteAngles[satelliteIndex] += satelliteSpeeds[satelliteIndex] * delta;
+                            const offset = satelliteIndex * 3;
+                            positions[offset] = Math.cos(satelliteAngles[satelliteIndex]) * satelliteRadii[satelliteIndex];
+                            positions[offset + 2] = Math.sin(satelliteAngles[satelliteIndex]) * satelliteRadii[satelliteIndex];
+                        }
+                        satelliteGeometry.attributes.position.needsUpdate = true;
+                    }
+                });
             }
 
             if (features.flares)
@@ -405,7 +642,10 @@
                 const flareCount = Math.max(40, Math.round(240 * density));
                 const flarePositions = new Float32Array(flareCount * 3);
                 const flareColors = new Float32Array(flareCount * 3);
-                const flareData = [];
+                const flareAngles = new Float32Array(flareCount);
+                const flareRadii = new Float32Array(flareCount);
+                const flareSpeeds = new Float32Array(flareCount);
+                const flarePhases = new Float32Array(flareCount);
                 for (let flareIndex = 0; flareIndex < flareCount; flareIndex++)
                 {
                     const angle = random() * Math.PI * 2;
@@ -418,7 +658,10 @@
                     flareColors[offset] = 1;
                     flareColors[offset + 1] = 0.65 + random() * 0.35;
                     flareColors[offset + 2] = 0.2;
-                    flareData.push({angle, radius, speed: 0.08 + random() * 0.16, phase: random() * Math.PI * 2});
+                    flareAngles[flareIndex] = angle;
+                    flareRadii[flareIndex] = radius;
+                    flareSpeeds[flareIndex] = 0.08 + random() * 0.16;
+                    flarePhases[flareIndex] = random() * Math.PI * 2;
                 }
                 const flareGeometry = track(new THREE.BufferGeometry());
                 flareGeometry.setAttribute('position', new THREE.BufferAttribute(flarePositions, 3));
@@ -440,12 +683,13 @@
                     update(time)
                     {
                         const positions = flareGeometry.attributes.position.array;
-                        flareData.forEach((flare, index) =>
+                        for (let index = 0; index < flareCount; index++)
                         {
-                            const radius = flare.radius + Math.sin(time * flare.speed + flare.phase) * 0.45;
-                            positions[index * 3] = Math.cos(flare.angle) * radius;
-                            positions[index * 3 + 2] = Math.sin(flare.angle) * radius;
-                        });
+                            const radius = flareRadii[index]
+                                + Math.sin(time * flareSpeeds[index] + flarePhases[index]) * 0.45;
+                            positions[index * 3] = Math.cos(flareAngles[index]) * radius;
+                            positions[index * 3 + 2] = Math.sin(flareAngles[index]) * radius;
+                        }
                         flareGeometry.attributes.position.needsUpdate = true;
                     }
                 });
@@ -504,6 +748,28 @@
                 effectLayers.push(halo);
                 overviewPointLayers.push({object: halo, fullCount: shellCount, minimumCount: 40});
                 cloud.add(halo);
+
+                if (definition.name === 'venus' && visual.features && visual.features.atmosphere)
+                {
+                    const hazeMaterial = track(new THREE.PointsMaterial({
+                        size: 0.34,
+                        map: particleTexture,
+                        alphaTest: 0.01,
+                        color: definition.atmosphere.color,
+                        transparent: true,
+                        opacity: definition.atmosphere.opacity * 0.42,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false,
+                        sizeAttenuation: true
+                    }));
+                    const haze = new THREE.Points(haloGeometry, hazeMaterial);
+                    haze.scale.setScalar(definition.atmosphere.scale * 1.035);
+                    haze.userData.overviewSpin = -0.14;
+                    haze.userData.visualLayer = 'venus-atmosphere-haze';
+                    effectLayers.push(haze);
+                    overviewPointLayers.push({object: haze, fullCount: shellCount, minimumCount: 40});
+                    cloud.add(haze);
+                }
             }
             return cloud;
         }
@@ -541,11 +807,10 @@
                 if (definition.rings === 'saturn')
                 {
                     const segment = random();
-                    radius = segment < 0.52
-                        ? definition.radius * (1.24 + random() * 0.38)
-                        : (segment < 0.58
-                            ? definition.radius * (1.62 + random() * 0.1)
-                            : definition.radius * (1.72 + random() * 0.55));
+                    // Two dense ring families separated by the Cassini gap.
+                    radius = segment < 0.54
+                        ? definition.radius * (1.24 + random() * 0.34)
+                        : definition.radius * (1.78 + random() * 0.49);
                 }
                 else
                 {
@@ -559,12 +824,12 @@
                 positions[offset + 2] = Math.sin(angle) * radius;
                 if (definition.rings === 'saturn')
                 {
-                    const normalized = radius / definition.radius;
-                    ringColor.set(normalized < 1.62
-                        ? (normalized < 1.38
+                    const ringRadius = radius / definition.radius;
+                    ringColor.set(ringRadius < 1.62
+                        ? (ringRadius < 1.38
                             ? (ringPalette.ringDark || '#4a3b2a')
                             : (ringPalette.ringBright || '#f0e4c0'))
-                        : (normalized < 1.72 ? '#2a241e' : (ringPalette.ringIce || '#a0b0c0')));
+                        : (ringRadius < 1.78 ? '#151923' : (ringPalette.ringIce || '#a0b0c0')));
                 }
                 else if (definition.rings === 'uranus')
                 {
@@ -572,11 +837,19 @@
                         ? (ringPalette.ringBright || '#40e0d0')
                         : (ringPalette.ringDark || '#2a4f50'));
                 }
+                else if (definition.rings === 'jupiter')
+                {
+                    ringColor.set(random() > 0.58 ? '#b6a885' : '#695b4c');
+                }
                 else
                 {
                     ringColor.set(normalized > 0.62 ? '#88aaff' : '#5566aa');
                 }
-                const brightness = 0.55 + random() * 0.55;
+                const edgeFade = definition.rings === 'saturn'
+                    ? Math.min(1, Math.max(0, (radius / definition.radius - 1.24) / 0.08),
+                        Math.max(0, (2.27 - radius / definition.radius) / 0.08))
+                    : 1;
+                const brightness = (0.55 + random() * 0.55) * edgeFade;
                 colors[offset] = ringColor.r * brightness;
                 colors[offset + 1] = ringColor.g * brightness;
                 colors[offset + 2] = ringColor.b * brightness;
@@ -595,7 +868,9 @@
                 depthWrite: false
             }));
             const rings = new THREE.Points(geometry, material);
-            rings.rotation.x = definition.rings === 'uranus' ? Math.PI * 0.48 : Math.PI * 0.08;
+            rings.rotation.x = definition.rings === 'uranus'
+                ? Math.PI * 0.48
+                : (definition.rings === 'jupiter' ? Math.PI * 0.12 : Math.PI * 0.08);
             rings.userData.overviewSpin = definition.rings === 'neptune' ? 0.42 : 0.18;
             rings.userData.visualLayer = 'rings';
             effectLayers.push(rings);
@@ -683,6 +958,30 @@
         sunGlow.scale.set(15, 15, 1);
         system.add(sunGlow);
 
+        // The full Sol scene has a layered corona. Keep the same visual cue in
+        // the overview without adding another particle allocation or render
+        // target: three additive sprite shells share one cached texture.
+        const coronaLayers = [
+            {scale: 10.8, opacity: 0.24, color: 0xffc35b},
+            {scale: 13.6, opacity: 0.16, color: 0xff8a32},
+            {scale: 18.4, opacity: 0.1, color: 0xd95d24}
+        ];
+        for (let coronaIndex = 0; coronaIndex < coronaLayers.length; coronaIndex++)
+        {
+            const layer = coronaLayers[coronaIndex];
+            const corona = new THREE.Sprite(track(new THREE.SpriteMaterial({
+                map: glowTexture,
+                color: layer.color,
+                transparent: true,
+                opacity: layer.opacity,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            })));
+            corona.scale.set(layer.scale, layer.scale, 1);
+            corona.userData.visualLayer = 'corona-layer-' + coronaIndex;
+            system.add(corona);
+        }
+
         system.traverse((object) =>
         {
             const materials = Array.isArray(object.material) ? object.material : [object.material];
@@ -737,37 +1036,101 @@
             return t * t * (3 - 2 * t);
         }
 
-        function smootherstep(value)
+        function cubicOut(value)
         {
             const t = Math.max(0, Math.min(1, value));
-            return t * t * t * (t * (t * 6 - 15) + 10);
+            const inverse = 1 - t;
+            return 1 - inverse * inverse * inverse;
+        }
+
+        function transitFov(progress)
+        {
+            const t = progress < 0.5
+                ? cubicOut(progress * 2)
+                : cubicOut((progress - 0.5) * 2);
+            return progress < 0.5
+                ? OVERVIEW_FOV + (TRANSIT_FOV - OVERVIEW_FOV) * t
+                : TRANSIT_FOV + (OVERVIEW_FOV - TRANSIT_FOV) * t;
+        }
+
+        function setCameraFov(value)
+        {
+            if (Math.abs(camera.fov - value) < 0.01) return;
+            camera.fov = value;
+            camera.updateProjectionMatrix();
+        }
+
+        function broadcastTransitStep(timestamp, progress)
+        {
+            const detail = focusState.transitDetail;
+            const distance = camera.position.distanceTo(focusState.worldTarget);
+            const elapsed = focusState.lastTelemetryAt === null
+                ? 16.667
+                : Math.max(1, timestamp - focusState.lastTelemetryAt);
+            const previousDistance = focusState.previousDistance;
+            detail.planet = focusState.target.definition.name;
+            detail.progress = progress;
+            detail.distanceRemaining = distance;
+            detail.approachSpeed = Math.max(0, (previousDistance - distance) / (elapsed / 1000));
+            detail.bearing = Math.atan2(
+                focusState.worldTarget.x - camera.position.x,
+                focusState.worldTarget.z - camera.position.z
+            ) * 180 / Math.PI;
+            detail.fov = camera.fov;
+            focusState.previousDistance = distance;
+            focusState.lastTelemetryAt = timestamp;
+            const router = global.__observatoryClientRouter;
+            if (router && typeof router.onTransitStep === 'function')
+            {
+                router.onTransitStep(detail);
+            }
+            if (focusState.transitEvent)
+            {
+                global.dispatchEvent(focusState.transitEvent);
+            }
         }
 
         function updateFocus(timestamp)
         {
             const elapsed = Math.max(0, timestamp - focusState.startedAt);
             const progress = Math.min(1, elapsed / FOCUS_DURATION_MS);
-            const cameraProgress = Math.min(1, progress / NAVIGATION_COMMIT_PROGRESS);
-            const eased = smootherstep(cameraProgress);
-            const handoffProgress = navigationCommitted
-                ? Math.min(1, (timestamp - focusState.handoffStartedAt) / 720)
-                : 0;
+            const eased = cubicOut(progress);
             focusState.target.body.getWorldPosition(focusState.worldTarget);
-            focusState.liveOffset.copy(focusState.cameraOffset)
-                .multiplyScalar(1 - smootherstep(handoffProgress) * 0.1);
-            focusState.endCamera.copy(focusState.worldTarget).add(focusState.liveOffset);
-            camera.position.lerpVectors(focusState.startCamera, focusState.endCamera, eased);
-            focusState.lookAt.lerpVectors(focusState.startLookAt, focusState.worldTarget, eased);
-            camera.lookAt(focusState.lookAt);
-
-            const fade = 1 - smoothstep(cameraProgress / 0.86);
-            overviewMaterials.forEach((entry) =>
+            if (focusState.mode === 'return')
             {
+                camera.position.lerpVectors(focusState.startCamera, focusState.endCamera, eased);
+                focusState.lookAt.lerpVectors(focusState.startLookAt, focusState.endLookAt, eased);
+                camera.lookAt(focusState.lookAt);
+                setCameraFov(transitFov(progress));
+            }
+            else
+            {
+                focusState.endCamera.copy(focusState.worldTarget).add(focusState.liveOffset);
+                camera.position.lerpVectors(focusState.startCamera, focusState.endCamera, eased);
+                focusState.lookAt.lerpVectors(focusState.startLookAt, focusState.worldTarget, eased);
+                camera.lookAt(focusState.lookAt);
+                setCameraFov(transitFov(progress));
+            }
+
+            const fade = focusState.mode === 'return'
+                ? smoothstep(progress)
+                : 1 - smoothstep(progress / 0.86);
+            for (let index = 0; index < overviewMaterials.length; index++)
+            {
+                const entry = overviewMaterials[index];
                 const belongsToTarget = isInside(entry.object, focusState.target.body)
                     || (focusState.target.definition.name === 'sun' && entry.object === sunGlow);
-                entry.material.opacity = entry.opacity * (belongsToTarget ? 1 : fade);
-            });
-            return progress >= NAVIGATION_COMMIT_PROGRESS;
+                entry.material.opacity = entry.opacity * (belongsToTarget ? 1 : Math.max(0.06, fade));
+            }
+            if (focusState.mode === 'focus')
+            {
+                broadcastTransitStep(timestamp, progress);
+            }
+            return {
+                commit: focusState.mode === 'focus'
+                    && progress >= NAVIGATION_COMMIT_PROGRESS,
+                complete: progress >= 1
+            };
         }
 
         function prepareParticleHandoff()
@@ -779,9 +1142,17 @@
             });
         }
 
+        function restoreParticleVisibility()
+        {
+            system.traverse((object) =>
+            {
+                if (object.isPoints) object.visible = true;
+            });
+        }
+
         function updateLabels(timestamp, force = false)
         {
-            if (!force && !focusState && timestamp - lastLabelUpdateAt < 48) return;
+            if (!force && !focusState && !focusedPlanet && timestamp - lastLabelUpdateAt < 48) return;
             lastLabelUpdateAt = timestamp;
             labelRect = labelRect || container.getBoundingClientRect();
             const rect = labelRect;
@@ -789,7 +1160,8 @@
             {
                 const label = labels.get(entry.definition.name);
                 if (!label) return;
-                if (focusState && entry !== focusState.target)
+                const activeTarget = focusState ? focusState.target : focusedPlanet;
+                if (activeTarget && entry !== activeTarget)
                 {
                     label.hidden = true;
                     return;
@@ -814,10 +1186,32 @@
 
         function render(timestamp = global.performance ? global.performance.now() : Date.now())
         {
-            let focusComplete = false;
+            let focusTransition = null;
             if (focusState)
             {
-                focusComplete = updateFocus(timestamp);
+                focusTransition = updateFocus(timestamp);
+                if (focusTransition.commit && !navigationCommitted)
+                {
+                    navigationCommitted = true;
+                    focusState.handoffStartedAt = timestamp;
+                    prepareParticleHandoff();
+                    if (typeof focusState.onArrival === 'function')
+                    {
+                        focusState.onArrival();
+                    }
+                    else if (global.TransitionManager
+                        && typeof global.TransitionManager.navigate === 'function')
+                    {
+                        global.TransitionManager.navigate(focusState.url);
+                    }
+                }
+            }
+            else if (focusedPlanet)
+            {
+                focusedPlanet.body.getWorldPosition(worldPosition);
+                camera.position.copy(worldPosition).add(focusedCameraOffset);
+                camera.lookAt(worldPosition);
+                setCameraFov(OVERVIEW_FOV);
             }
             else
             {
@@ -828,16 +1222,38 @@
                 system.rotation.x = -0.03 + currentPitch;
                 camera.position.set(0, currentDistance * 0.56, currentDistance);
                 camera.lookAt(0, 0, 0);
+                setCameraFov(OVERVIEW_FOV);
             }
             renderer.render(scene, camera);
-            updateLabels(timestamp, Boolean(focusState));
+            updateLabels(timestamp, Boolean(focusState || focusedPlanet));
 
-            if (focusComplete && !navigationCommitted)
+            if (focusTransition && focusTransition.complete)
             {
-                navigationCommitted = true;
-                focusState.handoffStartedAt = timestamp;
-                prepareParticleHandoff();
-                global.TransitionManager.navigate(focusState.url);
+                if (focusState.mode === 'return')
+                {
+                    const onComplete = focusState.onComplete;
+                    focusState = null;
+                    focusedPlanet = null;
+                    navigationCommitted = false;
+                    document.body.classList.remove('solar-system-targeting', 'solar-system-returning');
+                    restoreParticleVisibility();
+                    for (let index = 0; index < overviewMaterials.length; index++)
+                    {
+                        const entry = overviewMaterials[index];
+                        entry.material.opacity = entry.opacity;
+                    }
+                    setCameraFov(OVERVIEW_FOV);
+                    if (typeof onComplete === 'function') onComplete();
+                }
+                else if (navigationCommitted)
+                {
+                    focusedPlanet = focusState.target;
+                    focusedCameraOffset.copy(focusState.endCamera).sub(focusState.worldTarget);
+                    focusState = null;
+                    navigationCommitted = false;
+                    document.body.classList.remove('solar-system-targeting');
+                    setCameraFov(OVERVIEW_FOV);
+                }
             }
         }
 
@@ -845,25 +1261,31 @@
         {
             if (!running) return;
             const delta = Math.min(clock.getDelta(), 0.05);
-            if (!reducedMotion && !focusState)
+            if (!reducedMotion && !focusState && !focusedPlanet)
             {
-                planetEntries.forEach((entry, index) =>
+                for (let index = 0; index < planetEntries.length; index++)
                 {
+                    const entry = planetEntries[index];
                     if (index > 0) entry.orbitPivot.rotation.y += entry.definition.speed * delta * 0.22;
                     entry.particles.rotation.y += delta * (entry.definition.name === 'sun' ? 0.055 : 0.12);
-                });
+                }
             }
-            else if (!reducedMotion && focusState)
+            else if (!reducedMotion && (focusState || focusedPlanet))
             {
-                focusState.target.particles.rotation.y += delta * 0.08;
+                const activeTarget = focusState ? focusState.target : focusedPlanet;
+                activeTarget.particles.rotation.y += delta * 0.08;
             }
             if (!reducedMotion)
             {
-                effectLayers.forEach((layer) =>
+                for (let index = 0; index < effectLayers.length; index++)
                 {
+                    const layer = effectLayers[index];
                     layer.rotation.y += delta * layer.userData.overviewSpin;
-                });
-                dynamicLayers.forEach((layer) => layer.update(timestamp * 0.001, delta));
+                }
+                for (let index = 0; index < dynamicLayers.length; index++)
+                {
+                    dynamicLayers[index].update(timestamp * 0.001, delta);
+                }
             }
             render(timestamp);
             frameHandle = global.requestAnimationFrame(tick);
@@ -975,28 +1397,27 @@
         function resetFocus()
         {
             focusState = null;
+            focusedPlanet = null;
             navigationCommitted = false;
-            document.body.classList.remove('solar-system-targeting');
-            overviewMaterials.forEach((entry) => { entry.material.opacity = entry.opacity; });
-            system.traverse((object) =>
+            document.body.classList.remove('solar-system-targeting', 'solar-system-returning');
+            for (let index = 0; index < overviewMaterials.length; index++)
             {
-                if (object.isPoints) object.visible = true;
-            });
+                const entry = overviewMaterials[index];
+                entry.material.opacity = entry.opacity;
+            }
+            restoreParticleVisibility();
+            setCameraFov(OVERVIEW_FOV);
             render();
         }
 
-        function focusAndNavigate(planetName, url)
+        function focusAndNavigate(planetName, url, options = {})
         {
             const target = planetEntries.find((entry) => entry.definition.name === planetName);
             if (!target || !url || navigationCommitted || focusState) return false;
-            if (!global.TransitionManager || typeof global.TransitionManager.navigate !== 'function')
+            if ((!global.TransitionManager || typeof global.TransitionManager.navigate !== 'function')
+                && typeof options.onArrival !== 'function')
             {
                 global.location.href = url;
-                return true;
-            }
-            if (reducedMotion)
-            {
-                global.TransitionManager.navigate(url);
                 return true;
             }
 
@@ -1006,20 +1427,111 @@
             const focusDistance = Math.max(4.2, target.definition.radius
                 * (target.definition.rings ? 6.2 : 4.8));
             cameraOffset.multiplyScalar(focusDistance);
+            const startLookAt = focusedPlanet
+                ? focusedPlanet.body.getWorldPosition(new THREE.Vector3())
+                : new THREE.Vector3(0, 0, 0);
+            if (focusedPlanet && focusedPlanet !== target)
+            {
+                system.traverse((object) =>
+                {
+                    if (!object.isPoints) return;
+                    object.visible = isInside(object, target.body)
+                        || isInside(object, focusedPlanet.body);
+                });
+            }
             focusState = {
+                mode: 'focus',
                 target,
                 url,
+                onArrival: typeof options.onArrival === 'function' ? options.onArrival : null,
                 startedAt: global.performance ? global.performance.now() : Date.now(),
                 startCamera: camera.position.clone(),
                 endCamera: new THREE.Vector3(),
                 cameraOffset,
-                liveOffset: new THREE.Vector3(),
-                startLookAt: new THREE.Vector3(0, 0, 0),
+                liveOffset: cameraOffset.clone(),
+                startLookAt,
                 lookAt: new THREE.Vector3(),
                 worldTarget: worldPosition.clone(),
-                handoffStartedAt: 0
+                handoffStartedAt: 0,
+                previousDistance: camera.position.distanceTo(worldPosition),
+                lastTelemetryAt: null,
+                transitDetail: {
+                    planet: target.definition.name,
+                    progress: 0,
+                    distanceRemaining: 0,
+                    approachSpeed: 0,
+                    bearing: 0,
+                    fov: OVERVIEW_FOV
+                },
+                transitEvent: null
             };
+            if (typeof global.CustomEvent === 'function')
+            {
+                focusState.transitEvent = new global.CustomEvent('observatory:transit-step', {
+                    detail: focusState.transitDetail
+                });
+            }
             document.body.classList.add('solar-system-targeting');
+            if (reducedMotion)
+            {
+                focusState.endCamera.copy(focusState.worldTarget).add(focusState.liveOffset);
+                camera.position.copy(focusState.endCamera);
+                camera.lookAt(focusState.worldTarget);
+                prepareParticleHandoff();
+                navigationCommitted = true;
+                if (focusState.onArrival) focusState.onArrival();
+                focusedPlanet = target;
+                focusedCameraOffset.copy(focusState.liveOffset);
+                focusState = null;
+                navigationCommitted = false;
+                document.body.classList.remove('solar-system-targeting');
+                setCameraFov(OVERVIEW_FOV);
+            }
+            return true;
+        }
+
+        function returnToOverview(options = {})
+        {
+            if (!focusedPlanet || focusState) return false;
+            scene.updateMatrixWorld(true);
+            focusedPlanet.body.getWorldPosition(worldPosition);
+            restoreParticleVisibility();
+            focusState = {
+                mode: 'return',
+                target: focusedPlanet,
+                url: 'index.html',
+                startedAt: global.performance ? global.performance.now() : Date.now(),
+                startCamera: camera.position.clone(),
+                endCamera: new THREE.Vector3(0, currentDistance * 0.56, currentDistance),
+                liveOffset: new THREE.Vector3(),
+                startLookAt: worldPosition.clone(),
+                endLookAt: new THREE.Vector3(0, 0, 0),
+                lookAt: new THREE.Vector3(),
+                worldTarget: worldPosition.clone(),
+                onComplete: typeof options.onComplete === 'function' ? options.onComplete : null,
+                transitDetail: null,
+                transitEvent: null
+            };
+            navigationCommitted = false;
+            document.body.classList.add('solar-system-returning');
+            if (reducedMotion)
+            {
+                camera.position.copy(focusState.endCamera);
+                camera.lookAt(focusState.endLookAt);
+                focusState = null;
+                focusedPlanet = null;
+                document.body.classList.remove('solar-system-returning');
+                restoreParticleVisibility();
+                for (let index = 0; index < overviewMaterials.length; index++)
+                {
+                    const entry = overviewMaterials[index];
+                    entry.material.opacity = entry.opacity;
+                }
+                setCameraFov(OVERVIEW_FOV);
+                if (typeof options.onComplete === 'function') options.onComplete();
+            }
+            // Keep the current planet in view until the reverse shot completes;
+            // the router crossfades the HUD while the canvas remains live.
             return true;
         }
 
@@ -1037,6 +1549,7 @@
             resize,
             setScale,
             focusAndNavigate,
+            returnToOverview,
             resetFocus,
             dispose,
             render,

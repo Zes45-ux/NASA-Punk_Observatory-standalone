@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-function loadTransition({reducedMotion = false, readyState} = {}) {
+function loadTransition({reducedMotion = false, readyState, router} = {}) {
     const classes = new Set(['transition-curtain', 'start-covered']);
     const bodyClasses = new Set();
     const windowListeners = new Map();
@@ -24,6 +24,7 @@ function loadTransition({reducedMotion = false, readyState} = {}) {
     });
     const window = {
         location,
+        __observatoryClientRouter: router,
         matchMedia: () => ({matches: reducedMotion}),
         addEventListener: (type, callback) => windowListeners.set(type, callback),
         dispatchEvent: (event) => windowListeners.get(event.type)?.(event)
@@ -58,6 +59,19 @@ function loadTransition({reducedMotion = false, readyState} = {}) {
     vm.runInNewContext(fs.readFileSync('scripts/core/transition.js', 'utf8'), sandbox);
     return {api: window.TransitionManager, curtain, bodyClasses, windowListeners, timers, location, navigations, window, document};
 }
+
+test('client routes stay in the current document and bypass the legacy hard-navigation bridge', () => {
+    const routed = [];
+    const env = loadTransition({router: {
+        canHandle: (url) => url === 'saturn.html',
+        navigate: (url) => { routed.push(url); return true; }
+    }});
+
+    assert.equal(env.api.navigate('saturn.html'), true);
+    assert.deepEqual(routed, ['saturn.html']);
+    assert.deepEqual(env.navigations, []);
+    assert.equal(env.bodyClasses.has('particle-transition-exit'), false);
+});
 
 test('ready reveals the interface without starting the legacy curtain', () => {
     const env = loadTransition();

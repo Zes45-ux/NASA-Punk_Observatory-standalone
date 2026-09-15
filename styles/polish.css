@@ -37,6 +37,85 @@ body {
     mix-blend-mode: screen;
 }
 
+/* In-document planet routes keep the WebGL surface mounted while the HUD
+   crossfades. The canvas never becomes transparent, so there is no navigation
+   flash between the overview and a focused world. */
+body.planet-route-active #system-select-root {
+    opacity: 0;
+    filter: blur(6px);
+    pointer-events: none;
+    transition: opacity 360ms ease, filter 420ms ease;
+}
+
+body.planet-route-active #ui-layer {
+    opacity: 1;
+    filter: none;
+    pointer-events: none;
+    transition: opacity 360ms ease, filter 420ms ease;
+}
+
+body.planet-route-active #planet-ui-root,
+body.planet-route-active #planet-ui-root .right-dock,
+body.planet-route-active #planet-ui-root .vertical-controls,
+body.planet-route-active #planet-ui-root .quality-control,
+body.planet-route-active #planet-ui-root .gesture-control-cluster,
+body.planet-route-active #planet-ui-root .system-monitor-container,
+body.planet-route-active #planet-ui-root .system-strip {
+    pointer-events: auto;
+}
+
+body.planet-route-enter #ui-layer {
+    opacity: 0.08;
+    filter: blur(5px);
+}
+
+body.planet-route-returning #system-select-root {
+    opacity: 1;
+    filter: none;
+    pointer-events: none;
+    transition: opacity 420ms ease, filter 500ms ease;
+}
+
+body.planet-route-returning #ui-layer {
+    opacity: 0.34;
+    filter: blur(2px);
+    pointer-events: none;
+}
+
+.transit-telemetry {
+    position: absolute;
+    left: 24px;
+    top: 50%;
+    width: min(360px, calc(100vw - 48px));
+    padding: 9px 12px;
+    border-left: 2px solid rgba(224, 98, 54, 0.72);
+    background: linear-gradient(90deg, rgba(4, 9, 16, 0.76), transparent);
+    color: rgba(222, 225, 222, 0.82);
+    font-family: 'Roboto Mono', monospace;
+    font-size: 9px;
+    line-height: 1.8;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+    text-shadow: 0 1px 8px #000;
+    transform: translateY(-50%);
+}
+
+.transit-telemetry-label {
+    color: var(--const-yellow);
+}
+
+.transit-telemetry-label::after {
+    content: '_';
+    margin-left: 4px;
+    color: var(--const-orange);
+    animation: blink 1s steps(1, end) infinite;
+}
+
+.transit-readout {
+    color: var(--text-white);
+    white-space: nowrap;
+}
+
 .right-dock {
     padding: 8px 10px 10px 18px;
     animation: hud-enter 780ms var(--motion-snap) both;

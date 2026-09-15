@@ -135,10 +135,13 @@
                 <span class="gesture-control-value">OFFLINE</span>
             </button>
             <div class="gesture-camera-panel" id="gesture-camera-panel" data-state="idle" hidden>
-                <video id="gesture-camera-feed" class="gesture-camera-feed" playsinline muted aria-label="MIRRORED CAMERA PREVIEW"></video>
-                <div class="gesture-camera-reticle" aria-hidden="true"></div>
+                <video id="gesture-camera-feed" class="gesture-camera-feed" playsinline muted aria-hidden="true" tabindex="-1"></video>
+                <div class="gesture-detection-state">
+                    <span class="gesture-detection-label">GESTURE STATUS</span>
+                    <span class="gesture-detection-value" id="gesture-detection-value">OFFLINE</span>
+                </div>
                 <div class="gesture-control-status" id="gesture-control-status" role="status" aria-live="polite">CAMERA STANDBY</div>
-                <div class="gesture-control-hint">MOVE PALM: ORBIT // PINCH: PARTICLE FLUX</div>
+                <a class="gesture-control-recovery" id="gesture-control-recovery" href="" target="_blank" rel="noopener" hidden>OPEN DIRECT CAMERA VIEW</a>
             </div>
         </div>`;
     }
@@ -154,7 +157,11 @@
         })}${ObservatoryUI.buildVerticalZoomControl({
             sliderId: 'cam-zoom-slider',
             label   : 'OPTICS'
-        })}${buildQualityControl()}${buildGestureControl()}${buildSystemMonitor(config)}${buildSystemStrip(config.active)}`;
+        })}${buildQualityControl()}${buildGestureControl()}${buildSystemMonitor(config)}${buildSystemStrip(config.active)}
+            <div class="transit-telemetry" aria-live="polite">
+                <div class="transit-telemetry-label" id="transit-telemetry-label">&gt; TRANSIT LINK // STANDBY</div>
+                <div class="transit-readout" id="transit-readout">&gt; CAMERA // READY // FOV 38.0</div>
+            </div>`;
     }
 
     const QUALITY_CYCLE = ['auto', 'high', 'balanced', 'low'];
@@ -187,13 +194,29 @@
 
     let activePlanetUiCleanup = null;
 
-    function renderPlanetUI(planetName)
+    function clearPlanetUI()
     {
         if (activePlanetUiCleanup)
         {
             activePlanetUiCleanup();
             activePlanetUiCleanup = null;
         }
+        const root = document.getElementById('planet-ui-root');
+        if (root)
+        {
+            const typeTarget = root.querySelector('#transit-telemetry-label');
+            if (typeTarget && typeTarget._typeTimer)
+            {
+                clearInterval(typeTarget._typeTimer);
+                typeTarget._typeTimer = null;
+            }
+            root.innerHTML = '';
+        }
+    }
+
+    function renderPlanetUI(planetName)
+    {
+        clearPlanetUI();
 
         const cfg  = PLANET_UI_CONFIG[planetName];
         const root = document.getElementById('planet-ui-root');
@@ -245,6 +268,7 @@
             global.addEventListener('pageshow', handlePageShow);
         }
 
+        let stripOpen = false;
         const setStripOpen = (next) =>
         {
             stripOpen = next;
@@ -372,4 +396,5 @@
 
     global.buildPlanetLayout = buildPlanetLayout;
     global.renderPlanetUI    = renderPlanetUI;
+    global.clearPlanetUI     = clearPlanetUI;
 })(window);

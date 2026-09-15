@@ -185,14 +185,14 @@ const PLANET_VISUAL_CONFIG = {
             atmosphere: '#ffffff', moonMaria: '#1f242b', moonHigh: '#e6e8eb', moonRegolith: '#7a7e85'
         },
         overviewPalette: ['ocean', 'landBase', 'landHigh', 'peak'],
-        features: {wireframe: true, clouds: true, moon: true, moonOrbit: true}
+        features: {wireframe: true, latitudeLongitudeGrid: true, clouds: true, moon: true, moonOrbit: true}
     },
     mars: {
         tilt: 25.19,
         surfaceSeed: 'mars-craters-dust',
         palette: {dark: '#6b433c', base: '#94544d', light: '#d98c6b', polar: '#ffffff', atmosphere: '#ffc840'},
         overviewPalette: ['dark', 'base', 'light', 'polar'],
-        features: {wireframe: true, polarCaps: true, moons: true}
+        features: {wireframe: true, polarCaps: true, olympusMons: true, moons: true}
     },
     jupiter: {
         tilt: 3.13,
@@ -239,6 +239,7 @@ const PLANET_VISUAL_CONFIG = {
 if (typeof window !== 'undefined')
 {
     window.PLANET_VISUAL_CONFIG = PLANET_VISUAL_CONFIG;
+    window.PLANET_PARTICLE_CONFIG = PLANET_PARTICLE_CONFIG;
 }
 
 const PLANET_UI_CONFIG = Object.keys(PLANET_DOCK_CONFIG).reduce((acc, planetName) =>
@@ -250,3 +251,8 @@ const PLANET_UI_CONFIG = Object.keys(PLANET_DOCK_CONFIG).reduce((acc, planetName
     );
     return acc;
 }, {});
+
+if (typeof window !== 'undefined')
+{
+    window.PLANET_UI_CONFIG = PLANET_UI_CONFIG;
+}

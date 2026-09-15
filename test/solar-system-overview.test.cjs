@@ -36,8 +36,16 @@ test('overview defines the sun and all eight planets as particle bodies', () =>
     assert.match(source, /FOCUS_DURATION_MS = 820/, 'camera push stays inside the fast cinematic budget');
     assert.match(source, /definition\.visual/, 'thumbnail bodies consume canonical planet visual data');
     assert.match(source, /surfaceSeed/, 'thumbnail surface noise uses the detail-scene seed');
-    assert.match(source, /smootherstep\(cameraProgress\)/,
-        'camera movement eases smoothly at both ends of the flight');
+    assert.match(source, /function cubicOut\(value\)/,
+        'camera movement uses a predictable cubic-out cinematic easing');
+    assert.match(source, /camera\.fov/);
+    assert.match(source, /34\.2/);
+    assert.match(source, /returnToOverview/,
+        'focused views can return without unloading the persistent canvas');
+    assert.match(source, /observatory:transit-step/,
+        'the camera publishes per-frame transit telemetry');
+    assert.match(source, /new Float32Array\(flareCount\)/,
+        'animated flare metadata stays in contiguous typed buffers');
     assert.match(source, /cloudSignal > 0\.28/,
         'Earth keeps a sparse cloud mask instead of a solid white shell');
     assert.match(source, /tiltGroup\.rotation\.z/, 'thumbnail bodies preserve axial tilt');
@@ -46,6 +54,17 @@ test('overview defines the sun and all eight planets as particle bodies', () =>
     assert.match(source, /redSpot/, 'Jupiter preserves its Great Red Spot cue');
     assert.match(source, /observatory:quality/, 'overview responds to the shared quality profile');
     assert.match(source, /setDrawRange/, 'overview can reduce point layers without reallocating them');
+});
+
+test('landing page installs the persistent client router shell after the shared planet UI', () =>
+{
+    const html = fs.readFileSync('index.html', 'utf8');
+    const planetUiIndex = html.indexOf('./scripts/components/planetUi.js');
+    const routerIndex = html.indexOf('./scripts/core/client-router.js');
+    const pageIndex = html.indexOf('./scripts/pages/index.page.js');
+    assert.match(html, /id="ui-layer"/);
+    assert.match(html, /id="planet-ui-root"/);
+    assert.ok(planetUiIndex > 0 && routerIndex > planetUiIndex && pageIndex > routerIndex);
 });
 
 test('planet labels route clicks through the overview focus before page navigation', () =>

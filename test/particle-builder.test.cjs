@@ -450,6 +450,13 @@ test('restore before the pending build callback does not enqueue duplicate batch
     assert.deepEqual(ranges, [[0, 10000], [10000, 20000]]);
 });
 
+test('particle lifecycle avoids copying the active build set during navigation', () => {
+    const source = fs.readFileSync('scripts/core/particle-builder.js', 'utf8');
+    assert.doesNotMatch(source, /Array\.from\(activeBuilds\)/);
+    assert.match(source, /for \(const buildJob of activeBuilds\)/);
+    assert.match(source, /for \(const job of activeBuilds\)/);
+});
+
 test('planet config exposes every approved particle budget', () => {
     const sandbox = {};
     const source = fs.readFileSync('scripts/planets/config.js', 'utf8') +

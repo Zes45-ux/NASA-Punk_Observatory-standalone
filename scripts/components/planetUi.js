@@ -157,7 +157,11 @@
         })}${ObservatoryUI.buildVerticalZoomControl({
             sliderId: 'cam-zoom-slider',
             label   : 'OPTICS'
-        })}${buildQualityControl()}${buildGestureControl()}${buildSystemMonitor(config)}${buildSystemStrip(config.active)}`;
+        })}${buildQualityControl()}${buildGestureControl()}${buildSystemMonitor(config)}${buildSystemStrip(config.active)}
+            <div class="transit-telemetry" aria-live="polite">
+                <div class="transit-telemetry-label" id="transit-telemetry-label">&gt; TRANSIT LINK // STANDBY</div>
+                <div class="transit-readout" id="transit-readout">&gt; CAMERA // READY // FOV 38.0</div>
+            </div>`;
     }
 
     const QUALITY_CYCLE = ['auto', 'high', 'balanced', 'low'];
@@ -190,13 +194,29 @@
 
     let activePlanetUiCleanup = null;
 
-    function renderPlanetUI(planetName)
+    function clearPlanetUI()
     {
         if (activePlanetUiCleanup)
         {
             activePlanetUiCleanup();
             activePlanetUiCleanup = null;
         }
+        const root = document.getElementById('planet-ui-root');
+        if (root)
+        {
+            const typeTarget = root.querySelector('#transit-telemetry-label');
+            if (typeTarget && typeTarget._typeTimer)
+            {
+                clearInterval(typeTarget._typeTimer);
+                typeTarget._typeTimer = null;
+            }
+            root.innerHTML = '';
+        }
+    }
+
+    function renderPlanetUI(planetName)
+    {
+        clearPlanetUI();
 
         const cfg  = PLANET_UI_CONFIG[planetName];
         const root = document.getElementById('planet-ui-root');
@@ -248,6 +268,7 @@
             global.addEventListener('pageshow', handlePageShow);
         }
 
+        let stripOpen = false;
         const setStripOpen = (next) =>
         {
             stripOpen = next;
@@ -375,4 +396,5 @@
 
     global.buildPlanetLayout = buildPlanetLayout;
     global.renderPlanetUI    = renderPlanetUI;
+    global.clearPlanetUI     = clearPlanetUI;
 })(window);

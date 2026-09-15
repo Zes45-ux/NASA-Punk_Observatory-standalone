@@ -18,6 +18,16 @@ const ENTRIES = [
     'neptune.html'
 ];
 
+test('index keeps the overview canvas and planet HUD in the same document shell', () =>
+{
+    const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    assert.match(html, /id="solar-system-scene"/);
+    assert.match(html, /id="ui-layer"/);
+    assert.match(html, /id="planet-ui-root"/);
+    assert.ok(html.indexOf('./scripts/components/planetUi.js') < html.indexOf('./scripts/core/client-router.js'));
+    assert.ok(html.indexOf('./scripts/core/client-router.js') < html.indexOf('./scripts/pages/index.page.js'));
+});
+
 function localReferences(html)
 {
     return Array.from(html.matchAll(/\b(?:src|href)\s*=\s*["']([^"']+)["']/g))

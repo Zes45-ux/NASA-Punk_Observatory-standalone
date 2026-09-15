@@ -630,6 +630,14 @@
 
     function navigate(url)
     {
+        const clientRouter = global.__observatoryClientRouter;
+        if (clientRouter
+            && typeof clientRouter.canHandle === 'function'
+            && clientRouter.canHandle(url)
+            && typeof clientRouter.navigate === 'function')
+        {
+            return clientRouter.navigate(url);
+        }
         if (navigating) return;
         navigating = true;
         let requestedExitMs = 0;
