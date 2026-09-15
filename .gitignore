@@ -21,3 +21,8 @@ Thumbs.db
 *.aps                 # Visual Studio 资源文件
 *.bsc                 # Visual Studio 浏览信息文件
 *.sbr                 # Visual Studio 源代码浏览器信息
+
+# 本地 Agent 运行时与任务记录
+.agents/
+.firecrawl/
+ORIGINAL_REQUEST.md
