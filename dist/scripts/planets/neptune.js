@@ -13,10 +13,12 @@ const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
 
 // 帧率无关的动画步长因子（60fps 校准基准）
 const nextDeltaTime = createFrameDelta();
+const visualConfig = typeof PLANET_VISUAL_CONFIG !== 'undefined' ? PLANET_VISUAL_CONFIG.neptune : {};
+const visualPalette = visualConfig.palette || {};
 
 // 1. 倾角容器
 const planetTiltGroup      = new THREE.Group();
-planetTiltGroup.rotation.z = 28.32 * (Math.PI / 180);
+planetTiltGroup.rotation.z = (visualConfig.tilt || 28.32) * (Math.PI / 180);
 group.add(planetTiltGroup);
 
 // 2. 自转容器
@@ -35,12 +37,12 @@ let surfaceConvergence;
 function createNeptune()
 {
     const planetName = 'neptune';
-    const noiseGen      = new SimplexNoise('neptune-wind-shear');
+    const noiseGen      = new SimplexNoise(visualConfig.surfaceSeed || 'neptune-wind-shear');
 
-    const colDeep   = new THREE.Color('#1a237e');
-    const colMid    = new THREE.Color('#2962ff');
-    const colBright = new THREE.Color('#448aff');
-    const colStorm  = new THREE.Color('#0d1238');
+    const colDeep   = new THREE.Color(visualPalette.deep || '#1a237e');
+    const colMid    = new THREE.Color(visualPalette.mid || '#2962ff');
+    const colBright = new THREE.Color(visualPalette.bright || '#448aff');
+    const colStorm  = new THREE.Color(visualPalette.storm || '#0d1238');
     const surfaceColor = new THREE.Color();
 
     function sampleSurfaceParticle(i, positions, colors)
@@ -261,9 +263,9 @@ function createTriton()
     const tPos       = new Float32Array(tParticles * 3);
     const tCol       = new Float32Array(tParticles * 3);
     // 使用代表冰和氮冰的颜色
-    const colTriton  = new THREE.Color('#d0e0ff');
+    const colTriton  = new THREE.Color(visualPalette.triton || '#d0e0ff');
     // 使用代表喷流和黑暗条纹的颜色
-    const colDark    = new THREE.Color('#90a0bb');
+    const colDark    = new THREE.Color(visualPalette.tritonDark || '#90a0bb');
     const tempColor  = new THREE.Color();
 
     for (let i = 0; i < tParticles; i++)

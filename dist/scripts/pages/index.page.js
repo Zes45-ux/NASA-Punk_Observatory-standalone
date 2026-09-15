@@ -82,8 +82,26 @@
             applyZoom(value);
         });
 
+        const prefetchedPages = new Set();
+        const prefetchPlanetPage = (link) =>
+        {
+            const connection = window.navigator && window.navigator.connection;
+            if (!link || (connection && connection.saveData)) return;
+            const href = new URL(link, window.location.href).href;
+            if (prefetchedPages.has(href) || !document.head) return;
+            prefetchedPages.add(href);
+            const hint = document.createElement('link');
+            hint.rel = 'prefetch';
+            hint.as = 'document';
+            hint.href = href;
+            hint.setAttribute('data-observatory-prefetch', '');
+            document.head.appendChild(hint);
+        };
+
         nodes.forEach((node) =>
         {
+            node.addEventListener('mouseenter', () => prefetchPlanetPage(node.dataset.link));
+            node.addEventListener('focus', () => prefetchPlanetPage(node.dataset.link));
             const showNodeData = () =>
             {
                 const dataDiv = node.querySelector('.node-data');

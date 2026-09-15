@@ -14,10 +14,12 @@ const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
 
 // 帧率无关的动画步长因子（60fps 校准基准）
 const nextDeltaTime = createFrameDelta();
+const visualConfig = typeof PLANET_VISUAL_CONFIG !== 'undefined' ? PLANET_VISUAL_CONFIG.sun : {};
+const visualPalette = visualConfig.palette || {};
 
 // 太阳自转轴相对黄道面倾角 7.25 度
 const sunTiltGroup      = new THREE.Group();
-sunTiltGroup.rotation.z = 7.25 * (Math.PI / 180);
+sunTiltGroup.rotation.z = (visualConfig.tilt || 7.25) * (Math.PI / 180);
 group.add(sunTiltGroup);
 
 const sunGroup = new THREE.Group();
@@ -27,16 +29,16 @@ sunTiltGroup.add(sunGroup);
 // --- A. 静态高密度粒子光球 + 动态叠加层 (Photosphere) ---
 let frameSampler;
 let surfaceConvergence;
-const sunNoiseGen = new SimplexNoise('sol-core-v1');
+const sunNoiseGen = new SimplexNoise(visualConfig.surfaceSeed || 'sol-core-v1');
 const timeStep    = 0.005;
 
-const colCore          = new THREE.Color('#ffffff');
-const colSurface       = new THREE.Color('#ffb84d');
-const colEdge          = new THREE.Color('#cc4400');
-const colSpot          = new THREE.Color('#8a1c00');
-const colEruptHot      = new THREE.Color('#ffffff');
-const colEruptMid      = new THREE.Color('#ffcc00');
-const colEruptCool     = new THREE.Color('#8a1c00');
+const colCore          = new THREE.Color(visualPalette.core || '#ffffff');
+const colSurface       = new THREE.Color(visualPalette.surface || '#ffb84d');
+const colEdge          = new THREE.Color(visualPalette.edge || '#cc4400');
+const colSpot          = new THREE.Color(visualPalette.spot || '#8a1c00');
+const colEruptHot      = new THREE.Color(visualPalette.eruptHot || '#ffffff');
+const colEruptMid      = new THREE.Color(visualPalette.eruptMid || '#ffcc00');
+const colEruptCool     = new THREE.Color(visualPalette.eruptCool || '#8a1c00');
 const staticSurfaceColor = new THREE.Color();
 const scratchColor      = new THREE.Color();
 const directionToCenter = new THREE.Vector3();
@@ -334,8 +336,8 @@ function createCoronaSystem()
     const speeds          = new Float32Array(coronaParticles);
     const phases          = new Float32Array(coronaParticles);
 
-    const colInner = new THREE.Color('#ffcc66');
-    const colOuter = new THREE.Color('#cc4400');
+    const colInner = new THREE.Color(visualPalette.eruptMid || '#ffcc66');
+    const colOuter = new THREE.Color(visualPalette.edge || '#cc4400');
     const coronaColor = new THREE.Color();
 
     for (let i = 0; i < coronaParticles; i++)

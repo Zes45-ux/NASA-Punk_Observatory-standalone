@@ -5,19 +5,20 @@
 {
     const READY_TIMEOUT_MS = 1500;
     const DEFAULT_EXIT_MS = 480;
-    const MAX_EXIT_MS = 1200;
-    const PARTICLE_EXIT_MS = 720;
-    const PARTICLE_BRIDGE_MS = 2400;
+    const MAX_EXIT_MS = 1000;
+    const PARTICLE_EXIT_MS = 560;
+    const PARTICLE_BRIDGE_MS = 1600;
     const PARTICLE_BRIDGE_MAX_AGE_MS = 6000;
-    const PARTICLE_INCOMING_MS = 1050;
-    const PARTICLE_HANDOFF_MS = 420;
-    const PARTICLE_OUTGOING_HOLD_MS = 180;
-    const PARTICLE_LIMIT = 1800;
+    const PARTICLE_INCOMING_MS = 850;
+    const PARTICLE_HANDOFF_MS = 360;
+    const PARTICLE_OUTGOING_HOLD_MS = 120;
+    const PARTICLE_LIMIT = 1400;
     const BRIDGE_STORAGE_KEY = 'observatory-particle-bridge-v3';
     let revealed = false;
     let navigating = false;
     let cancelNavigation = null;
     let readyTimer = null;
+    let readyHandled = false;
     let continuingParticleBridge = false;
     let registeredParticleScene = null;
     let pendingBridgeState = null;
@@ -622,6 +623,7 @@
 
     function handleReady()
     {
+        readyHandled = true;
         reveal();
         startIncomingParticleBridge();
     }
@@ -711,8 +713,16 @@
                     {
                         finishIncomingParticleBridge();
                     }
+                    else if (readyHandled)
+                    {
+                        startIncomingParticleBridge();
+                    }
                 });
                 return;
+            }
+            if (readyHandled)
+            {
+                scheduleBridgePreparation(startIncomingParticleBridge);
             }
         }
     };
@@ -727,6 +737,7 @@
         cancelNavigation = null;
         clearTimeout(readyTimer);
         navigating = false;
+        readyHandled = true;
         revealed = true;
         document.body.classList.remove('particle-transition-exit');
         document.body.classList.add('transition-ready');

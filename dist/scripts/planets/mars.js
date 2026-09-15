@@ -14,10 +14,12 @@ const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
 
 // 帧率无关的动画步长因子（60fps 校准基准）
 const nextDeltaTime = createFrameDelta();
+const visualConfig = typeof PLANET_VISUAL_CONFIG !== 'undefined' ? PLANET_VISUAL_CONFIG.mars : {};
+const visualPalette = visualConfig.palette || {};
 
 // 1. 倾角容器
 const planetTiltGroup      = new THREE.Group();
-planetTiltGroup.rotation.z = 25.19 * (Math.PI / 180);
+planetTiltGroup.rotation.z = (visualConfig.tilt || 25.19) * (Math.PI / 180);
 group.add(planetTiltGroup);
 
 // 2. 自转容器 - CORE (承载地表)
@@ -44,10 +46,10 @@ let moonsData    = [];
 function createMarsSurface()
 {
     const planetName = 'mars';
-    const colBase  = new THREE.Color('#94544d');
-    const colDark  = new THREE.Color('#6b433c');
-    const colLight = new THREE.Color('#d98c6b');
-    const noiseGen = new SimplexNoise('mars-craters-dust');
+    const colBase  = new THREE.Color(visualPalette.base || '#94544d');
+    const colDark  = new THREE.Color(visualPalette.dark || '#6b433c');
+    const colLight = new THREE.Color(visualPalette.light || '#d98c6b');
+    const noiseGen = new SimplexNoise(visualConfig.surfaceSeed || 'mars-craters-dust');
     const surfaceColor = new THREE.Color();
 
     function sampleSurfaceParticle(i, positions, colors)
@@ -140,7 +142,7 @@ function createMarsAtmosphere()
     const atmosPos       = new Float32Array(atmosParticles * 3);
     const atmosColors    = new Float32Array(atmosParticles * 3);
 
-    const colHaze = new THREE.Color('#ffc840');
+    const colHaze = new THREE.Color(visualPalette.atmosphere || '#ffc840');
     const rBase   = coreRadius + 0.1;
 
     for (let i = 0; i < atmosParticles; i++)

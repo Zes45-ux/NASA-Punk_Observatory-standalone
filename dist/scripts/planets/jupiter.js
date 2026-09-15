@@ -13,10 +13,12 @@ const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
 
 // 帧率无关的动画步长因子（60fps 校准基准）
 const nextDeltaTime = createFrameDelta();
+const visualConfig = typeof PLANET_VISUAL_CONFIG !== 'undefined' ? PLANET_VISUAL_CONFIG.jupiter : {};
+const visualPalette = visualConfig.palette || {};
 
 // 1. 倾角容器 (木星轴倾角 3.13度)
 const jupiterTiltGroup      = new THREE.Group();
-jupiterTiltGroup.rotation.z = 3.13 * (Math.PI / 180);
+jupiterTiltGroup.rotation.z = (visualConfig.tilt || 3.13) * (Math.PI / 180);
 group.add(jupiterTiltGroup);
 
 // 2. 自转容器 (用于木星本体)
@@ -45,17 +47,17 @@ const ringUniforms = {
 function createJupiter()
 {
     const planetName = 'jupiter';
-    const noiseGen = new SimplexNoise('jupiter-ultimate-final');
+    const noiseGen = new SimplexNoise(visualConfig.surfaceSeed || 'jupiter-ultimate-final');
     const surfaceColor = new THREE.Color();
 
     // ==========================================
     // Layer 1: 底层对流层
     // ==========================================
-    const colZoneLight = new THREE.Color('#f0e2c2'); // 氨冰白
-    const colZoneDark  = new THREE.Color('#d6c7a5'); // 奶油基底
-    const colBeltBase  = new THREE.Color('#c28266'); // 浅赭石
-    const colBeltDeep  = new THREE.Color('#8a3f2d'); // 氧化铁红
-    const colPolar     = new THREE.Color('#787878'); // 极地灰
+    const colZoneLight = new THREE.Color(visualPalette.zoneLight || '#f0e2c2'); // 氨冰白
+    const colZoneDark  = new THREE.Color(visualPalette.zoneDark || '#d6c7a5'); // 奶油基底
+    const colBeltBase  = new THREE.Color(visualPalette.beltBase || '#c28266'); // 浅赭石
+    const colBeltDeep  = new THREE.Color(visualPalette.beltDeep || '#8a3f2d'); // 氧化铁红
+    const colPolar     = new THREE.Color(visualPalette.polar || '#787878'); // 极地灰
 
     function sampleSurfaceParticle(i, positions, colors)
     {
@@ -226,12 +228,12 @@ function createGreatRedSpot()
     const positions     = [];
     const colors        = [];
     const particlesData = [];
-    const noiseGen      = new SimplexNoise('grs-vortex-final');
+    const noiseGen      = new SimplexNoise(visualConfig.greatRedSpotSeed || 'grs-vortex-final');
 
-    const colCore   = new THREE.Color('#8a3f2d');
-    const colEye    = new THREE.Color('#c25e40');
-    const colSwirl  = new THREE.Color('#e3dccb');
-    const colMerge  = new THREE.Color('#8c4e38');
+    const colCore   = new THREE.Color(visualPalette.redSpotCore || '#8a3f2d');
+    const colEye    = new THREE.Color(visualPalette.redSpotEye || '#c25e40');
+    const colSwirl  = new THREE.Color(visualPalette.redSpotSwirl || '#e3dccb');
+    const colMerge  = new THREE.Color(visualPalette.redSpotMerge || '#8c4e38');
     const tempColor = new THREE.Color();
 
     // 参数：位于南纬 22 度

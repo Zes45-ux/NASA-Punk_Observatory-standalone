@@ -13,10 +13,12 @@ const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
 
 // 帧率无关的动画步长因子（60fps 校准基准）
 const nextDeltaTime = createFrameDelta();
+const visualConfig = typeof PLANET_VISUAL_CONFIG !== 'undefined' ? PLANET_VISUAL_CONFIG.earth : {};
+const visualPalette = visualConfig.palette || {};
 
 // 2. 倾角容器 (Earth Tilt ~23.44 deg)
 const earthTiltGroup      = new THREE.Group();
-earthTiltGroup.rotation.z = 23.44 * (Math.PI / 180);
+earthTiltGroup.rotation.z = (visualConfig.tilt || 23.44) * (Math.PI / 180);
 group.add(earthTiltGroup);
 
 // 3. 自转容器
@@ -29,7 +31,7 @@ earthTiltGroup.add(leoGroup);
 
 // 5. 月球容器
 const moonSystemGroup      = new THREE.Group();
-moonSystemGroup.rotation.z = 5.14 * (Math.PI / 180);
+moonSystemGroup.rotation.z = (visualConfig.moonTilt || 5.14) * (Math.PI / 180);
 group.add(moonSystemGroup);
 
 let frameSampler;
@@ -40,11 +42,11 @@ let surfaceConvergence;
 function createEarth()
 {
     const planetName = 'earth';
-    const colLandBase = new THREE.Color('#3e6b48');
-    const colLandHigh = new THREE.Color('#9abf8a');
-    const colOcean    = new THREE.Color('#1a2b4a');
-    const colPeak     = new THREE.Color('#ffffff');
-    const noiseGen    = new SimplexNoise('seed-terra-firma-v2');
+    const colLandBase = new THREE.Color(visualPalette.landBase || '#3e6b48');
+    const colLandHigh = new THREE.Color(visualPalette.landHigh || '#9abf8a');
+    const colOcean    = new THREE.Color(visualPalette.ocean || '#1a2b4a');
+    const colPeak     = new THREE.Color(visualPalette.peak || '#ffffff');
+    const noiseGen    = new SimplexNoise(visualConfig.surfaceSeed || 'seed-terra-firma-v2');
     const surfaceColor = new THREE.Color();
 
     // [建议] 稍微调小 size，配合高密度粒子，看起来更像细腻的沙盘
@@ -146,7 +148,7 @@ function createClouds()
 {
     const cloudParticles = 20000;
     const rawPos         = new Float32Array(cloudParticles * 3);
-    const cloudGen       = new SimplexNoise('cloud-layer-v3');
+    const cloudGen       = new SimplexNoise(visualConfig.cloudSeed || 'cloud-layer-v3');
     let accepted         = 0;
 
     for (let i = 0; i < cloudParticles; i++)
@@ -239,11 +241,11 @@ function createMoon()
     const moonParticles = 1200;
     const mPos          = new Float32Array(moonParticles * 3);
     const mColors       = new Float32Array(moonParticles * 3);
-    const moonGen       = new SimplexNoise('luna-v2-refined');
+    const moonGen       = new SimplexNoise(visualConfig.moonSeed || 'luna-v2-refined');
 
-    const colMaria    = new THREE.Color('#1f242b');
-    const colHigh     = new THREE.Color('#e6e8eb');
-    const colRegolith = new THREE.Color('#7a7e85');
+    const colMaria    = new THREE.Color(visualPalette.moonMaria || '#1f242b');
+    const colHigh     = new THREE.Color(visualPalette.moonHigh || '#e6e8eb');
+    const colRegolith = new THREE.Color(visualPalette.moonRegolith || '#7a7e85');
     const tempColor   = new THREE.Color();
 
     for (let i = 0; i < moonParticles; i++)

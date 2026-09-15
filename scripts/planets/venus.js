@@ -13,10 +13,12 @@ const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
 
 // 帧率无关的动画步长因子（60fps 校准基准）
 const nextDeltaTime = createFrameDelta();
+const visualConfig = typeof PLANET_VISUAL_CONFIG !== 'undefined' ? PLANET_VISUAL_CONFIG.venus : {};
+const visualPalette = visualConfig.palette || {};
 
 // 1. 倾角容器 (金星轴倾角极大 ~177度)
 const planetTiltGroup      = new THREE.Group();
-planetTiltGroup.rotation.z = 177 * (Math.PI / 180);
+planetTiltGroup.rotation.z = (visualConfig.tilt || 177) * (Math.PI / 180);
 group.add(planetTiltGroup);
 
 // 2. 自转容器 - CORE (地表，慢速自转)
@@ -33,17 +35,17 @@ let frameSampler;
 let surfaceConvergence;
 let venusCloudUniforms;
 const coreRadius = 5.0;
-const venusCloudBaseColor = new THREE.Color('#ffae20');
+const venusCloudBaseColor = new THREE.Color(visualPalette.atmosphere || '#ffae20');
 
 // --- A. 地表点云 (Inner Surface: Magma Chaos) ---
 function createVenusSurface()
 {
     const planetName = 'venus';
     // [NEW PALETTE] 模拟岩浆的高对比度色板
-    const colBase = new THREE.Color('#8b1a1a'); // 深岩浆红
-    const colHigh = new THREE.Color('#d9531e'); // 亮熔岩橙
-    const colPeak = new THREE.Color('#ffe0a0'); // 极热点黄
-    const noiseGen = new SimplexNoise('venus-magma-chaos-rock');
+    const colBase = new THREE.Color(visualPalette.base || '#8b1a1a'); // 深岩浆红
+    const colHigh = new THREE.Color(visualPalette.high || '#d9531e'); // 亮熔岩橙
+    const colPeak = new THREE.Color(visualPalette.peak || '#ffe0a0'); // 极热点黄
+    const noiseGen = new SimplexNoise(visualConfig.surfaceSeed || 'venus-magma-chaos-rock');
     const surfaceColor = new THREE.Color();
 
     function sampleSurfaceParticle(i, positions, colors)

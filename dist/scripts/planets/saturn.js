@@ -13,11 +13,13 @@ const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
 
 // 帧率无关的动画步长因子（60fps 校准基准）
 const nextDeltaTime = createFrameDelta();
+const visualConfig = typeof PLANET_VISUAL_CONFIG !== 'undefined' ? PLANET_VISUAL_CONFIG.saturn : {};
+const visualPalette = visualConfig.palette || {};
 
 // 1. 倾角容器（真实 axial tilt 26.73°，x 轴为展示视角补偿）
 const saturnTiltGroup      = new THREE.Group();
-saturnTiltGroup.rotation.z = 26.73 * (Math.PI / 180);
-saturnTiltGroup.rotation.x = 15 * (Math.PI / 180);
+saturnTiltGroup.rotation.z = (visualConfig.tilt || 26.73) * (Math.PI / 180);
+saturnTiltGroup.rotation.x = (visualConfig.displayTilt || 15) * (Math.PI / 180);
 group.add(saturnTiltGroup);
 
 // 2. 自转容器
@@ -58,12 +60,12 @@ function reportLayerBuildError(layer, error)
 function createGasGiant()
 {
     const planetName = 'saturn';
-    const noiseGen      = new SimplexNoise('saturn-seed-v2');
+    const noiseGen      = new SimplexNoise(visualConfig.surfaceSeed || 'saturn-seed-v2');
 
-    const saturnCream = new THREE.Color('#f4f0d5');
-    const saturnBeige = new THREE.Color('#d9c37c');
-    const saturnTan   = new THREE.Color('#a68f58');
-    const saturnBlue  = new THREE.Color('#6b7e8c');
+    const saturnCream = new THREE.Color(visualPalette.cream || '#f4f0d5');
+    const saturnBeige = new THREE.Color(visualPalette.beige || '#d9c37c');
+    const saturnTan   = new THREE.Color(visualPalette.tan || '#a68f58');
+    const saturnBlue  = new THREE.Color(visualPalette.blue || '#6b7e8c');
     const surfaceColor = new THREE.Color();
 
     function sampleSurfaceParticle(i, positions, colors)
@@ -139,7 +141,7 @@ function createGasGiant()
     const hazeCount = 15000;
     const hazePos   = new Float32Array(hazeCount * 3);
     const hazeCols  = new Float32Array(hazeCount * 3);
-    const colHaze   = new THREE.Color('#f4f0d5');
+    const colHaze   = new THREE.Color(visualPalette.atmosphere || '#f4f0d5');
 
     const hazeGeo = new THREE.BufferGeometry();
     hazeGeo.setAttribute('position', new THREE.BufferAttribute(hazePos, 3));
@@ -246,9 +248,9 @@ function createProceduralRings()
     const innerRadius = 6.3;
     const outerRadius = 12.0;
 
-    const ringInnerDark  = new THREE.Color('#4a3b2a');
-    const ringMainBright = new THREE.Color('#f0e4c0');
-    const ringOuterIce   = new THREE.Color('#a0b0c0');
+    const ringInnerDark  = new THREE.Color(visualPalette.ringDark || '#4a3b2a');
+    const ringMainBright = new THREE.Color(visualPalette.ringBright || '#f0e4c0');
+    const ringOuterIce   = new THREE.Color(visualPalette.ringIce || '#a0b0c0');
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));

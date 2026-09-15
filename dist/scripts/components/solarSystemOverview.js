@@ -5,16 +5,29 @@
  */
 (function initSolarSystemOverview(global)
 {
+    const VISUAL_CONFIG = global.PLANET_VISUAL_CONFIG || {};
+
+    function visualFor(name)
+    {
+        return VISUAL_CONFIG[name] || {};
+    }
+
+    function visualColor(name, key, fallback)
+    {
+        const visual = visualFor(name);
+        return visual.palette && visual.palette[key] || fallback;
+    }
+
     const PLANETS = [
-        {name: 'sun',     orbit: 0,    phase: 0,     radius: 4.9,  particles: 6200, color: '#cc4400', accent: '#ffffff', speed: 0,     atmosphere: {scale: 1.14, color: '#ffb84d', opacity: 0.2}},
-        {name: 'mercury', orbit: 10.5, phase: -0.65, radius: 0.62, particles: 780,  color: '#999999', accent: '#cccccc', speed: 0.48},
-        {name: 'venus',   orbit: 16.5, phase: 0.8,   radius: 0.98, particles: 1250, color: '#8b1a1a', accent: '#ffe0a0', speed: 0.34, atmosphere: {scale: 1.045, color: '#ffae20', opacity: 0.22, spin: -0.34}},
-        {name: 'earth',   orbit: 23,   phase: 2.35,  radius: 1.04, particles: 1500, color: '#1a2b4a', accent: '#9abf8a', speed: 0.28, atmosphere: {scale: 1.045, color: '#ffffff', opacity: 0.14, spin: 0.2}},
-        {name: 'mars',    orbit: 30,   phase: -2.4,  radius: 0.76, particles: 980,  color: '#94544d', accent: '#d98c6b', speed: 0.23, atmosphere: {scale: 1.055, color: '#ffc840', opacity: 0.1}},
-        {name: 'jupiter', orbit: 41,   phase: -0.35, radius: 2.55, particles: 3400, color: '#c28266', accent: '#f0e2c2', speed: 0.14, atmosphere: {scale: 1.028, color: '#ffe699', opacity: 0.12}},
-        {name: 'saturn',  orbit: 52,   phase: 1.05,  radius: 2.1,  particles: 2900, color: '#d9c37c', accent: '#f4f0d5', speed: 0.11, rings: 'saturn', atmosphere: {scale: 1.035, color: '#f4f0d5', opacity: 0.1}},
-        {name: 'uranus',  orbit: 62,   phase: 2.8,   radius: 1.52, particles: 2050, color: '#4a9cb8', accent: '#e0ffff', speed: 0.08, rings: 'uranus', atmosphere: {scale: 1.04, color: '#66e6ff', opacity: 0.14}},
-        {name: 'neptune', orbit: 71,   phase: -2.8,  radius: 1.5,  particles: 2050, color: '#1a237e', accent: '#448aff', speed: 0.065, rings: 'neptune'}
+        {name: 'sun',     orbit: 0,    phase: 0,     radius: 4.9,  particles: 6200, color: visualColor('sun', 'edge', '#cc4400'), accent: visualColor('sun', 'core', '#ffffff'), speed: 0,     visual: visualFor('sun'),     atmosphere: {scale: 1.14, color: visualColor('sun', 'atmosphere', '#ffb84d'), opacity: 0.2}},
+        {name: 'mercury', orbit: 10.5, phase: -0.65, radius: 0.62, particles: 780,  color: visualColor('mercury', 'base', '#999999'), accent: visualColor('mercury', 'light', '#cccccc'), speed: 0.48, visual: visualFor('mercury')},
+        {name: 'venus',   orbit: 16.5, phase: 0.8,   radius: 0.98, particles: 1250, color: visualColor('venus', 'base', '#8b1a1a'), accent: visualColor('venus', 'peak', '#ffe0a0'), speed: 0.34, visual: visualFor('venus'),   atmosphere: {scale: 1.045, color: visualColor('venus', 'atmosphere', '#ffae20'), opacity: 0.22, spin: -0.34}},
+        {name: 'earth',   orbit: 23,   phase: 2.35,  radius: 1.04, particles: 1500, color: visualColor('earth', 'ocean', '#1a2b4a'), accent: visualColor('earth', 'landHigh', '#9abf8a'), speed: 0.28, visual: visualFor('earth'),   atmosphere: {scale: 1.045, color: visualColor('earth', 'atmosphere', '#ffffff'), opacity: 0.14, spin: 0.2}},
+        {name: 'mars',    orbit: 30,   phase: -2.4,  radius: 0.76, particles: 980,  color: visualColor('mars', 'base', '#94544d'), accent: visualColor('mars', 'light', '#d98c6b'), speed: 0.23, visual: visualFor('mars'),    atmosphere: {scale: 1.055, color: visualColor('mars', 'atmosphere', '#ffc840'), opacity: 0.1}},
+        {name: 'jupiter', orbit: 41,   phase: -0.35, radius: 2.55, particles: 3400, color: visualColor('jupiter', 'beltBase', '#c28266'), accent: visualColor('jupiter', 'zoneLight', '#f0e2c2'), speed: 0.14, visual: visualFor('jupiter'), atmosphere: {scale: 1.028, color: visualColor('jupiter', 'atmosphere', '#ffe699'), opacity: 0.12}},
+        {name: 'saturn',  orbit: 52,   phase: 1.05,  radius: 2.1,  particles: 2900, color: visualColor('saturn', 'beige', '#d9c37c'), accent: visualColor('saturn', 'cream', '#f4f0d5'), speed: 0.11, visual: visualFor('saturn'),  rings: 'saturn', atmosphere: {scale: 1.035, color: visualColor('saturn', 'atmosphere', '#f4f0d5'), opacity: 0.1}},
+        {name: 'uranus',  orbit: 62,   phase: 2.8,   radius: 1.52, particles: 2050, color: visualColor('uranus', 'deep', '#4a9cb8'), accent: visualColor('uranus', 'high', '#e0ffff'), speed: 0.08, visual: visualFor('uranus'),  rings: 'uranus', atmosphere: {scale: 1.04, color: visualColor('uranus', 'atmosphere', '#66e6ff'), opacity: 0.14}},
+        {name: 'neptune', orbit: 71,   phase: -2.8,  radius: 1.5,  particles: 2050, color: visualColor('neptune', 'deep', '#1a237e'), accent: visualColor('neptune', 'bright', '#448aff'), speed: 0.065, visual: visualFor('neptune'), rings: 'neptune'}
     ];
 
     function mulberry32(seed)
@@ -51,14 +64,16 @@
         }
 
         const profileRatios = {high: 1, balanced: 0.78, low: 0.58, recovery: 0.38};
-        const density = profileRatios[options.profile] || 0.78;
+        const profileName = options.profile || 'balanced';
+        const density = profileRatios[profileName] || profileRatios.balanced;
+        const pixelRatioCaps = {high: 1.45, balanced: 1.2, low: 1, recovery: 0.85};
         const reducedMotion = typeof global.matchMedia === 'function'
             && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 400);
         const renderer = new THREE.WebGLRenderer({alpha: true, antialias: false, powerPreference: 'high-performance'});
         renderer.setClearColor(0x000000, 0);
-        renderer.setPixelRatio(Math.min(global.devicePixelRatio || 1, 1.75));
+        renderer.setPixelRatio(Math.min(global.devicePixelRatio || 1, pixelRatioCaps[profileName] || 1.2));
         renderer.domElement.className = 'solar-system-webgl';
         renderer.domElement.setAttribute('aria-hidden', 'true');
         container.appendChild(renderer.domElement);
@@ -75,7 +90,11 @@
         const disposables = [];
         const overviewMaterials = [];
         const effectLayers = [];
+        const dynamicLayers = [];
+        const overviewPointLayers = [];
         const labels = new Map();
+        let labelRect = null;
+        let lastLabelUpdateAt = -Infinity;
         const labelNodes = document.querySelectorAll(options.labelSelector || '.solar-target');
         labelNodes.forEach((node) => labels.set(node.dataset.planet, node));
 
@@ -94,7 +113,9 @@
         let focusState = null;
         let navigationCommitted = false;
 
-        const FOCUS_DURATION_MS = 1280;
+        const FOCUS_DURATION_MS = 820;
+        const NAVIGATION_COMMIT_PROGRESS = 0.74;
+        let activeQualityProfile = profileName;
 
         function track(resource)
         {
@@ -122,23 +143,35 @@
 
         function createSurfaceSampler(definition)
         {
+            const visual = definition.visual || {};
             const noise = global.SimplexNoise
-                ? new global.SimplexNoise(`overview-${definition.name}`)
+                ? new global.SimplexNoise(visual.surfaceSeed || `overview-${definition.name}`)
                 : null;
-            const palette = {};
-            const colors = {
+            const fallbackPalettes = {
                 sun: ['#8a1c00', '#cc4400', '#ffb84d', '#ffffff'],
                 mercury: ['#555555', '#999999', '#cccccc'],
                 venus: ['#8b1a1a', '#d9531e', '#ffe0a0'],
                 earth: ['#1a2b4a', '#3e6b48', '#9abf8a', '#ffffff'],
-                mars: ['#6b433c', '#94544d', '#d98c6b'],
+                mars: ['#6b433c', '#94544d', '#d98c6b', '#ffffff'],
                 jupiter: ['#787878', '#8a3f2d', '#c28266', '#d6c7a5', '#f0e2c2'],
                 saturn: ['#6b7e8c', '#a68f58', '#d9c37c', '#f4f0d5'],
                 uranus: ['#4a9cb8', '#a4d8e6', '#e0ffff'],
                 neptune: ['#0d1238', '#1a237e', '#2962ff', '#448aff']
-            }[definition.name];
-            colors.forEach((color, index) => { palette[index] = new THREE.Color(color); });
+            }[definition.name] || ['#ffffff'];
+            const configuredColors = visual.palette && visual.overviewPalette
+                ? visual.overviewPalette.map((key) => visual.palette[key]).filter(Boolean)
+                : null;
+            const palette = (configuredColors && configuredColors.length > 0
+                ? configuredColors
+                : fallbackPalettes).map((color) => new THREE.Color(color));
+            const redSpot = visual.features && visual.features.greatRedSpot && visual.palette
+                ? {
+                    core: new THREE.Color(visual.palette.redSpotCore || '#8a3f2d'),
+                    eye: new THREE.Color(visual.palette.redSpotEye || '#c25e40')
+                }
+                : null;
             const sampled = new THREE.Color();
+            const brightCloudColor = new THREE.Color('#ffffff');
             const readNoise = (x, y, z, scaleX, scaleY = scaleX, scaleZ = scaleX) => noise
                 ? noise.noise3D(x * scaleX, y * scaleY, z * scaleZ)
                 : Math.sin((x * scaleX + y * scaleY + z * scaleZ) * 3.17);
@@ -178,14 +211,28 @@
                 else if (definition.name === 'mars')
                 {
                     const crater = Math.abs(readNoise(nx, ny, nz, 9));
-                    sampled.copy(crater > 0.72 ? palette[0] : (baseNoise > 0.2 ? palette[2] : palette[1]));
+                    if (visual.features && visual.features.polarCaps && Math.abs(ny) > 0.82)
+                    {
+                        sampled.copy(palette[3] || palette[2]);
+                    }
+                    else
+                    {
+                        sampled.copy(crater > 0.72 ? palette[0] : (baseNoise > 0.2 ? palette[2] : palette[1]));
+                    }
                 }
                 else if (definition.name === 'jupiter')
                 {
                     const latitude = Math.abs(ny);
-                    const signal = Math.sin(Math.sign(ny) * Math.pow(latitude, 1.4) * 12
+                    const signal = Math.sin(Math.sign(ny) * Math.pow(latitude, 1.35) * 12.5
                         + readNoise(nx, ny, nz, 3.2, 0.9, 3.2) * 1.2);
-                    if (latitude > 0.85) sampled.copy(palette[3]).lerp(palette[0], (latitude - 0.85) * 4);
+                    const redSpotDistance = Math.sqrt(
+                        Math.pow(ny + 0.38, 2) + Math.pow(nx - 0.45, 2) + Math.pow(nz - 0.25, 2)
+                    );
+                    if (redSpot && redSpotDistance < 0.32)
+                    {
+                        sampled.copy(redSpot.core).lerp(redSpot.eye, redSpotDistance / 0.32);
+                    }
+                    else if (latitude > 0.85) sampled.copy(palette[3]).lerp(palette[0], (latitude - 0.85) * 4);
                     else if (signal > 0.1) sampled.copy(palette[3]).lerp(palette[4], Math.min(1, signal));
                     else sampled.copy(palette[2]).lerp(palette[1], Math.min(1, Math.abs(signal) * 0.8 + 0.2));
                 }
@@ -207,6 +254,10 @@
                     if (storm) sampled.copy(palette[0]);
                     else sampled.copy(wind < -0.2 ? palette[1] : palette[2])
                         .lerp(wind < -0.2 ? palette[2] : palette[3], wind < -0.2 ? wind + 1 : wind);
+                    if (visual.features && visual.features.brightClouds && readNoise(nx, ny, nz, 8) > 0.65)
+                    {
+                        sampled.lerp(brightCloudColor, 0.55);
+                    }
                 }
                 sampled.multiplyScalar(0.88 + random() * 0.24);
                 return sampled;
@@ -215,6 +266,8 @@
 
         function createParticleSphere(definition, index)
         {
+            const visual = definition.visual || {};
+            const features = visual.features || {};
             const count = Math.max(180, Math.round(definition.particles * density));
             const positions = new Float32Array(count * 3);
             const colors = new Float32Array(count * 3);
@@ -254,7 +307,150 @@
                 sizeAttenuation: true
             }));
             const cloud = new THREE.Group();
-            cloud.add(new THREE.Points(geometry, material));
+            const surfacePoints = new THREE.Points(geometry, material);
+            surfacePoints.userData.visualLayer = 'surface';
+            cloud.add(surfacePoints);
+            overviewPointLayers.push({
+                object: surfacePoints,
+                fullCount: count,
+                minimumCount: Math.min(count, definition.name === 'sun' ? 180 : 120)
+            });
+
+            if (features.wireframe && typeof THREE.WireframeGeometry === 'function'
+                && typeof THREE.SphereGeometry === 'function')
+            {
+                const sphereGeometry = new THREE.SphereGeometry(definition.radius, 14, 10);
+                const wireGeometry = track(new THREE.WireframeGeometry(sphereGeometry));
+                if (typeof sphereGeometry.dispose === 'function') sphereGeometry.dispose();
+                const wireMaterial = track(new THREE.LineBasicMaterial({
+                    color: definition.accent || 0x40556b,
+                    transparent: true,
+                    opacity: 0.11,
+                    blending: THREE.AdditiveBlending
+                }));
+                const wireframe = new THREE.LineSegments(wireGeometry, wireMaterial);
+                wireframe.userData.visualLayer = 'wireframe';
+                cloud.add(wireframe);
+            }
+
+            if (features.polarHexagon && typeof THREE.Line === 'function')
+            {
+                const hexPoints = [];
+                const hexRadius = definition.radius * 0.25;
+                const hexSurfaceY = definition.radius * 0.96;
+                for (let point = 0; point <= 6; point++)
+                {
+                    const angle = point * Math.PI / 3;
+                    hexPoints.push(new THREE.Vector3(
+                        hexRadius * Math.cos(angle),
+                        hexSurfaceY,
+                        hexRadius * Math.sin(angle)
+                    ));
+                }
+                const hexGeometry = track(new THREE.BufferGeometry().setFromPoints(hexPoints));
+                const hexMaterial = track(new THREE.LineBasicMaterial({
+                    color: definition.accent || 0x6b7e8c,
+                    transparent: true,
+                    opacity: 0.5,
+                    blending: THREE.AdditiveBlending
+                }));
+                const hexLine = new THREE.Line(hexGeometry, hexMaterial);
+                hexLine.userData.visualLayer = 'polar-hexagon';
+                cloud.add(hexLine);
+            }
+
+            if (features.moon && features.moonOrbit)
+            {
+                const moonDistance = definition.radius * 2.2;
+                const moonOrbitPoints = [];
+                for (let point = 0; point <= 64; point++)
+                {
+                    const angle = point / 64 * Math.PI * 2;
+                    moonOrbitPoints.push(new THREE.Vector3(
+                        Math.cos(angle) * moonDistance,
+                        Math.sin(angle) * 0.15,
+                        Math.sin(angle) * moonDistance
+                    ));
+                }
+                const moonOrbitGeometry = track(new THREE.BufferGeometry().setFromPoints(moonOrbitPoints));
+                const moonOrbitMaterial = track(new THREE.LineBasicMaterial({
+                    color: 0x6b7e8c,
+                    transparent: true,
+                    opacity: 0.22,
+                    blending: THREE.AdditiveBlending
+                }));
+                cloud.add(new THREE.LineLoop(moonOrbitGeometry, moonOrbitMaterial));
+
+                const moonGeometry = track(new THREE.BufferGeometry());
+                moonGeometry.setAttribute('position', new THREE.BufferAttribute(
+                    new Float32Array([moonDistance, 0, 0]), 3
+                ));
+                const moonMaterial = track(new THREE.PointsMaterial({
+                    size: 0.14,
+                    map: particleTexture,
+                    color: 0xcccccc,
+                    transparent: true,
+                    opacity: 0.88,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                }));
+                const moonPoints = new THREE.Points(moonGeometry, moonMaterial);
+                moonPoints.userData.visualLayer = 'moon';
+                cloud.add(moonPoints);
+                overviewPointLayers.push({object: moonPoints, fullCount: 1, minimumCount: 1});
+            }
+
+            if (features.flares)
+            {
+                const flareCount = Math.max(40, Math.round(240 * density));
+                const flarePositions = new Float32Array(flareCount * 3);
+                const flareColors = new Float32Array(flareCount * 3);
+                const flareData = [];
+                for (let flareIndex = 0; flareIndex < flareCount; flareIndex++)
+                {
+                    const angle = random() * Math.PI * 2;
+                    const elevation = (random() - 0.5) * 0.8;
+                    const radius = definition.radius * (1.02 + random() * 0.25);
+                    const offset = flareIndex * 3;
+                    flarePositions[offset] = Math.cos(angle) * radius;
+                    flarePositions[offset + 1] = elevation * definition.radius;
+                    flarePositions[offset + 2] = Math.sin(angle) * radius;
+                    flareColors[offset] = 1;
+                    flareColors[offset + 1] = 0.65 + random() * 0.35;
+                    flareColors[offset + 2] = 0.2;
+                    flareData.push({angle, radius, speed: 0.08 + random() * 0.16, phase: random() * Math.PI * 2});
+                }
+                const flareGeometry = track(new THREE.BufferGeometry());
+                flareGeometry.setAttribute('position', new THREE.BufferAttribute(flarePositions, 3));
+                flareGeometry.setAttribute('color', new THREE.BufferAttribute(flareColors, 3));
+                const flareMaterial = track(new THREE.PointsMaterial({
+                    size: 0.26,
+                    map: particleTexture,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 0.75,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                }));
+                const flarePoints = new THREE.Points(flareGeometry, flareMaterial);
+                flarePoints.userData.visualLayer = 'flares';
+                cloud.add(flarePoints);
+                overviewPointLayers.push({object: flarePoints, fullCount: flareCount, minimumCount: 24});
+                dynamicLayers.push({
+                    update(time)
+                    {
+                        const positions = flareGeometry.attributes.position.array;
+                        flareData.forEach((flare, index) =>
+                        {
+                            const radius = flare.radius + Math.sin(time * flare.speed + flare.phase) * 0.45;
+                            positions[index * 3] = Math.cos(flare.angle) * radius;
+                            positions[index * 3 + 2] = Math.sin(flare.angle) * radius;
+                        });
+                        flareGeometry.attributes.position.needsUpdate = true;
+                    }
+                });
+            }
+
             if (definition.atmosphere)
             {
                 const shellRatio = {
@@ -306,6 +502,7 @@
                 halo.scale.setScalar(definition.atmosphere.scale);
                 halo.userData.overviewSpin = definition.atmosphere.spin || 0;
                 effectLayers.push(halo);
+                overviewPointLayers.push({object: halo, fullCount: shellCount, minimumCount: 40});
                 cloud.add(halo);
             }
             return cloud;
@@ -332,27 +529,48 @@
 
         function createRings(parent, definition)
         {
-            const count = Math.round((definition.name === 'saturn' ? 1600 : 700) * density);
+            const count = Math.round((definition.name === 'saturn' ? 1800 : 700) * density);
             const positions = new Float32Array(count * 3);
             const colors = new Float32Array(count * 3);
             const ringColor = new THREE.Color();
+            const ringPalette = definition.visual && definition.visual.palette || {};
             for (let i = 0; i < count; i++)
             {
                 const angle = random() * Math.PI * 2;
-                const radius = definition.radius * (1.38 + random() * (definition.rings === 'saturn' ? 0.95 : 0.72));
+                let radius;
+                if (definition.rings === 'saturn')
+                {
+                    const segment = random();
+                    radius = segment < 0.52
+                        ? definition.radius * (1.24 + random() * 0.38)
+                        : (segment < 0.58
+                            ? definition.radius * (1.62 + random() * 0.1)
+                            : definition.radius * (1.72 + random() * 0.55));
+                }
+                else
+                {
+                    radius = definition.radius * (1.38 + random() * (definition.rings === 'uranus' ? 0.65 : 0.72));
+                }
+                const normalized = (radius / definition.radius - 1.38)
+                    / (definition.rings === 'saturn' ? 0.95 : 0.72);
                 const offset = i * 3;
                 positions[offset] = Math.cos(angle) * radius;
                 positions[offset + 1] = (random() - 0.5) * 0.055;
                 positions[offset + 2] = Math.sin(angle) * radius;
-                const normalized = (radius / definition.radius - 1.38)
-                    / (definition.rings === 'saturn' ? 0.95 : 0.72);
                 if (definition.rings === 'saturn')
                 {
-                    ringColor.set(normalized < 0.28 ? '#4a3b2a' : (normalized < 0.72 ? '#f0e4c0' : '#a0b0c0'));
+                    const normalized = radius / definition.radius;
+                    ringColor.set(normalized < 1.62
+                        ? (normalized < 1.38
+                            ? (ringPalette.ringDark || '#4a3b2a')
+                            : (ringPalette.ringBright || '#f0e4c0'))
+                        : (normalized < 1.72 ? '#2a241e' : (ringPalette.ringIce || '#a0b0c0')));
                 }
                 else if (definition.rings === 'uranus')
                 {
-                    ringColor.set(normalized > 0.76 ? '#40e0d0' : '#2a4f50');
+                    ringColor.set(random() > 0.5
+                        ? (ringPalette.ringBright || '#40e0d0')
+                        : (ringPalette.ringDark || '#2a4f50'));
                 }
                 else
                 {
@@ -379,7 +597,9 @@
             const rings = new THREE.Points(geometry, material);
             rings.rotation.x = definition.rings === 'uranus' ? Math.PI * 0.48 : Math.PI * 0.08;
             rings.userData.overviewSpin = definition.rings === 'neptune' ? 0.42 : 0.18;
+            rings.userData.visualLayer = 'rings';
             effectLayers.push(rings);
+            overviewPointLayers.push({object: rings, fullCount: count, minimumCount: 40});
             parent.add(rings);
         }
 
@@ -414,7 +634,10 @@
                 blending: THREE.AdditiveBlending,
                 depthWrite: false
             }));
-            system.add(new THREE.Points(geometry, material));
+            const belt = new THREE.Points(geometry, material);
+            belt.userData.visualLayer = 'asteroids';
+            system.add(belt);
+            overviewPointLayers.push({object: belt, fullCount: count, minimumCount: 120});
         }
 
         PLANETS.forEach((definition, index) =>
@@ -422,16 +645,19 @@
             if (definition.orbit > 0) createOrbit(definition.orbit, index);
             const orbitPivot = new THREE.Group();
             const body = new THREE.Group();
+            const tiltGroup = new THREE.Group();
+            tiltGroup.rotation.z = ((definition.visual && definition.visual.tilt) || 0) * (Math.PI / 180);
+            body.add(tiltGroup);
             const particles = createParticleSphere(definition, index);
-            body.add(particles);
-            if (definition.rings) createRings(body, definition);
+            tiltGroup.add(particles);
+            if (definition.rings) createRings(tiltGroup, definition);
             orbitPivot.add(body);
             system.add(orbitPivot);
             const angle = definition.phase;
             orbitPivot.rotation.y = angle;
             body.position.set(definition.orbit, 0, 0);
             body.scale.z = 0.98;
-            planetEntries.push({definition, orbitPivot, body, particles, angle});
+            planetEntries.push({definition, orbitPivot, body, tiltGroup, particles, angle});
         });
         createAsteroidBelt();
 
@@ -467,6 +693,33 @@
             });
         });
 
+        function applyQualityProfile(profile)
+        {
+            const nextProfile = profileRatios[profile] ? profile : 'balanced';
+            const visibleRatio = Math.min(1, profileRatios[nextProfile] / Math.max(0.1, density));
+            activeQualityProfile = nextProfile;
+            overviewPointLayers.forEach((layer) =>
+            {
+                if (!layer.object.geometry || typeof layer.object.geometry.setDrawRange !== 'function') return;
+                const count = Math.max(layer.minimumCount, Math.floor(layer.fullCount * visibleRatio));
+                layer.object.geometry.setDrawRange(0, Math.min(layer.fullCount, count));
+            });
+            const pixelRatio = Math.min(global.devicePixelRatio || 1, pixelRatioCaps[nextProfile] || 1.2);
+            if (typeof renderer.getPixelRatio !== 'function' || renderer.getPixelRatio() !== pixelRatio)
+            {
+                renderer.setPixelRatio(pixelRatio);
+            }
+        }
+
+        function handleQualityChange(event)
+        {
+            const profile = event && event.detail && event.detail.profile;
+            if (profile && profile !== 'auto') applyQualityProfile(profile);
+        }
+
+        global.addEventListener('observatory:quality', handleQualityChange);
+        applyQualityProfile(activeQualityProfile);
+
         function isInside(object, ancestor)
         {
             let current = object;
@@ -494,7 +747,8 @@
         {
             const elapsed = Math.max(0, timestamp - focusState.startedAt);
             const progress = Math.min(1, elapsed / FOCUS_DURATION_MS);
-            const eased = smootherstep(progress);
+            const cameraProgress = Math.min(1, progress / NAVIGATION_COMMIT_PROGRESS);
+            const eased = smootherstep(cameraProgress);
             const handoffProgress = navigationCommitted
                 ? Math.min(1, (timestamp - focusState.handoffStartedAt) / 720)
                 : 0;
@@ -506,14 +760,14 @@
             focusState.lookAt.lerpVectors(focusState.startLookAt, focusState.worldTarget, eased);
             camera.lookAt(focusState.lookAt);
 
-            const fade = 1 - smoothstep(progress / 0.86);
+            const fade = 1 - smoothstep(cameraProgress / 0.86);
             overviewMaterials.forEach((entry) =>
             {
                 const belongsToTarget = isInside(entry.object, focusState.target.body)
                     || (focusState.target.definition.name === 'sun' && entry.object === sunGlow);
                 entry.material.opacity = entry.opacity * (belongsToTarget ? 1 : fade);
             });
-            return progress >= 1;
+            return progress >= NAVIGATION_COMMIT_PROGRESS;
         }
 
         function prepareParticleHandoff()
@@ -525,9 +779,12 @@
             });
         }
 
-        function updateLabels()
+        function updateLabels(timestamp, force = false)
         {
-            const rect = container.getBoundingClientRect();
+            if (!force && !focusState && timestamp - lastLabelUpdateAt < 48) return;
+            lastLabelUpdateAt = timestamp;
+            labelRect = labelRect || container.getBoundingClientRect();
+            const rect = labelRect;
             planetEntries.forEach((entry) =>
             {
                 const label = labels.get(entry.definition.name);
@@ -543,7 +800,14 @@
                     && Math.abs(projected.x) < 1.08 && Math.abs(projected.y) < 1.08;
                 label.hidden = !visible;
                 if (!visible) return;
-                label.style.transform = `translate3d(${(projected.x * 0.5 + 0.5) * rect.width}px, ${(-projected.y * 0.5 + 0.5) * rect.height}px, 0)`;
+                const x = (projected.x * 0.5 + 0.5) * rect.width;
+                const y = (-projected.y * 0.5 + 0.5) * rect.height;
+                const previous = label._overviewPosition;
+                if (!previous || Math.abs(previous.x - x) > 0.2 || Math.abs(previous.y - y) > 0.2)
+                {
+                    label.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+                    label._overviewPosition = {x, y};
+                }
                 label.style.setProperty('--target-depth', String(1 - Math.max(0, projected.z) * 0.42));
             });
         }
@@ -566,7 +830,7 @@
                 camera.lookAt(0, 0, 0);
             }
             renderer.render(scene, camera);
-            updateLabels();
+            updateLabels(timestamp, Boolean(focusState));
 
             if (focusComplete && !navigationCommitted)
             {
@@ -599,6 +863,7 @@
                 {
                     layer.rotation.y += delta * layer.userData.overviewSpin;
                 });
+                dynamicLayers.forEach((layer) => layer.update(timestamp * 0.001, delta));
             }
             render(timestamp);
             frameHandle = global.requestAnimationFrame(tick);
@@ -611,7 +876,8 @@
             renderer.setSize(width, height, false);
             camera.aspect = width / height;
             camera.updateProjectionMatrix();
-            render();
+            labelRect = null;
+            render(global.performance ? global.performance.now() : Date.now());
         }
 
         function setScale(value)
@@ -760,6 +1026,7 @@
         function dispose()
         {
             stop();
+            global.removeEventListener('observatory:quality', handleQualityChange);
             disposables.forEach((resource) => resource && resource.dispose && resource.dispose());
             renderer.dispose();
         }

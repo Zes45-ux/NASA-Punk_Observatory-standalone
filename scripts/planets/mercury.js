@@ -13,9 +13,11 @@ const {scene, camera, renderer, group, tgtLabel} = createPlanetScene({
 
 // 帧率无关的动画步长因子（60fps 校准基准）
 const nextDeltaTime = createFrameDelta();
+const visualConfig = typeof PLANET_VISUAL_CONFIG !== 'undefined' ? PLANET_VISUAL_CONFIG.mercury : {};
+const visualPalette = visualConfig.palette || {};
 
 const planetTiltGroup      = new THREE.Group();
-planetTiltGroup.rotation.z = 0.03 * (Math.PI / 180);
+planetTiltGroup.rotation.z = (visualConfig.tilt || 0.03) * (Math.PI / 180);
 group.add(planetTiltGroup);
 
 const planetSpinGroup = new THREE.Group();
@@ -33,10 +35,10 @@ function createMercury()
 {
     const planetName = 'mercury';
 
-    const noiseGen = new SimplexNoise('mercury-surface');
-    const colBase  = new THREE.Color('#999999');
-    const colDark  = new THREE.Color('#555555');
-    const colLight = new THREE.Color('#cccccc');
+    const noiseGen = new SimplexNoise(visualConfig.surfaceSeed || 'mercury-surface');
+    const colBase  = new THREE.Color(visualPalette.base || '#999999');
+    const colDark  = new THREE.Color(visualPalette.dark || '#555555');
+    const colLight = new THREE.Color(visualPalette.light || '#cccccc');
     const surfaceColor = new THREE.Color();
 
     function sampleSurfaceParticle(i, positions, colors)
@@ -124,7 +126,7 @@ createMercury();
 const TAIL_COUNT  = 1200;
 const tailData    = new Array(TAIL_COUNT);
 let tailGeometry;
-const sodiumColor = new THREE.Color('#fff5cc');
+const sodiumColor = new THREE.Color(visualPalette.atmosphere || '#fff5cc');
 
 function initSodiumTail()
 {

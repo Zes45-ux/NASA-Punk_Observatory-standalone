@@ -148,7 +148,7 @@ test('particle scene hold is capped so a faulty effect cannot trap navigation', 
     const env = loadTransition();
     env.windowListeners.set('observatory:navigate-start', (event) => event.detail.holdFor(9999));
     env.api.navigate('venus.html');
-    assert.equal(env.timers.at(-1).delay, 1200);
+    assert.equal(env.timers.at(-1).delay, 1000);
 });
 
 test('registered Three.js point layers create bounded GPU bridge state', () => {
@@ -245,7 +245,7 @@ test('registered Three.js point layers create bounded GPU bridge state', () => {
 
     const serialized = Array.from(stored.values())[0];
     const bridge = JSON.parse(serialized);
-    assert.equal(env.timers.at(-1).delay, 720);
+    assert.equal(env.timers.at(-1).delay, 560);
     assert.equal(bridge.version, 3);
     assert.equal(bridge.mode, 'outgoing');
     assert.equal(bridge.target, 'mars.html');
@@ -270,6 +270,18 @@ test('registered scenes do not eagerly allocate a second WebGL context', () => {
     assert.equal(idleCallback, null);
 });
 
+test('late target-scene registration still starts the incoming bridge after readiness fallback', () => {
+    const source = fs.readFileSync('scripts/core/transition.js', 'utf8');
+    const registerBlock = source.slice(
+        source.indexOf('registerParticleScene:'),
+        source.indexOf('global.TransitionManager = TransitionManager')
+    );
+    assert.match(source, /let readyHandled = false/);
+    assert.match(source, /readyHandled = true/);
+    assert.match(registerBlock, /startIncomingParticleBridge\(\)/,
+        'registration retries incoming bridge setup when the ready timeout won the race');
+});
+
 test('source page stores the bridge without rendering a duplicate overlay', () => {
     const source = fs.readFileSync('scripts/core/transition.js', 'utf8');
     const navigateSource = source.slice(source.indexOf('function navigate(url)'), source.indexOf('const TransitionManager'));
@@ -289,8 +301,8 @@ test('particle bridge rendering stays on one GPU draw path instead of Canvas2D l
     const source = fs.readFileSync('scripts/core/transition.js', 'utf8');
     assert.ok(source.includes('new THREE.ShaderMaterial'));
     assert.ok(source.includes('bridgeRenderer.render(bridgeScene, bridgeCamera)'));
-    assert.ok(source.includes('PARTICLE_HANDOFF_MS = 420'));
-    assert.ok(source.includes('PARTICLE_OUTGOING_HOLD_MS = 180'));
+    assert.ok(source.includes('PARTICLE_HANDOFF_MS = 360'));
+    assert.ok(source.includes('PARTICLE_OUTGOING_HOLD_MS = 120'));
     assert.ok(source.includes('mesh.userData.fadeOutStartedAt = handoffStartedAt + PARTICLE_OUTGOING_HOLD_MS'));
     assert.ok(source.includes('progress >= 0.44'));
     assert.ok(source.includes("new CustomEvent('observatory:transition-complete')"));
@@ -298,6 +310,20 @@ test('particle bridge rendering stays on one GPU draw path instead of Canvas2D l
     assert.equal(source.includes('context.arc('), false);
     assert.equal(source.includes('Array.from(bridgeMeshes)'), false);
     assert.ok(source.includes('disposeBridgeMesh(mesh);\n                    continue;'));
+});
+
+test('particle bridge timing stays within the fast cross-page budget', () => {
+    const source = fs.readFileSync('scripts/core/transition.js', 'utf8');
+    assert.match(source, /const PARTICLE_EXIT_MS = 560/);
+    assert.match(source, /const PARTICLE_BRIDGE_MS = 1600/);
+    assert.match(source, /const PARTICLE_INCOMING_MS = 850/);
+    assert.match(source, /const MAX_EXIT_MS = 1000/);
+});
+
+test('waiting state keeps a dim scene fallback instead of hiding the target canvas', () => {
+    const css = fs.readFileSync('styles/transition.css', 'utf8');
+    assert.doesNotMatch(css, /body\.particle-transition-waiting #canvas-container\s*\{\s*opacity:\s*0;/);
+    assert.match(css, /body\.particle-transition-waiting #canvas-container\s*\{[\s\S]*opacity:\s*0\.\d+/);
 });
 
 test('target pages bootstrap the outgoing particles before Three.js loads', () => {
